@@ -2,6 +2,7 @@ import React, { useState, useEffect } from 'react';
 import { useNavigate, useOutletContext } from 'react-router-dom';
 import { useAuth } from '../context/AuthContext';
 import api from '../api/axios';
+import { withMineOnly } from '../utils/apiQuery';
 import {
   Plus, FolderKanban, Users, CheckSquare, TrendingUp,
   Calendar, ArrowRight, Trash2, MoreVertical
@@ -22,7 +23,8 @@ const StatCard = ({ icon: Icon, label, value, color, bg }) => (
 );
 
 export default function Dashboard() {
-  const { user } = useAuth();
+  const { user, adminMineOnly } = useAuth();
+  const isAdmin = user?.role === 'admin';
   const navigate = useNavigate();
   const { projects, setProjects, refetchProjects } = useOutletContext();
   const [taskStats, setTaskStats] = useState({ total: 0, done: 0 });
@@ -42,7 +44,7 @@ export default function Dashboard() {
           let total = 0, done = 0;
           await Promise.all(
             projects.map(async (p) => {
-              const res = await api.get(`/api/tasks/${p._id}`);
+              const res = await api.get(`/api/tasks/${p._id}${withMineOnly(isAdmin, adminMineOnly)}`);
               total += res.data.length;
               done += res.data.filter((t) => t.column === 'done').length;
             })
@@ -52,7 +54,7 @@ export default function Dashboard() {
       } catch (_) {}
     };
     fetchStats();
-  }, [projects, user]);
+  }, [projects, user, isAdmin, adminMineOnly]);
 
   const handleDelete = async (e, id) => {
     e.stopPropagation();
@@ -113,7 +115,7 @@ export default function Dashboard() {
           </div>
           <p className="text-xs text-slate-400 mt-2">
             {taskStats.done} of {taskStats.total} tasks completed
-            {user?.role === 'admin' ? ' across all projects' : ' (your assigned tasks)'}
+            {user?.role === 'admin' && !adminMineOnly ? ' across all projects' : ' (your assigned tasks)'}
           </p>
         </div>
       )}

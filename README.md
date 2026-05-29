@@ -91,8 +91,15 @@ Backend API: http://localhost:5000
 6. Add Environment Variables:
    - `MONGODB_URI` — your MongoDB Atlas connection string
    - `JWT_SECRET` — a strong random secret
-   - `FRONTEND_URL` — your GitHub Pages URL (`https://YOUR_USERNAME.github.io/YOUR_REPO`)
-7. Copy your Render URL (e.g. `https://project-management-api.onrender.com`)
+   - `FRONTEND_URL` — **origin only, no path**: `https://support-icon.github.io` (NOT `/Project-Management-Tool/`)
+7. Copy your Render URL (e.g. `https://project-management-tool-c6f9.onrender.com`)
+
+**MongoDB Atlas (required for Render):**
+1. Atlas → **Network Access** → **Add IP Address** → **Allow Access from Anywhere** (`0.0.0.0/0`)
+2. Atlas → **Database Access** → user with read/write on your database
+3. If the password has special characters, URL-encode it in `MONGODB_URI`
+
+**CORS troubleshooting:** The browser sends `Origin: https://support-icon.github.io` (no repo path). `FRONTEND_URL` on Render must match exactly.
 
 ### Frontend → GitHub Pages
 
@@ -149,6 +156,6 @@ project_management_tool/
 
 | Secret | Value |
 |--------|-------|
-| `VITE_API_URL` | Your Render backend URL |
+| `VITE_API_URL` | Your Render backend URL (no trailing slash), e.g. `https://project-management-tool-c6f9.onrender.com` |
 
 > **Note:** `MONGODB_URI` should be set directly in Render.com's environment variables panel — NOT as a GitHub Secret — to keep it secure.

@@ -3,6 +3,7 @@ import { useParams, useNavigate } from 'react-router-dom';
 import { DragDropContext, Droppable } from '@hello-pangea/dnd';
 import api from '../api/axios';
 import { useAuth } from '../context/AuthContext';
+import { withMineOnly } from '../utils/apiQuery';
 import toast from 'react-hot-toast';
 import TaskCard from '../components/TaskCard';
 import TaskModal from '../components/TaskModal';
@@ -22,8 +23,9 @@ const getColumnGradient = (colId, customColor) => {
 export default function KanbanPage() {
   const { projectId } = useParams();
   const navigate = useNavigate();
-  const { user } = useAuth();
+  const { user, adminMineOnly } = useAuth();
   const isAdmin = user?.role === 'admin';
+  const showMineOnly = isAdmin ? adminMineOnly : true;
 
   const [project, setProject] = useState(null);
   const [tasks, setTasks] = useState([]);
@@ -36,7 +38,7 @@ export default function KanbanPage() {
       setLoading(true);
       const [projRes, tasksRes] = await Promise.all([
         api.get(`/api/projects/${projectId}`),
-        api.get(`/api/tasks/${projectId}`),
+        api.get(`/api/tasks/${projectId}${withMineOnly(isAdmin, adminMineOnly)}`),
       ]);
       setProject(projRes.data);
       setTasks(tasksRes.data);
@@ -47,7 +49,7 @@ export default function KanbanPage() {
     } finally {
       setLoading(false);
     }
-  }, [projectId, navigate]);
+  }, [projectId, navigate, isAdmin, adminMineOnly]);
 
   useEffect(() => { fetchData(); }, [fetchData]);
 
@@ -163,9 +165,11 @@ export default function KanbanPage() {
 
   return (
     <div className="h-full flex flex-col bg-slate-100">
-      {!isAdmin && (
+      {showMineOnly && (
         <div className="mx-6 mt-4 px-4 py-2.5 bg-indigo-50 border border-indigo-100 rounded-xl text-sm text-indigo-700 flex-shrink-0">
-          Showing only your assigned tasks in this project.
+          {isAdmin
+            ? 'My Tasks mode — showing only tasks assigned to you. Use the header button to see all tasks.'
+            : 'Showing only your assigned tasks in this project.'}
         </div>
       )}
 

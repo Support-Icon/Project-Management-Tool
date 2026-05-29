@@ -1,11 +1,16 @@
 const Task = require('../models/Task');
 const Project = require('../models/Project');
 
-/** Members only see tasks assigned to them; admins see all company tasks. */
-const memberTaskFilter = (user) => {
-  if (user.role === 'admin') return {};
-  return { assignee: user._id };
+const isMineOnlyRequest = (mineOnly) => mineOnly === 'true' || mineOnly === '1';
+
+/** Members always see own tasks; admins see all unless mineOnly is set. */
+const getTaskFilterForUser = (user, mineOnly) => {
+  if (user.role !== 'admin') return { assignee: user._id };
+  if (isMineOnlyRequest(mineOnly)) return { assignee: user._id };
+  return {};
 };
+
+const memberTaskFilter = (user) => getTaskFilterForUser(user, false);
 
 const userCanAccessTask = (user, task) => {
   if (user.role === 'admin') return true;
@@ -33,6 +38,8 @@ const userCanAccessProject = async (user, projectId) => {
 
 module.exports = {
   memberTaskFilter,
+  getTaskFilterForUser,
+  isMineOnlyRequest,
   userCanAccessTask,
   getInvolvedProjectIds,
   userCanAccessProject,

@@ -2,19 +2,16 @@ const express = require('express');
 const cors = require('cors');
 const dotenv = require('dotenv');
 const connectDB = require('./config/db');
+const { corsOptions } = require('./config/cors');
 
 dotenv.config();
 
 const app = express();
 
-connectDB();
-
-app.use(cors({
-  origin: process.env.FRONTEND_URL || '*',
-  credentials: true
-}));
-
+app.use(cors(corsOptions));
 app.use(express.json());
+
+connectDB();
 
 app.use('/api/auth', require('./routes/auth'));
 app.use('/api/users', require('./routes/users'));

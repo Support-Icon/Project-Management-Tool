@@ -2,15 +2,17 @@ import React, { useState, useEffect } from 'react';
 import { Outlet, NavLink, useNavigate, useParams } from 'react-router-dom';
 import { useAuth } from '../context/AuthContext';
 import api from '../api/axios';
+import { withMineOnly } from '../utils/apiQuery';
 import {
   LayoutDashboard, Users, FolderKanban, Plus, LogOut,
-  ChevronRight, Layers, Menu, X, Building2, Briefcase, FileSpreadsheet
+  ChevronRight, Layers, Menu, X, Building2, Briefcase, FileSpreadsheet, UserCheck
 } from 'lucide-react';
 import toast from 'react-hot-toast';
 import ProjectModal from './ProjectModal';
 
 export default function Layout() {
-  const { user, logout } = useAuth();
+  const { user, logout, adminMineOnly, toggleAdminMineOnly } = useAuth();
+  const isAdmin = user?.role === 'admin';
   const navigate = useNavigate();
   const [projects, setProjects] = useState([]);
   const [showProjectModal, setShowProjectModal] = useState(false);
@@ -18,12 +20,12 @@ export default function Layout() {
 
   const fetchProjects = async () => {
     try {
-      const res = await api.get('/api/projects');
+      const res = await api.get(`/api/projects${withMineOnly(isAdmin, adminMineOnly)}`);
       setProjects(res.data);
     } catch (_) {}
   };
 
-  useEffect(() => { fetchProjects(); }, []);
+  useEffect(() => { fetchProjects(); }, [isAdmin, adminMineOnly]);
 
   const handleLogout = () => {
     logout();
@@ -190,6 +192,21 @@ export default function Layout() {
             {sidebarOpen ? <X size={20} /> : <Menu size={20} />}
           </button>
           <div className="flex-1" />
+          {isAdmin && (
+            <button
+              type="button"
+              onClick={toggleAdminMineOnly}
+              className={`flex items-center gap-2 text-sm font-semibold px-3 py-1.5 rounded-lg border transition-all ${
+                adminMineOnly
+                  ? 'bg-indigo-600 text-white border-indigo-600 shadow-sm'
+                  : 'bg-white text-slate-600 border-slate-200 hover:border-indigo-300 hover:text-indigo-600'
+              }`}
+              title={adminMineOnly ? 'Showing only your tasks — click for all tasks' : 'Show only tasks assigned to you'}
+            >
+              <UserCheck size={16} />
+              {adminMineOnly ? 'My Tasks' : 'My Tasks Only'}
+            </button>
+          )}
           <div className="flex items-center gap-2 text-sm text-slate-500">
             <Building2 size={14} />
             <span className="font-medium text-slate-700">{user?.company?.name}</span>

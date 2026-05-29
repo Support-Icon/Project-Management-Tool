@@ -2,7 +2,7 @@ const express = require('express');
 const Task = require('../models/Task');
 const Project = require('../models/Project');
 const { auth } = require('../middleware/auth');
-const { memberTaskFilter, userCanAccessTask, userCanAccessProject } = require('../utils/taskAccess');
+const { getTaskFilterForUser, userCanAccessTask, userCanAccessProject } = require('../utils/taskAccess');
 
 const router = express.Router();
 
@@ -25,7 +25,7 @@ router.get('/:projectId', auth, async (req, res) => {
 
     const tasks = await Task.find({
       project: req.params.projectId,
-      ...memberTaskFilter(req.user),
+      ...getTaskFilterForUser(req.user, req.query.mineOnly),
     })
       .populate('assignee', 'username')
       .populate('createdBy', 'username')

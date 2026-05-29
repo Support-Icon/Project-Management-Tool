@@ -2,7 +2,7 @@ const express = require('express');
 const Project = require('../models/Project');
 const Task = require('../models/Task');
 const { auth, adminOnly } = require('../middleware/auth');
-const { getInvolvedProjectIds, userCanAccessProject } = require('../utils/taskAccess');
+const { getInvolvedProjectIds, userCanAccessProject, isMineOnlyRequest } = require('../utils/taskAccess');
 
 const router = express.Router();
 
@@ -12,7 +12,7 @@ router.get('/', auth, async (req, res) => {
     const companyId = req.user.company._id;
     const filter = { company: companyId };
 
-    if (req.user.role !== 'admin') {
+    if (req.user.role !== 'admin' || isMineOnlyRequest(req.query.mineOnly)) {
       const involvedIds = await getInvolvedProjectIds(req.user, companyId);
       filter._id = { $in: involvedIds };
     }

@@ -3,9 +3,22 @@ import api from '../api/axios';
 
 const AuthContext = createContext(null);
 
+const ADMIN_MINE_ONLY_KEY = 'adminMineOnly';
+
 export const AuthProvider = ({ children }) => {
   const [user, setUser] = useState(null);
   const [loading, setLoading] = useState(true);
+  const [adminMineOnly, setAdminMineOnly] = useState(
+    () => localStorage.getItem(ADMIN_MINE_ONLY_KEY) === 'true'
+  );
+
+  const toggleAdminMineOnly = () => {
+    setAdminMineOnly((prev) => {
+      const next = !prev;
+      localStorage.setItem(ADMIN_MINE_ONLY_KEY, String(next));
+      return next;
+    });
+  };
 
   useEffect(() => {
     const stored = localStorage.getItem('auth');
@@ -68,7 +81,17 @@ export const AuthProvider = ({ children }) => {
   };
 
   return (
-    <AuthContext.Provider value={{ user, loading, login, register, logout }}>
+    <AuthContext.Provider
+      value={{
+        user,
+        loading,
+        login,
+        register,
+        logout,
+        adminMineOnly,
+        toggleAdminMineOnly,
+      }}
+    >
       {children}
     </AuthContext.Provider>
   );
