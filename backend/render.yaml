@@ -6,6 +6,8 @@ services:
     startCommand: npm start
     rootDir: backend
     envVars:
+      - key: NODE_VERSION
+        value: "20.18.0"
       - key: MONGODB_URI
         sync: false
       - key: JWT_SECRET

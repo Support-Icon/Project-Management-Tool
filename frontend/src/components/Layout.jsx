@@ -10,6 +10,7 @@ import {
 } from 'lucide-react';
 import toast from 'react-hot-toast';
 import ProjectModal from './ProjectModal';
+import AiChatWidget from './AiChatWidget';
 
 export default function Layout() {
   const { user, logout, adminMineOnly, toggleAdminMineOnly } = useAuth();
@@ -252,6 +253,8 @@ export default function Layout() {
           onCreated={handleProjectCreated}
         />
       )}
+
+      <AiChatWidget />
     </div>
   );
 }

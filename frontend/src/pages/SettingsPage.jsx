@@ -1,5 +1,5 @@
 import React, { useEffect, useState } from 'react';
-import { Mail, Clock, ShieldCheck, Send, Save, Eye, EyeOff, Info } from 'lucide-react';
+import { Mail, Clock, ShieldCheck, Send, Save, Eye, EyeOff, Info, Trash2, Bot } from 'lucide-react';
 import toast from 'react-hot-toast';
 import api from '../api/axios';
 import { useAuth } from '../context/AuthContext';
@@ -33,8 +33,20 @@ export default function SettingsPage() {
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
   const [testing, setTesting] = useState(false);
+  const [deleting, setDeleting] = useState(false);
+  const [savingAi, setSavingAi] = useState(false);
   const [showPassword, setShowPassword] = useState(false);
+  const [showAiKey, setShowAiKey] = useState(false);
   const [testRecipient, setTestRecipient] = useState(user?.email || '');
+  const [aiForm, setAiForm] = useState({
+    enabled: false,
+    provider: 'groq',
+    model: 'llama-3.3-70b-versatile',
+    temperature: 0.2,
+    apiKey: '',
+    hasApiKey: false,
+    providers: [],
+  });
   const [form, setForm] = useState({
     email: {
       enabled: false,
@@ -60,18 +72,28 @@ export default function SettingsPage() {
   });
 
   useEffect(() => {
-    api.get('/api/settings')
-      .then((res) => setForm((current) => ({
-        email: {
-          ...current.email,
-          ...res.data.email,
-          appPassword: '',
-          resendApiKey: '',
-          sesSecretAccessKey: '',
-          provider: res.data.email?.provider || 'ses',
-        },
-        digest: { ...current.digest, ...res.data.digest },
-      })))
+    Promise.all([
+      api.get('/api/settings'),
+      api.get('/api/ai/settings'),
+    ])
+      .then(([emailRes, aiRes]) => {
+        setForm((current) => ({
+          email: {
+            ...current.email,
+            ...emailRes.data.email,
+            appPassword: '',
+            resendApiKey: '',
+            sesSecretAccessKey: '',
+            provider: emailRes.data.email?.provider || 'ses',
+          },
+          digest: { ...current.digest, ...emailRes.data.digest },
+        }));
+        setAiForm((current) => ({
+          ...current,
+          ...aiRes.data,
+          apiKey: '',
+        }));
+      })
       .catch(() => toast.error('Failed to load settings'))
       .finally(() => setLoading(false));
   }, []);
@@ -80,6 +102,8 @@ export default function SettingsPage() {
     setForm((current) => ({ ...current, email: { ...current.email, [key]: value } }));
   const updateDigest = (key, value) =>
     setForm((current) => ({ ...current, digest: { ...current.digest, [key]: value } }));
+  const updateAi = (key, value) =>
+    setAiForm((current) => ({ ...current, [key]: value }));
 
   const save = async (event) => {
     event.preventDefault();
@@ -101,6 +125,55 @@ export default function SettingsPage() {
       toast.error(error.response?.data?.message || 'Failed to save settings');
     } finally {
       setSaving(false);
+    }
+  };
+
+  const saveAi = async () => {
+    setSavingAi(true);
+    try {
+      const res = await api.put('/api/ai/settings', aiForm);
+      setAiForm((current) => ({ ...current, ...res.data, apiKey: '' }));
+      toast.success('AI settings saved');
+    } catch (error) {
+      toast.error(error.response?.data?.message || 'Failed to save AI settings');
+    } finally {
+      setSavingAi(false);
+    }
+  };
+
+  const deleteEmailConfig = async () => {
+    if (!window.confirm('Delete all saved email service settings?')) return;
+    setDeleting(true);
+    try {
+      const res = await api.delete('/api/settings/email');
+      setForm({
+        email: {
+          enabled: false,
+          provider: 'ses',
+          gmailUser: '',
+          fromEmail: '',
+          appPassword: '',
+          resendApiKey: '',
+          sesAccessKeyId: '',
+          sesSecretAccessKey: '',
+          sesRegion: 'ap-south-1',
+          hasAppPassword: false,
+          hasResendApiKey: false,
+          hasSesSecret: false,
+          fromName: 'ProjectFlow',
+          assignmentEnabled: true,
+        },
+        digest: {
+          enabled: false,
+          time: '10:00',
+          timezone: 'Asia/Kolkata',
+        },
+      });
+      toast.success(res.data.message || 'Email configuration deleted');
+    } catch (error) {
+      toast.error(error.response?.data?.message || 'Failed to delete email settings');
+    } finally {
+      setDeleting(false);
     }
   };
 
@@ -453,14 +526,136 @@ export default function SettingsPage() {
           </div>
         </section>
 
-        <button
-          type="submit"
-          disabled={saving}
-          className="w-full py-3 rounded-xl bg-indigo-600 hover:bg-indigo-700 text-white font-semibold flex items-center justify-center gap-2 disabled:opacity-60"
-        >
-          <Save size={17} /> {saving ? 'Saving…' : 'Save Settings'}
-        </button>
+        <div className="flex flex-col sm:flex-row gap-3">
+          <button
+            type="submit"
+            disabled={saving}
+            className="flex-1 py-3 rounded-xl bg-indigo-600 hover:bg-indigo-700 text-white font-semibold flex items-center justify-center gap-2 disabled:opacity-60"
+          >
+            <Save size={17} /> {saving ? 'Saving…' : 'Save Email Settings'}
+          </button>
+          <button
+            type="button"
+            onClick={deleteEmailConfig}
+            disabled={deleting}
+            className="px-4 py-3 rounded-xl border border-red-200 text-red-600 hover:bg-red-50 font-semibold flex items-center justify-center gap-2 disabled:opacity-60"
+          >
+            <Trash2 size={16} /> {deleting ? 'Deleting…' : 'Delete Email Config'}
+          </button>
+        </div>
       </form>
+
+      <section className="mt-8 bg-white rounded-2xl border border-slate-100 shadow-sm p-6">
+        <div className="flex items-start justify-between gap-4 mb-5">
+          <div className="flex gap-3">
+            <div className="w-10 h-10 rounded-xl bg-violet-50 text-violet-600 flex items-center justify-center">
+              <Bot size={20} />
+            </div>
+            <div>
+              <h3 className="font-bold text-slate-800">AI Assistant (LangGraph)</h3>
+              <p className="text-xs text-slate-500 mt-1">
+                Chatbot for assign tasks, daily reports, create projects. Admin sees team reports; members see personal reports.
+              </p>
+            </div>
+          </div>
+          <label className="flex items-center gap-2 text-sm font-medium text-slate-600">
+            <input
+              type="checkbox"
+              checked={aiForm.enabled}
+              onChange={(e) => updateAi('enabled', e.target.checked)}
+              className="w-4 h-4 text-indigo-600 rounded"
+            />
+            Enabled
+          </label>
+        </div>
+
+        <div className="grid sm:grid-cols-2 gap-4">
+          <label className="text-sm text-slate-600">
+            <span className="block text-xs font-semibold uppercase mb-1.5">Provider</span>
+            <select
+              value={aiForm.provider}
+              onChange={(e) => {
+                const provider = e.target.value;
+                const found = (aiForm.providers || []).find((p) => p.id === provider);
+                setAiForm((current) => ({
+                  ...current,
+                  provider,
+                  model: found?.defaultModel || current.model,
+                }));
+              }}
+              className="w-full px-4 py-3 rounded-xl border border-slate-200 bg-white"
+            >
+              {(aiForm.providers?.length
+                ? aiForm.providers
+                : [
+                  { id: 'groq', label: 'Groq' },
+                  { id: 'openai', label: 'OpenAI' },
+                  { id: 'gemini', label: 'Gemini' },
+                  { id: 'claude', label: 'Claude' },
+                ]
+              ).map((p) => (
+                <option key={p.id} value={p.id}>{p.label}</option>
+              ))}
+            </select>
+          </label>
+          <label className="text-sm text-slate-600">
+            <span className="block text-xs font-semibold uppercase mb-1.5">Model</span>
+            <input
+              value={aiForm.model}
+              onChange={(e) => updateAi('model', e.target.value)}
+              className="w-full px-4 py-3 rounded-xl border border-slate-200"
+            />
+          </label>
+          <label className="sm:col-span-2 text-sm text-slate-600">
+            <span className="block text-xs font-semibold uppercase mb-1.5">
+              API Key {aiForm.hasApiKey && '(saved — leave blank to keep)'}
+            </span>
+            <div className="relative">
+              <input
+                type={showAiKey ? 'text' : 'password'}
+                value={aiForm.apiKey}
+                onChange={(e) => updateAi('apiKey', e.target.value)}
+                placeholder={aiForm.hasApiKey ? '••••••••••••' : 'Paste provider API key'}
+                className="w-full px-4 py-3 pr-11 rounded-xl border border-slate-200"
+              />
+              <button
+                type="button"
+                onClick={() => setShowAiKey((v) => !v)}
+                className="absolute right-3 top-3.5 text-slate-400"
+              >
+                {showAiKey ? <EyeOff size={17} /> : <Eye size={17} />}
+              </button>
+            </div>
+          </label>
+        </div>
+
+        <div className="flex flex-col sm:flex-row gap-3 mt-5">
+          <button
+            type="button"
+            onClick={saveAi}
+            disabled={savingAi}
+            className="flex-1 py-3 rounded-xl bg-violet-600 hover:bg-violet-700 text-white font-semibold flex items-center justify-center gap-2 disabled:opacity-60"
+          >
+            <Save size={17} /> {savingAi ? 'Saving…' : 'Save AI Settings'}
+          </button>
+          <button
+            type="button"
+            onClick={async () => {
+              if (!window.confirm('Clear AI configuration?')) return;
+              try {
+                const res = await api.delete('/api/ai/settings');
+                setAiForm((current) => ({ ...current, ...res.data, apiKey: '' }));
+                toast.success('AI configuration cleared');
+              } catch (error) {
+                toast.error(error.response?.data?.message || 'Failed to clear AI settings');
+              }
+            }}
+            className="px-4 py-3 rounded-xl border border-red-200 text-red-600 hover:bg-red-50 font-semibold flex items-center justify-center gap-2"
+          >
+            <Trash2 size={16} /> Delete AI Config
+          </button>
+        </div>
+      </section>
     </div>
   );
 }

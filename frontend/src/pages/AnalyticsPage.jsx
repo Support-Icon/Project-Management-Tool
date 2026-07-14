@@ -83,8 +83,8 @@ export default function AnalyticsPage() {
         <>
           <div className="grid grid-cols-2 lg:grid-cols-5 gap-4 mb-6">
             <Stat icon={ClipboardList} label="Open assigned tasks" value={overview.summary.openTasks} tone="bg-indigo-50 text-indigo-600" />
-            <Stat icon={Activity} label="Updates today" value={overview.summary.updatesToday} tone="bg-emerald-50 text-emerald-600" />
-            <Stat icon={AlertCircle} label="Missing today" value={overview.summary.missingToday} tone="bg-amber-50 text-amber-600" />
+            <Stat icon={Activity} label="Daily updated correctly" value={overview.summary.updatesToday} tone="bg-emerald-50 text-emerald-600" />
+            <Stat icon={AlertCircle} label="Missed update reports" value={overview.summary.missingToday} tone="bg-amber-50 text-amber-600" />
             <Stat icon={CheckCircle2} label="Completed in period" value={overview.summary.completedInPeriod} tone="bg-purple-50 text-purple-600" />
             <Stat icon={Users} label="Active people" value={overview.summary.activePeople} tone="bg-sky-50 text-sky-600" />
           </div>
@@ -93,7 +93,7 @@ export default function AnalyticsPage() {
             <div className="px-5 py-4 border-b border-slate-100">
               <h3 className="font-bold text-slate-800">Performance by Person</h3>
               <p className="text-xs text-slate-500 mt-1">
-                Update compliance is based on days with at least one submitted update.
+                Daily updated correctly = submitted today. Missed update report = open tasks without today&apos;s update.
               </p>
             </div>
             <div className="overflow-x-auto">
@@ -102,9 +102,9 @@ export default function AnalyticsPage() {
                   <tr className="text-left text-xs uppercase text-slate-500">
                     <th className="px-5 py-3">Person</th>
                     <th className="px-4 py-3">Open</th>
-                    <th className="px-4 py-3">Updated Today</th>
-                    <th className="px-4 py-3">Missing Today</th>
-                    <th className="px-4 py-3">Period Updates</th>
+                    <th className="px-4 py-3">Daily Updated Correctly</th>
+                    <th className="px-4 py-3">Missed Update Report</th>
+                    <th className="px-4 py-3">Update Reports in Period</th>
                     <th className="px-4 py-3">Compliance</th>
                     <th className="px-4 py-3">Blockers</th>
                   </tr>

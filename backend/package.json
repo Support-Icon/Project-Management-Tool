@@ -9,6 +9,11 @@
   },
   "dependencies": {
     "@aws-sdk/client-ses": "^3.679.0",
+    "@langchain/anthropic": "^1.5.1",
+    "@langchain/core": "^1.2.2",
+    "@langchain/google-genai": "^2.2.0",
+    "@langchain/langgraph": "^1.4.7",
+    "@langchain/openai": "^1.5.5",
     "bcryptjs": "^2.4.3",
     "cors": "^2.8.5",
     "dotenv": "^16.3.1",
@@ -16,12 +21,13 @@
     "jsonwebtoken": "^9.0.2",
     "luxon": "^3.7.2",
     "mongoose": "^7.5.0",
-    "nodemailer": "^9.0.3"
+    "nodemailer": "^9.0.3",
+    "zod": "^4.4.3"
   },
   "devDependencies": {
     "nodemon": "^3.0.1"
   },
   "engines": {
-    "node": ">=18.0.0"
+    "node": ">=20.0.0"
   }
 }

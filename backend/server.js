@@ -21,6 +21,7 @@ app.use('/api/task-updates', require('./routes/taskUpdates'));
 app.use('/api/reports', require('./routes/reports'));
 app.use('/api/settings', require('./routes/settings'));
 app.use('/api/analytics', require('./routes/analytics'));
+app.use('/api/ai', require('./routes/ai'));
 app.use('/api/internal', require('./routes/internal'));
 
 app.get('/health', (req, res) => res.json({ status: 'ok', timestamp: new Date() }));

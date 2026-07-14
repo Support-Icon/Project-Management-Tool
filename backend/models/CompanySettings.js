@@ -28,6 +28,17 @@ const companySettingsSchema = new mongoose.Schema({
     lastSentDate: { type: String, default: '' },
     lastSentAt: { type: Date, default: null }
   },
+  ai: {
+    enabled: { type: Boolean, default: false },
+    provider: {
+      type: String,
+      enum: ['groq', 'openai', 'gemini', 'claude'],
+      default: 'groq'
+    },
+    model: { type: String, default: 'llama-3.3-70b-versatile' },
+    apiKeyEncrypted: { type: String, default: '' },
+    temperature: { type: Number, default: 0.2 }
+  },
   updatedAt: { type: Date, default: Date.now }
 });
 

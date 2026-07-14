@@ -174,4 +174,41 @@ router.post('/test-email', async (req, res) => {
   }
 });
 
+router.delete('/email', async (req, res) => {
+  try {
+    const settings = await CompanySettings.findOneAndUpdate(
+      { company: req.user.company._id },
+      {
+        $set: {
+          'email.enabled': false,
+          'email.provider': 'ses',
+          'email.gmailUser': '',
+          'email.fromEmail': '',
+          'email.fromName': 'ProjectFlow',
+          'email.assignmentEnabled': true,
+          'email.appPasswordEncrypted': '',
+          'email.resendApiKeyEncrypted': '',
+          'email.sesAccessKeyId': '',
+          'email.sesSecretAccessKeyEncrypted': '',
+          'email.sesRegion': 'ap-south-1',
+          'digest.enabled': false,
+          'digest.time': '10:00',
+          'digest.timezone': 'Asia/Kolkata',
+          'digest.lastSentDate': '',
+          'digest.lastSentAt': null,
+          updatedAt: new Date()
+        }
+      },
+      { new: true, upsert: true }
+    );
+
+    res.json({
+      message: 'Email configuration deleted',
+      ...publicSettings(settings)
+    });
+  } catch (error) {
+    res.status(500).json({ message: error.message });
+  }
+});
+
 module.exports = router;
