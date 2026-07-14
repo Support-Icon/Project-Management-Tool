@@ -14,3 +14,7 @@ services:
         value: production
       - key: FRONTEND_URL
         sync: false
+      - key: ENCRYPTION_KEY
+        generateValue: true
+      - key: CRON_SECRET
+        generateValue: true

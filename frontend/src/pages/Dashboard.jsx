@@ -5,7 +5,7 @@ import api from '../api/axios';
 import { withMineOnly } from '../utils/apiQuery';
 import {
   Plus, FolderKanban, Users, CheckSquare, TrendingUp,
-  Calendar, ArrowRight, Trash2, MoreVertical
+  Calendar, ArrowRight, Trash2, MoreVertical, Activity
 } from 'lucide-react';
 import toast from 'react-hot-toast';
 import ProjectModal from '../components/ProjectModal';
@@ -31,10 +31,13 @@ export default function Dashboard() {
   const [userCount, setUserCount] = useState(0);
   const [showModal, setShowModal] = useState(false);
   const [menuOpen, setMenuOpen] = useState(null);
+  const [pendingUpdates, setPendingUpdates] = useState({ date: '', tasks: [] });
 
   useEffect(() => {
     const fetchStats = async () => {
       try {
+        const pendingRes = await api.get('/api/task-updates/pending/mine');
+        setPendingUpdates(pendingRes.data);
         if (user?.role === 'admin') {
           const usersRes = await api.get('/api/users');
           setUserCount(usersRes.data.length);
@@ -89,6 +92,35 @@ export default function Dashboard() {
         </h2>
         <p className="text-slate-500 mt-1">Here's what's happening at <span className="font-semibold text-indigo-600">{user?.company?.name}</span> today.</p>
       </div>
+
+      {pendingUpdates.tasks.length > 0 && (
+        <div className="mb-6 bg-amber-50 border border-amber-200 rounded-2xl p-5">
+          <div className="flex items-start gap-3">
+            <div className="w-10 h-10 rounded-xl bg-amber-100 text-amber-700 flex items-center justify-center">
+              <Activity size={20} />
+            </div>
+            <div className="flex-1">
+              <h3 className="font-bold text-amber-900">
+                {pendingUpdates.tasks.length} daily update{pendingUpdates.tasks.length !== 1 ? 's' : ''} pending
+              </h3>
+              <p className="text-xs text-amber-700 mt-1">
+                Add today’s progress before completing your assigned tasks.
+              </p>
+              <div className="flex flex-wrap gap-2 mt-3">
+                {pendingUpdates.tasks.slice(0, 5).map((task) => (
+                  <button
+                    key={task._id}
+                    onClick={() => navigate(`/kanban/${task.project._id}`)}
+                    className="px-3 py-1.5 rounded-lg bg-white border border-amber-200 text-xs font-semibold text-amber-800 hover:border-amber-400"
+                  >
+                    {task.title}
+                  </button>
+                ))}
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
 
       {/* Stats */}
       <div className="grid grid-cols-2 lg:grid-cols-4 gap-4 mb-8">

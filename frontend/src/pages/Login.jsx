@@ -2,7 +2,7 @@ import React, { useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { useAuth } from '../context/AuthContext';
 import toast from 'react-hot-toast';
-import { Eye, EyeOff, Layers, ArrowRight, Building2, User, Lock } from 'lucide-react';
+import { Eye, EyeOff, Layers, ArrowRight, Building2, User, Lock, Mail } from 'lucide-react';
 
 const InputField = ({ icon: Icon, type, placeholder, value, onChange, rightElement }) => (
   <div className="relative">
@@ -29,7 +29,7 @@ export default function Login() {
   const [tab, setTab] = useState('login');
   const [loading, setLoading] = useState(false);
   const [showPass, setShowPass] = useState(false);
-  const [form, setForm] = useState({ username: '', password: '', companyName: '' });
+  const [form, setForm] = useState({ username: '', email: '', password: '', companyName: '' });
 
   const set = (k) => (e) => setForm((f) => ({ ...f, [k]: e.target.value }));
 
@@ -46,7 +46,7 @@ export default function Login() {
           setLoading(false);
           return;
         }
-        await register(form.username, form.password, form.companyName);
+        await register(form.username, form.email, form.password, form.companyName);
         toast.success('Account created! Welcome aboard.');
       }
       navigate('/');
@@ -127,6 +127,21 @@ export default function Login() {
                 onChange={set('username')}
               />
             </div>
+
+            {tab === 'register' && (
+              <div>
+                <label className="block text-xs font-semibold text-slate-300 mb-1.5 uppercase tracking-wide">
+                  Email
+                </label>
+                <InputField
+                  icon={Mail}
+                  type="email"
+                  placeholder="you@company.com"
+                  value={form.email}
+                  onChange={set('email')}
+                />
+              </div>
+            )}
 
             <div>
               <label className="block text-xs font-semibold text-slate-300 mb-1.5 uppercase tracking-wide">

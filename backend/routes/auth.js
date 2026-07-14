@@ -10,10 +10,10 @@ const router = express.Router();
 // Register — first user in a company becomes admin
 router.post('/register', async (req, res) => {
   try {
-    const { username, password, companyName } = req.body;
+    const { username, email, password, companyName } = req.body;
 
-    if (!username || !password || !companyName) {
-      return res.status(400).json({ message: 'Username, password and company name are required' });
+    if (!username || !email || !password || !companyName) {
+      return res.status(400).json({ message: 'Username, email, password and company name are required' });
     }
     if (password.length < 6) {
       return res.status(400).json({ message: 'Password must be at least 6 characters' });
@@ -43,6 +43,7 @@ router.post('/register', async (req, res) => {
     const hashedPassword = await bcrypt.hash(password, 10);
     const user = await User.create({
       username: username.trim(),
+      email: email.trim().toLowerCase(),
       password: hashedPassword,
       role: isAdmin ? 'admin' : 'member',
       company: company._id
@@ -55,6 +56,7 @@ router.post('/register', async (req, res) => {
       user: {
         _id: user._id,
         username: user.username,
+        email: user.email,
         role: user.role,
         company: { _id: company._id, name: company.name }
       }
@@ -86,6 +88,7 @@ router.post('/login', async (req, res) => {
       user: {
         _id: user._id,
         username: user.username,
+        email: user.email,
         role: user.role,
         company: { _id: user.company._id, name: user.company.name }
       }
@@ -101,6 +104,7 @@ router.get('/me', auth, (req, res) => {
   res.json({
     _id: u._id,
     username: u.username,
+    email: u.email,
     role: u.role,
     company: { _id: u.company._id, name: u.company.name }
   });

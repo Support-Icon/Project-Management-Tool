@@ -1,6 +1,6 @@
 import React from 'react';
 import { Draggable } from '@hello-pangea/dnd';
-import { Calendar, User, Edit3, Trash2, Flag } from 'lucide-react';
+import { Activity, Calendar, Edit3, Trash2 } from 'lucide-react';
 
 const priorityConfig = {
   high: {
@@ -20,7 +20,7 @@ const priorityConfig = {
   },
 };
 
-export default function TaskCard({ task, index, onEdit, onDelete }) {
+export default function TaskCard({ task, index, onEdit, onDelete, onDailyUpdate, canAddDailyUpdate }) {
   const pc = priorityConfig[task.priority] || priorityConfig.medium;
 
   const isOverdue =
@@ -45,6 +45,15 @@ export default function TaskCard({ task, index, onEdit, onDelete }) {
           <div className="flex items-start justify-between gap-2 mb-2">
             <p className="font-semibold text-slate-800 text-sm leading-snug flex-1">{task.title}</p>
             <div className="flex items-center gap-1 opacity-0 group-hover:opacity-100 transition-opacity flex-shrink-0">
+              {canAddDailyUpdate && task.column !== 'done' && (
+                <button
+                  onClick={(e) => { e.stopPropagation(); onDailyUpdate(task); }}
+                  className="p-1 text-slate-400 hover:text-emerald-600 hover:bg-emerald-50 rounded-lg transition-all"
+                  title="Add daily update"
+                >
+                  <Activity size={13} />
+                </button>
+              )}
               <button
                 onClick={(e) => { e.stopPropagation(); onEdit(task); }}
                 className="p-1 text-slate-400 hover:text-indigo-600 hover:bg-indigo-50 rounded-lg transition-all"
@@ -65,6 +74,25 @@ export default function TaskCard({ task, index, onEdit, onDelete }) {
             <p className="text-slate-500 text-xs mb-3 line-clamp-2 leading-relaxed">
               {task.description}
             </p>
+          )}
+
+          {task.column !== 'done' && task.assignee && (
+            <button
+              type="button"
+              onClick={(e) => {
+                e.stopPropagation();
+                if (canAddDailyUpdate) onDailyUpdate(task);
+              }}
+              disabled={!canAddDailyUpdate}
+              className={`mb-3 w-full px-2.5 py-1.5 rounded-lg text-xs font-semibold flex items-center justify-center gap-1.5 ${
+                task.hasTodayUpdate
+                  ? 'bg-emerald-50 text-emerald-700'
+                  : 'bg-amber-50 text-amber-700'
+              } ${canAddDailyUpdate ? 'hover:brightness-95' : 'cursor-default'}`}
+            >
+              <Activity size={12} />
+              {task.hasTodayUpdate ? 'Updated today' : 'Daily update pending'}
+            </button>
           )}
 
           {/* Tags */}

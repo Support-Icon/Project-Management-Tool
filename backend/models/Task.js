@@ -26,6 +26,8 @@ const taskSchema = new mongoose.Schema({
     type: mongoose.Schema.Types.ObjectId,
     ref: 'User'
   },
+  completedAt: { type: Date, default: null },
+  lastUpdateAt: { type: Date, default: null },
   createdAt: { type: Date, default: Date.now }
 });
 

@@ -7,6 +7,9 @@ A full-stack project management tool with a **Kanban board**, company-based mult
 ## ✨ Features
 
 - **Kanban Board** — Drag-and-drop tasks across To Do / In Progress / Review / Done columns
+- **Daily Task Updates** — Assignees record progress, percentage, blockers, and next steps until completion
+- **Admin Analytics** — Per-person workload, update compliance, missing updates, and blocker reporting
+- **Gmail Notifications** — Assignment alerts and configurable daily task reminder emails
 - **Company-based Tenancy** — All data scoped by company name
 - **Role System** — First user per company is Admin; only admins can create team members
 - **Auto-Login** — Session persisted in Chrome localStorage using JWT
@@ -60,6 +63,8 @@ MONGODB_URI=mongodb+srv://<user>:<pass>@cluster.mongodb.net/projectflow
 JWT_SECRET=your-super-secret-key-change-this
 PORT=5000
 FRONTEND_URL=http://localhost:5173
+ENCRYPTION_KEY=64-character-random-hex-value
+CRON_SECRET=a-long-random-secret
 ```
 
 ### 3. Run Locally
@@ -92,6 +97,8 @@ Backend API: http://localhost:5000
    - `MONGODB_URI` — your MongoDB Atlas connection string
    - `JWT_SECRET` — a strong random secret
    - `FRONTEND_URL` — **origin only, no path**: `https://support-icon.github.io` (NOT `/Project-Management-Tool/`)
+   - `ENCRYPTION_KEY` — stable 64-character hex key used to encrypt Gmail App Passwords
+   - `CRON_SECRET` — long random value; use the same value in GitHub Actions
 7. Copy your Render URL (e.g. `https://project-management-tool-c6f9.onrender.com`)
 
 **MongoDB Atlas (required for Render):**
@@ -107,6 +114,7 @@ Backend API: http://localhost:5000
 2. Go to **Settings → Secrets and Variables → Actions**
 3. Add the following secrets:
    - `VITE_API_URL` — your Render backend URL (e.g. `https://project-management-api.onrender.com`)
+   - `CRON_SECRET` — exactly the same value configured on Render
 4. Go to **Settings → Pages** → Source: **gh-pages** branch
 5. Push to `main` branch — GitHub Actions will auto-deploy
 
@@ -157,5 +165,17 @@ project_management_tool/
 | Secret | Value |
 |--------|-------|
 | `VITE_API_URL` | Your Render backend URL (no trailing slash), e.g. `https://project-management-tool-c6f9.onrender.com` |
+| `CRON_SECRET` | Same long random secret configured as `CRON_SECRET` on Render |
+
+## Gmail and Daily Reminders
+
+1. Enable 2-Step Verification on the Gmail sender account.
+2. Create a 16-character Gmail App Password.
+3. Log in as admin → **Settings**.
+4. Enter the Gmail address, App Password, daily time, and company timezone.
+5. Save and use **Send test**.
+
+GitHub Actions checks for due digests hourly. A company configured for 10:00 receives its
+digest on the first hourly scheduler run at or after 10:00 in the selected timezone.
 
 > **Note:** `MONGODB_URI` should be set directly in Render.com's environment variables panel — NOT as a GitHub Secret — to keep it secure.

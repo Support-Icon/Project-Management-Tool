@@ -19,8 +19,10 @@ const roleBadge = (role) => (
 function UserModal({ user: editUser, onClose, onSaved }) {
   const [form, setForm] = useState({
     username: editUser?.username || '',
+    email: editUser?.email || '',
     password: '',
     role: editUser?.role || 'member',
+    emailNotifications: editUser?.emailNotifications !== false,
   });
   const [showPass, setShowPass] = useState(false);
   const [loading, setLoading] = useState(false);
@@ -33,7 +35,11 @@ function UserModal({ user: editUser, onClose, onSaved }) {
     try {
       let res;
       if (editUser) {
-        const payload = { role: form.role };
+        const payload = {
+          role: form.role,
+          email: form.email,
+          emailNotifications: form.emailNotifications,
+        };
         if (form.username) payload.username = form.username;
         if (form.password) payload.password = form.password;
         res = await api.put(`/api/users/${editUser._id}`, payload);
@@ -79,6 +85,20 @@ function UserModal({ user: editUser, onClose, onSaved }) {
 
           <div>
             <label className="block text-xs font-semibold text-slate-600 mb-1.5 uppercase tracking-wide">
+              Email
+            </label>
+            <input
+              type="email"
+              value={form.email}
+              onChange={set('email')}
+              placeholder="person@company.com"
+              required
+              className="w-full px-4 py-3 rounded-xl border border-slate-200 text-slate-800 text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500 focus:border-transparent transition"
+            />
+          </div>
+
+          <div>
+            <label className="block text-xs font-semibold text-slate-600 mb-1.5 uppercase tracking-wide">
               Password {editUser && <span className="text-slate-400">(leave blank to keep current)</span>}
             </label>
             <div className="relative">
@@ -112,6 +132,16 @@ function UserModal({ user: editUser, onClose, onSaved }) {
               <option value="admin">Admin</option>
             </select>
           </div>
+
+          <label className="flex items-center gap-3 text-sm text-slate-700">
+            <input
+              type="checkbox"
+              checked={form.emailNotifications}
+              onChange={(e) => setForm((f) => ({ ...f, emailNotifications: e.target.checked }))}
+              className="w-4 h-4 rounded border-slate-300 text-indigo-600 focus:ring-indigo-500"
+            />
+            Receive assignment and daily reminder emails
+          </label>
 
           <div className="flex gap-3 pt-2">
             <button
@@ -239,6 +269,7 @@ export default function UsersPage() {
                       </div>
                       <div>
                         <p className="font-semibold text-slate-800 text-sm">{u.username}</p>
+                        <p className="text-xs text-slate-400">{u.email || 'No email configured'}</p>
                         {u._id === currentUser._id && (
                           <p className="text-xs text-indigo-500">You</p>
                         )}

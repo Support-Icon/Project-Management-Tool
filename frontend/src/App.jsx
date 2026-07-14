@@ -6,6 +6,8 @@ import Dashboard from './pages/Dashboard';
 import KanbanPage from './pages/KanbanPage';
 import UsersPage from './pages/UsersPage';
 import ReportsPage from './pages/ReportsPage';
+import AnalyticsPage from './pages/AnalyticsPage';
+import SettingsPage from './pages/SettingsPage';
 import Layout from './components/Layout';
 
 const Spinner = () => (
@@ -42,6 +44,8 @@ const AppRoutes = () => {
         <Route path="kanban/:projectId" element={<KanbanPage />} />
         <Route path="users" element={<UsersPage />} />
         <Route path="reports" element={<ReportsPage />} />
+        <Route path="analytics" element={<AnalyticsPage />} />
+        <Route path="settings" element={<SettingsPage />} />
       </Route>
       <Route path="*" element={<Navigate to="/" replace />} />
     </Routes>

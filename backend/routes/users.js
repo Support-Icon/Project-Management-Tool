@@ -21,10 +21,10 @@ router.get('/', auth, adminOnly, async (req, res) => {
 // Create user (admin only)
 router.post('/', auth, adminOnly, async (req, res) => {
   try {
-    const { username, password, role = 'member' } = req.body;
+    const { username, password, email, role = 'member' } = req.body;
 
-    if (!username || !password) {
-      return res.status(400).json({ message: 'Username and password required' });
+    if (!username || !password || !email) {
+      return res.status(400).json({ message: 'Username, email and password required' });
     }
     if (password.length < 6) {
       return res.status(400).json({ message: 'Password must be at least 6 characters' });
@@ -36,6 +36,7 @@ router.post('/', auth, adminOnly, async (req, res) => {
     const hashedPassword = await bcrypt.hash(password, 10);
     const user = await User.create({
       username: username.trim(),
+      email: email.trim().toLowerCase(),
       password: hashedPassword,
       role,
       company: req.user.company._id
@@ -54,7 +55,7 @@ router.post('/', auth, adminOnly, async (req, res) => {
 // Update user (admin only)
 router.put('/:id', auth, adminOnly, async (req, res) => {
   try {
-    const { username, password, role } = req.body;
+    const { username, password, email, emailNotifications, role } = req.body;
     const updates = {};
 
     if (username) {
@@ -66,6 +67,8 @@ router.put('/:id', auth, adminOnly, async (req, res) => {
       if (password.length < 6) return res.status(400).json({ message: 'Password too short' });
       updates.password = await bcrypt.hash(password, 10);
     }
+    if (email !== undefined) updates.email = String(email).trim().toLowerCase();
+    if (emailNotifications !== undefined) updates.emailNotifications = Boolean(emailNotifications);
     if (role) updates.role = role;
 
     const user = await User.findOneAndUpdate(

@@ -7,6 +7,7 @@ import { withMineOnly } from '../utils/apiQuery';
 import toast from 'react-hot-toast';
 import TaskCard from '../components/TaskCard';
 import TaskModal from '../components/TaskModal';
+import DailyUpdateModal from '../components/DailyUpdateModal';
 import { Plus, Settings, ArrowLeft, RefreshCw, Loader2 } from 'lucide-react';
 
 const columnHeaderColors = {
@@ -31,6 +32,7 @@ export default function KanbanPage() {
   const [tasks, setTasks] = useState([]);
   const [loading, setLoading] = useState(true);
   const [modal, setModal] = useState(null); // null | { mode: 'create', column } | { mode: 'edit', task }
+  const [dailyUpdateTask, setDailyUpdateTask] = useState(null);
   const [saving, setSaving] = useState(false);
 
   const fetchData = useCallback(async () => {
@@ -259,6 +261,8 @@ export default function KanbanPage() {
                               index={index}
                               onEdit={(t) => setModal({ mode: 'edit', task: t })}
                               onDelete={handleDelete}
+                              onDailyUpdate={setDailyUpdateTask}
+                              canAddDailyUpdate={task.assignee?._id === user?._id}
                             />
                           ))}
                           {provided.placeholder}
@@ -294,6 +298,19 @@ export default function KanbanPage() {
           columns={project.columns}
           onClose={() => setModal(null)}
           onSaved={handleTaskSaved}
+        />
+      )}
+      {dailyUpdateTask && (
+        <DailyUpdateModal
+          task={dailyUpdateTask}
+          onClose={() => setDailyUpdateTask(null)}
+          onSaved={() => {
+            setTasks((items) => items.map((item) =>
+              item._id === dailyUpdateTask._id
+                ? { ...item, hasTodayUpdate: true, lastUpdateAt: new Date().toISOString() }
+                : item
+            ));
+          }}
         />
       )}
     </div>

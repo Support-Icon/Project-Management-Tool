@@ -1,0 +1,16 @@
+name: Check Daily Task Digests
+
+on:
+  schedule:
+    - cron: '7 * * * *'
+  workflow_dispatch:
+
+jobs:
+  trigger:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Trigger due company digests
+        run: |
+          curl --fail-with-body --request POST \
+            --header "X-Cron-Secret: ${{ secrets.CRON_SECRET }}" \
+            "${{ secrets.VITE_API_URL }}/api/internal/digest"

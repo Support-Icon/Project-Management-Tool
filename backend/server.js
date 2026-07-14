@@ -17,7 +17,11 @@ app.use('/api/auth', require('./routes/auth'));
 app.use('/api/users', require('./routes/users'));
 app.use('/api/projects', require('./routes/projects'));
 app.use('/api/tasks', require('./routes/tasks'));
+app.use('/api/task-updates', require('./routes/taskUpdates'));
 app.use('/api/reports', require('./routes/reports'));
+app.use('/api/settings', require('./routes/settings'));
+app.use('/api/analytics', require('./routes/analytics'));
+app.use('/api/internal', require('./routes/internal'));
 
 app.get('/health', (req, res) => res.json({ status: 'ok', timestamp: new Date() }));
 
