@@ -34,7 +34,8 @@ jobs:
         run: npm run build
         env:
           VITE_API_URL: ${{ secrets.VITE_API_URL }}
-          VITE_BASE_URL: /${{ github.event.repository.name }}/
+          # Custom domain = "/". Only set secret VITE_BASE_URL=/RepoName/ for project pages without a domain.
+          VITE_BASE_URL: ${{ secrets.VITE_BASE_URL || '/' }}
 
       - name: Deploy to GitHub Pages
         uses: JamesIves/github-pages-deploy-action@v4
@@ -42,3 +43,5 @@ jobs:
           folder: frontend/dist
           branch: gh-pages
           clean: true
+          # Keep GitHub Pages custom domain after clean deploy (set secret CUSTOM_DOMAIN=your.domain.com)
+          cname: ${{ secrets.CUSTOM_DOMAIN }}

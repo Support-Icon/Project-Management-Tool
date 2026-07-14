@@ -96,7 +96,7 @@ Backend API: http://localhost:5000
 6. Add Environment Variables:
    - `MONGODB_URI` — your MongoDB Atlas connection string
    - `JWT_SECRET` — a strong random secret
-   - `FRONTEND_URL` — **origin only, no path**: `https://support-icon.github.io` (NOT `/Project-Management-Tool/`)
+   - `FRONTEND_URL` — **origin only, no path**. For a custom domain use `https://your.domain.com`. For github.io use `https://support-icon.github.io` (NOT `/Project-Management-Tool/`). Multiple origins: comma-separated in `ALLOWED_ORIGINS`.
    - `ENCRYPTION_KEY` — stable 64-character hex key used to encrypt Gmail App Passwords
    - `CRON_SECRET` — long random value; use the same value in GitHub Actions
 7. Copy your Render URL (e.g. `https://project-management-tool-c6f9.onrender.com`)
@@ -106,7 +106,7 @@ Backend API: http://localhost:5000
 2. Atlas → **Database Access** → user with read/write on your database
 3. If the password has special characters, URL-encode it in `MONGODB_URI`
 
-**CORS troubleshooting:** The browser sends `Origin: https://support-icon.github.io` (no repo path). `FRONTEND_URL` on Render must match exactly.
+**CORS troubleshooting:** Origin must match exactly (custom domain ≠ `*.github.io`). Set `FRONTEND_URL` or `ALLOWED_ORIGINS` on Render to your live frontend origin.
 
 ### Frontend → GitHub Pages
 
@@ -115,7 +115,9 @@ Backend API: http://localhost:5000
 3. Add the following secrets:
    - `VITE_API_URL` — your Render backend URL (e.g. `https://project-management-api.onrender.com`)
    - `CRON_SECRET` — exactly the same value configured on Render
-4. Go to **Settings → Pages** → Source: **gh-pages** branch
+   - `CUSTOM_DOMAIN` (optional) — e.g. `app.yourdomain.com` so deploys keep the Pages custom domain
+   - Do **not** set `VITE_BASE_URL` when using a custom domain (build uses `/`). Only set `VITE_BASE_URL=/Project-Management-Tool/` if you use the github.io project URL without a custom domain.
+4. Go to **Settings → Pages** → Source: **gh-pages** branch → set Custom domain
 5. Push to `main` branch — GitHub Actions will auto-deploy
 
 Your app will be live at: `https://YOUR_USERNAME.github.io/YOUR_REPO/`
