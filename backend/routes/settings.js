@@ -11,10 +11,13 @@ router.use(auth, adminOnly);
 const publicSettings = (settings) => ({
   email: {
     enabled: settings?.email?.enabled || false,
+    provider: settings?.email?.provider || 'resend',
     gmailUser: settings?.email?.gmailUser || '',
+    fromEmail: settings?.email?.fromEmail || '',
     fromName: settings?.email?.fromName || 'ProjectFlow',
     assignmentEnabled: settings?.email?.assignmentEnabled ?? true,
-    hasAppPassword: Boolean(settings?.email?.appPasswordEncrypted)
+    hasAppPassword: Boolean(settings?.email?.appPasswordEncrypted),
+    hasResendApiKey: Boolean(settings?.email?.resendApiKeyEncrypted)
   },
   digest: {
     enabled: settings?.digest?.enabled || false,
@@ -38,6 +41,7 @@ router.put('/', async (req, res) => {
     const { email = {}, digest = {} } = req.body;
     const timezone = digest.timezone || 'Asia/Kolkata';
     const time = digest.time || '10:00';
+    const provider = email.provider === 'gmail' ? 'gmail' : 'resend';
 
     if (!isValidTimezone(timezone)) {
       return res.status(400).json({ message: 'Invalid timezone' });
@@ -45,28 +49,42 @@ router.put('/', async (req, res) => {
     if (!/^([01]\d|2[0-3]):[0-5]\d$/.test(time)) {
       return res.status(400).json({ message: 'Digest time must use HH:mm format' });
     }
-    if ((email.enabled || digest.enabled) && !email.gmailUser) {
-      return res.status(400).json({ message: 'Gmail address is required' });
-    }
 
     const existing = await CompanySettings.findOne({ company: req.user.company._id });
     let appPasswordEncrypted = existing?.email?.appPasswordEncrypted || '';
+    let resendApiKeyEncrypted = existing?.email?.resendApiKeyEncrypted || '';
+
+    const encryptSecret = (plain, label) => {
+      if (!process.env.ENCRYPTION_KEY) {
+        throw new Error('ENCRYPTION_KEY is not set on the server. Add it in Render Environment, then redeploy.');
+      }
+      return encrypt(String(plain).replace(/\s/g, ''));
+    };
 
     if (email.appPassword) {
-      if (!process.env.ENCRYPTION_KEY) {
-        return res.status(500).json({
-          message: 'ENCRYPTION_KEY is not set on the server. Add it in Render Environment, then redeploy.'
-        });
-      }
       try {
-        appPasswordEncrypted = encrypt(String(email.appPassword).replace(/\s/g, ''));
+        appPasswordEncrypted = encryptSecret(email.appPassword, 'App Password');
       } catch (error) {
-        return res.status(500).json({ message: `Could not encrypt App Password: ${error.message}` });
+        return res.status(500).json({ message: error.message });
       }
     }
 
-    if ((email.enabled || digest.enabled) && !appPasswordEncrypted) {
-      return res.status(400).json({ message: 'Gmail app password is required' });
+    if (email.resendApiKey) {
+      try {
+        resendApiKeyEncrypted = encryptSecret(email.resendApiKey, 'Resend API key');
+      } catch (error) {
+        return res.status(500).json({ message: error.message });
+      }
+    }
+
+    if (email.enabled || digest.enabled) {
+      if (provider === 'resend') {
+        if (!resendApiKeyEncrypted) {
+          return res.status(400).json({ message: 'Resend API key is required for Render email delivery' });
+        }
+      } else if (!email.gmailUser || !appPasswordEncrypted) {
+        return res.status(400).json({ message: 'Gmail address and App Password are required' });
+      }
     }
 
     const settings = await CompanySettings.findOneAndUpdate(
@@ -74,10 +92,13 @@ router.put('/', async (req, res) => {
       {
         $set: {
           'email.enabled': Boolean(email.enabled),
+          'email.provider': provider,
           'email.gmailUser': String(email.gmailUser || '').trim().toLowerCase(),
+          'email.fromEmail': String(email.fromEmail || '').trim().toLowerCase(),
           'email.fromName': String(email.fromName || 'ProjectFlow').trim(),
           'email.assignmentEnabled': email.assignmentEnabled !== false,
           'email.appPasswordEncrypted': appPasswordEncrypted,
+          'email.resendApiKeyEncrypted': resendApiKeyEncrypted,
           'digest.enabled': Boolean(digest.enabled),
           'digest.time': time,
           'digest.timezone': timezone,
@@ -95,12 +116,6 @@ router.put('/', async (req, res) => {
 
 router.post('/test-email', async (req, res) => {
   try {
-    if (!process.env.ENCRYPTION_KEY) {
-      return res.status(500).json({
-        message: 'ENCRYPTION_KEY is not set on Render. Add it under Environment, then redeploy.'
-      });
-    }
-
     const recipient = String(req.body.recipient || req.user.email || '').trim();
     if (!recipient) {
       return res.status(400).json({ message: 'Enter a test recipient email address first.' });
@@ -109,17 +124,19 @@ router.post('/test-email', async (req, res) => {
     const settings = await CompanySettings.findOne({ company: req.user.company._id });
     if (!settings?.email?.enabled) {
       return res.status(400).json({
-        message: 'Enable Gmail (checkbox), enter App Password, click Save Settings, then try Send test.'
+        message: 'Enable email, choose Resend (recommended on Render), Save Settings, then Send test.'
       });
     }
 
     const result = await sendWithCompany(req.user.company._id, {
       to: recipient,
-      subject: 'ProjectFlow Gmail test',
-      html: '<h2>Gmail configuration works</h2><p>Your ProjectFlow email settings are ready.</p>'
+      subject: 'ProjectFlow email test',
+      html: '<h2>Email configuration works</h2><p>Your ProjectFlow email settings are ready.</p>'
     });
     if (result.skipped) return res.status(400).json({ message: result.reason });
-    res.json({ message: `Test email sent to ${recipient}` });
+    res.json({
+      message: `Test email sent to ${recipient}${result.provider ? ` via ${result.provider}` : ''}`
+    });
   } catch (error) {
     console.error('Test email failed:', error);
     res.status(400).json({ message: error.message || 'Email failed' });

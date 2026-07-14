@@ -9,8 +9,12 @@ const companySettingsSchema = new mongoose.Schema({
   },
   email: {
     enabled: { type: Boolean, default: false },
+    // resend = works on Render (HTTPS). gmail = SMTP (often blocked on Render)
+    provider: { type: String, enum: ['resend', 'gmail'], default: 'resend' },
     gmailUser: { type: String, trim: true, lowercase: true, default: '' },
     appPasswordEncrypted: { type: String, default: '' },
+    resendApiKeyEncrypted: { type: String, default: '' },
+    fromEmail: { type: String, trim: true, lowercase: true, default: '' },
     fromName: { type: String, trim: true, default: 'ProjectFlow' },
     assignmentEnabled: { type: Boolean, default: true }
   },

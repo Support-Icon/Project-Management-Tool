@@ -1,5 +1,5 @@
 import React, { useEffect, useState } from 'react';
-import { Mail, Clock, ShieldCheck, Send, Save, Eye, EyeOff } from 'lucide-react';
+import { Mail, Clock, ShieldCheck, Send, Save, Eye, EyeOff, Info } from 'lucide-react';
 import toast from 'react-hot-toast';
 import api from '../api/axios';
 import { useAuth } from '../context/AuthContext';
@@ -28,9 +28,13 @@ export default function SettingsPage() {
   const [form, setForm] = useState({
     email: {
       enabled: false,
+      provider: 'resend',
       gmailUser: '',
+      fromEmail: '',
       appPassword: '',
+      resendApiKey: '',
       hasAppPassword: false,
+      hasResendApiKey: false,
       fromName: 'ProjectFlow',
       assignmentEnabled: true,
     },
@@ -44,7 +48,13 @@ export default function SettingsPage() {
   useEffect(() => {
     api.get('/api/settings')
       .then((res) => setForm((current) => ({
-        email: { ...current.email, ...res.data.email, appPassword: '' },
+        email: {
+          ...current.email,
+          ...res.data.email,
+          appPassword: '',
+          resendApiKey: '',
+          provider: res.data.email?.provider || 'resend',
+        },
         digest: { ...current.digest, ...res.data.digest },
       })))
       .catch(() => toast.error('Failed to load settings'))
@@ -62,7 +72,12 @@ export default function SettingsPage() {
     try {
       const res = await api.put('/api/settings', form);
       setForm((current) => ({
-        email: { ...current.email, ...res.data.email, appPassword: '' },
+        email: {
+          ...current.email,
+          ...res.data.email,
+          appPassword: '',
+          resendApiKey: '',
+        },
         digest: { ...current.digest, ...res.data.digest },
       }));
       toast.success('Email settings saved');
@@ -79,10 +94,14 @@ export default function SettingsPage() {
       return;
     }
     if (!form.email.enabled) {
-      toast.error('Enable Gmail, save settings, then send a test');
+      toast.error('Enable email, save settings, then send a test');
       return;
     }
-    if (!form.email.hasAppPassword && !form.email.appPassword) {
+    if (form.email.provider === 'resend' && !form.email.hasResendApiKey && !form.email.resendApiKey) {
+      toast.error('Enter Resend API key and click Save Settings first');
+      return;
+    }
+    if (form.email.provider === 'gmail' && !form.email.hasAppPassword && !form.email.appPassword) {
       toast.error('Enter Gmail App Password and click Save Settings first');
       return;
     }
@@ -92,13 +111,13 @@ export default function SettingsPage() {
       const res = await api.post(
         '/api/settings/test-email',
         { recipient: testRecipient.trim() },
-        { timeout: 25000 }
+        { timeout: 30000 }
       );
       toast.success(res.data.message);
     } catch (error) {
       const message =
         error.code === 'ECONNABORTED'
-          ? 'Request timed out. Check Render logs and ENCRYPTION_KEY / Gmail App Password.'
+          ? 'Request timed out. On Render, use Resend (not Gmail SMTP).'
           : error.response?.data?.message
             || error.message
             || 'Test email failed';
@@ -113,12 +132,27 @@ export default function SettingsPage() {
     return <div className="p-8 text-center text-slate-500">Loading settings…</div>;
   }
 
+  const usingResend = form.email.provider === 'resend';
+
   return (
     <div className="p-6 max-w-4xl mx-auto animate-fade-in">
       <div className="mb-6">
         <h2 className="text-2xl font-bold text-slate-800">Email & Schedule Settings</h2>
         <p className="text-sm text-slate-500 mt-1">
-          Send assignment alerts and daily task reminders through Gmail.
+          Assignment alerts and daily task reminders.
+        </p>
+      </div>
+
+      <div className="mb-5 flex gap-3 rounded-2xl border border-amber-200 bg-amber-50 p-4 text-sm text-amber-900">
+        <Info size={18} className="flex-shrink-0 mt-0.5" />
+        <p>
+          <strong>Render blocks Gmail SMTP</strong> (that’s why you saw Connection timeout).
+          Use <strong>Resend</strong> for production emails — it works over HTTPS.
+          Sign up free at{' '}
+          <a href="https://resend.com" target="_blank" rel="noreferrer" className="underline font-semibold">
+            resend.com
+          </a>
+          , create an API key, then paste it below.
         </p>
       </div>
 
@@ -130,8 +164,8 @@ export default function SettingsPage() {
                 <Mail size={20} />
               </div>
               <div>
-                <h3 className="font-bold text-slate-800">Gmail configuration</h3>
-                <p className="text-xs text-slate-500 mt-1">Use a Gmail App Password, not your normal password.</p>
+                <h3 className="font-bold text-slate-800">Email configuration</h3>
+                <p className="text-xs text-slate-500 mt-1">Choose Resend for GitHub Pages + Render.</p>
               </div>
             </div>
             <label className="flex items-center gap-2 text-sm font-medium text-slate-600">
@@ -145,17 +179,27 @@ export default function SettingsPage() {
             </label>
           </div>
 
+          <div className="grid grid-cols-2 gap-2 mb-4">
+            {[
+              { id: 'resend', label: 'Resend (recommended on Render)' },
+              { id: 'gmail', label: 'Gmail SMTP (local only)' },
+            ].map((option) => (
+              <button
+                key={option.id}
+                type="button"
+                onClick={() => updateEmail('provider', option.id)}
+                className={`px-3 py-2.5 rounded-xl text-xs font-semibold border transition ${
+                  form.email.provider === option.id
+                    ? 'bg-indigo-600 text-white border-indigo-600'
+                    : 'border-slate-200 text-slate-600 hover:border-indigo-300'
+                }`}
+              >
+                {option.label}
+              </button>
+            ))}
+          </div>
+
           <div className="grid sm:grid-cols-2 gap-4">
-            <label className="text-sm text-slate-600">
-              <span className="block text-xs font-semibold uppercase mb-1.5">Gmail address</span>
-              <input
-                type="email"
-                value={form.email.gmailUser}
-                onChange={(e) => updateEmail('gmailUser', e.target.value)}
-                placeholder="company@gmail.com"
-                className="w-full px-4 py-3 rounded-xl border border-slate-200 focus:ring-2 focus:ring-indigo-500 outline-none"
-              />
-            </label>
             <label className="text-sm text-slate-600">
               <span className="block text-xs font-semibold uppercase mb-1.5">Sender name</span>
               <input
@@ -164,27 +208,84 @@ export default function SettingsPage() {
                 className="w-full px-4 py-3 rounded-xl border border-slate-200 focus:ring-2 focus:ring-indigo-500 outline-none"
               />
             </label>
-            <label className="sm:col-span-2 text-sm text-slate-600">
-              <span className="block text-xs font-semibold uppercase mb-1.5">
-                Gmail App Password {form.email.hasAppPassword && '(saved — leave blank to keep)'}
-              </span>
-              <div className="relative">
-                <input
-                  type={showPassword ? 'text' : 'password'}
-                  value={form.email.appPassword}
-                  onChange={(e) => updateEmail('appPassword', e.target.value)}
-                  placeholder={form.email.hasAppPassword ? '•••• •••• •••• ••••' : '16-character app password'}
-                  className="w-full px-4 py-3 pr-11 rounded-xl border border-slate-200 focus:ring-2 focus:ring-indigo-500 outline-none"
-                />
-                <button
-                  type="button"
-                  onClick={() => setShowPassword((value) => !value)}
-                  className="absolute right-3 top-3.5 text-slate-400"
-                >
-                  {showPassword ? <EyeOff size={17} /> : <Eye size={17} />}
-                </button>
-              </div>
-            </label>
+
+            {usingResend ? (
+              <>
+                <label className="text-sm text-slate-600">
+                  <span className="block text-xs font-semibold uppercase mb-1.5">
+                    From email (optional)
+                  </span>
+                  <input
+                    type="email"
+                    value={form.email.fromEmail}
+                    onChange={(e) => updateEmail('fromEmail', e.target.value)}
+                    placeholder="onboarding@resend.dev"
+                    className="w-full px-4 py-3 rounded-xl border border-slate-200 focus:ring-2 focus:ring-indigo-500 outline-none"
+                  />
+                  <span className="text-[11px] text-slate-400 mt-1 block">
+                    Leave blank to use onboarding@resend.dev for testing. For custom Gmail-looking from address, verify a domain in Resend.
+                  </span>
+                </label>
+                <label className="sm:col-span-2 text-sm text-slate-600">
+                  <span className="block text-xs font-semibold uppercase mb-1.5">
+                    Resend API Key {form.email.hasResendApiKey && '(saved — leave blank to keep)'}
+                  </span>
+                  <div className="relative">
+                    <input
+                      type={showPassword ? 'text' : 'password'}
+                      value={form.email.resendApiKey}
+                      onChange={(e) => updateEmail('resendApiKey', e.target.value)}
+                      placeholder={form.email.hasResendApiKey ? '••••••••••••' : 're_xxxxxxxx'}
+                      className="w-full px-4 py-3 pr-11 rounded-xl border border-slate-200 focus:ring-2 focus:ring-indigo-500 outline-none"
+                    />
+                    <button
+                      type="button"
+                      onClick={() => setShowPassword((value) => !value)}
+                      className="absolute right-3 top-3.5 text-slate-400"
+                    >
+                      {showPassword ? <EyeOff size={17} /> : <Eye size={17} />}
+                    </button>
+                  </div>
+                </label>
+              </>
+            ) : (
+              <>
+                <label className="text-sm text-slate-600">
+                  <span className="block text-xs font-semibold uppercase mb-1.5">Gmail address</span>
+                  <input
+                    type="email"
+                    value={form.email.gmailUser}
+                    onChange={(e) => updateEmail('gmailUser', e.target.value)}
+                    placeholder="company@gmail.com"
+                    className="w-full px-4 py-3 rounded-xl border border-slate-200 focus:ring-2 focus:ring-indigo-500 outline-none"
+                  />
+                </label>
+                <label className="sm:col-span-2 text-sm text-slate-600">
+                  <span className="block text-xs font-semibold uppercase mb-1.5">
+                    Gmail App Password {form.email.hasAppPassword && '(saved — leave blank to keep)'}
+                  </span>
+                  <div className="relative">
+                    <input
+                      type={showPassword ? 'text' : 'password'}
+                      value={form.email.appPassword}
+                      onChange={(e) => updateEmail('appPassword', e.target.value)}
+                      placeholder={form.email.hasAppPassword ? '•••• •••• •••• ••••' : '16-character app password'}
+                      className="w-full px-4 py-3 pr-11 rounded-xl border border-slate-200 focus:ring-2 focus:ring-indigo-500 outline-none"
+                    />
+                    <button
+                      type="button"
+                      onClick={() => setShowPassword((value) => !value)}
+                      className="absolute right-3 top-3.5 text-slate-400"
+                    >
+                      {showPassword ? <EyeOff size={17} /> : <Eye size={17} />}
+                    </button>
+                  </div>
+                  <span className="text-[11px] text-amber-600 mt-1 block">
+                    Usually blocked on Render. Prefer Resend for your live site.
+                  </span>
+                </label>
+              </>
+            )}
           </div>
 
           <label className="flex items-center gap-3 mt-4 text-sm text-slate-700">
@@ -206,7 +307,7 @@ export default function SettingsPage() {
               </div>
               <div>
                 <h3 className="font-bold text-slate-800">Daily reminder schedule</h3>
-                <p className="text-xs text-slate-500 mt-1">Users receive their open tasks and update status.</p>
+                <p className="text-xs text-slate-500 mt-1">Users receive open tasks + update status.</p>
               </div>
             </div>
             <label className="flex items-center gap-2 text-sm font-medium text-slate-600">

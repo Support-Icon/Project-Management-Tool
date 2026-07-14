@@ -9,71 +9,151 @@ const escapeHtml = (value) => String(value ?? '')
   .replace(/"/g, '&quot;')
   .replace(/'/g, '&#039;');
 
-const getMailer = async (companyId) => {
+const RENDER_SMTP_HINT =
+  'Render blocks outbound Gmail SMTP (connection timeout). Use the Resend provider instead (HTTPS). Free signup: https://resend.com';
+
+const sendViaResend = async ({ apiKey, from, to, subject, html }) => {
+  const response = await fetch('https://api.resend.com/emails', {
+    method: 'POST',
+    headers: {
+      Authorization: `Bearer ${apiKey}`,
+      'Content-Type': 'application/json'
+    },
+    body: JSON.stringify({ from, to: [to], subject, html })
+  });
+
+  const data = await response.json().catch(() => ({}));
+  if (!response.ok) {
+    throw new Error(data?.message || `Resend failed with status ${response.status}`);
+  }
+  return { sent: true, messageId: data.id, provider: 'resend' };
+};
+
+const createGmailTransport = (user, pass, { port, secure }) =>
+  nodemailer.createTransport({
+    host: 'smtp.gmail.com',
+    port,
+    secure,
+    auth: { user, pass },
+    connectionTimeout: 8000,
+    greetingTimeout: 8000,
+    socketTimeout: 12000,
+    tls: { minVersion: 'TLSv1.2' }
+  });
+
+const sendViaGmailSmtp = async ({ gmailUser, appPassword, fromName, message }) => {
+  const attempts = [
+    { port: 465, secure: true },
+    { port: 587, secure: false }
+  ];
+
+  let lastError;
+  for (const attempt of attempts) {
+    try {
+      const transport = createGmailTransport(gmailUser, appPassword, attempt);
+      await transport.verify();
+      const info = await transport.sendMail({
+        from: `"${fromName || 'ProjectFlow'}" <${gmailUser}>`,
+        ...message
+      });
+      return { sent: true, messageId: info.messageId, provider: 'gmail' };
+    } catch (error) {
+      lastError = error;
+      const text = `${error.code || ''} ${error.message || ''}`.toLowerCase();
+      const isTimeout =
+        text.includes('timeout') ||
+        text.includes('timed out') ||
+        error.code === 'ETIMEDOUT' ||
+        error.code === 'ESOCKET' ||
+        error.code === 'ECONNECTION';
+      if (!isTimeout) {
+        throw new Error(
+          `Gmail login failed: ${error.response || error.message}. Use a 16-character Gmail App Password and enable 2-Step Verification.`
+        );
+      }
+    }
+  }
+
+  throw new Error(
+    `${RENDER_SMTP_HINT} (Last error: ${lastError?.message || 'connection timeout'})`
+  );
+};
+
+const sendWithCompany = async (companyId, message) => {
   const settings = await CompanySettings.findOne({ company: companyId });
-  if (!settings) {
-    return { error: 'Save email settings first (Save Settings button).' };
+  if (!settings?.email?.enabled) {
+    return { skipped: true, reason: 'Email is disabled. Enable it in Settings and Save.' };
   }
-  if (!settings.email?.enabled) {
-    return { error: 'Turn on "Enabled" under Gmail configuration, then Save Settings.' };
+
+  const fromName = settings.email.fromName || 'ProjectFlow';
+  const provider = settings.email.provider || 'resend';
+
+  if (provider === 'resend') {
+    if (!settings.email.resendApiKeyEncrypted) {
+      return {
+        skipped: true,
+        reason: 'Resend API key is missing. Paste it in Settings and Save.'
+      };
+    }
+    if (!process.env.ENCRYPTION_KEY) {
+      return {
+        skipped: true,
+        reason: 'ENCRYPTION_KEY is missing on the server (Render Environment).'
+      };
+    }
+
+    let apiKey;
+    try {
+      apiKey = decrypt(settings.email.resendApiKeyEncrypted);
+    } catch (_) {
+      return {
+        skipped: true,
+        reason: 'Could not decrypt Resend API key. ENCRYPTION_KEY may have changed — paste the key again and Save.'
+      };
+    }
+
+    const fromEmail = settings.email.fromEmail || 'onboarding@resend.dev';
+    const from = `${fromName} <${fromEmail}>`;
+
+    return sendViaResend({
+      apiKey,
+      from,
+      to: message.to,
+      subject: message.subject,
+      html: message.html
+    });
   }
-  if (!settings.email.gmailUser) {
-    return { error: 'Gmail address is missing. Save settings again.' };
-  }
-  if (!settings.email.appPasswordEncrypted) {
-    return { error: 'Gmail App Password is missing. Paste it and Save Settings again.' };
+
+  // Gmail SMTP (works locally; usually blocked on Render)
+  if (!settings.email.gmailUser || !settings.email.appPasswordEncrypted) {
+    return {
+      skipped: true,
+      reason: 'Gmail address or App Password is missing. Save Settings again, or switch provider to Resend.'
+    };
   }
   if (!process.env.ENCRYPTION_KEY) {
-    return { error: 'ENCRYPTION_KEY is missing on the server. Add it in Render Environment, then redeploy.' };
+    return {
+      skipped: true,
+      reason: 'ENCRYPTION_KEY is missing on the server (Render Environment).'
+    };
   }
 
   let appPassword;
   try {
     appPassword = decrypt(settings.email.appPasswordEncrypted);
-  } catch (error) {
+  } catch (_) {
     return {
-      error: 'Could not decrypt Gmail App Password. ENCRYPTION_KEY on Render may have changed — paste the App Password again and Save Settings.'
+      skipped: true,
+      reason: 'Could not decrypt Gmail App Password. ENCRYPTION_KEY may have changed — paste App Password again and Save.'
     };
   }
 
-  const transport = nodemailer.createTransport({
-    host: 'smtp.gmail.com',
-    port: 587,
-    secure: false,
-    auth: {
-      user: settings.email.gmailUser,
-      pass: appPassword
-    },
-    connectionTimeout: 12000,
-    greetingTimeout: 12000,
-    socketTimeout: 20000,
-    tls: { minVersion: 'TLSv1.2' }
+  return sendViaGmailSmtp({
+    gmailUser: settings.email.gmailUser,
+    appPassword,
+    fromName,
+    message
   });
-
-  return { transport, settings };
-};
-
-const sendWithCompany = async (companyId, message) => {
-  const mailer = await getMailer(companyId);
-  if (mailer.error) return { skipped: true, reason: mailer.error };
-  if (!mailer.transport) return { skipped: true, reason: 'Email is not configured' };
-
-  const { transport, settings } = mailer;
-
-  try {
-    await transport.verify();
-  } catch (error) {
-    const msg = error.response || error.message || 'SMTP connection failed';
-    throw new Error(
-      `Gmail login failed: ${msg}. Use a 16-character Gmail App Password (not your normal password), and make sure 2-Step Verification is on.`
-    );
-  }
-
-  const info = await transport.sendMail({
-    from: `"${settings.email.fromName || 'ProjectFlow'}" <${settings.email.gmailUser}>`,
-    ...message
-  });
-  return { sent: true, messageId: info.messageId };
 };
 
 const sendAssignmentEmail = async ({ companyId, assignee, task, project, assignedBy }) => {
