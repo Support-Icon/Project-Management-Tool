@@ -1,5 +1,5 @@
 import React, { useEffect, useMemo, useRef, useState } from 'react';
-import { Bot, Send, Sparkles, FolderPlus, ClipboardPlus, BarChart3, UserRound, X, Maximize2 } from 'lucide-react';
+import { Bot, Send, Sparkles, FolderPlus, ClipboardList, BarChart3, UserRound, X, Maximize2 } from 'lucide-react';
 import toast from 'react-hot-toast';
 import api from '../api/axios';
 import { useAuth } from '../context/AuthContext';
@@ -307,7 +307,7 @@ export default function AiChatPanel({ compact = false, onClose, onExpand }) {
 
   const actionChips = [
     isAdmin && { label: 'Create project', icon: FolderPlus, onClick: startCreateProject },
-    { label: 'Create task', icon: ClipboardPlus, onClick: startCreateTask },
+    { label: 'Create task', icon: ClipboardList, onClick: startCreateTask },
     { label: isAdmin ? 'Team report' : 'My report', icon: isAdmin ? BarChart3 : UserRound, onClick: askReport },
   ].filter(Boolean);
 
