@@ -1,4 +1,5 @@
 const nodemailer = require('nodemailer');
+const { SESClient, SendEmailCommand } = require('@aws-sdk/client-ses');
 const CompanySettings = require('../models/CompanySettings');
 const { decrypt } = require('../utils/encryption');
 
@@ -10,7 +11,56 @@ const escapeHtml = (value) => String(value ?? '')
   .replace(/'/g, '&#039;');
 
 const RENDER_SMTP_HINT =
-  'Render blocks outbound Gmail SMTP (connection timeout). Use the Resend provider instead (HTTPS). Free signup: https://resend.com';
+  'Render blocks outbound Gmail SMTP. Use AWS SES or Resend (HTTPS providers).';
+
+const sendViaSes = async ({
+  accessKeyId,
+  secretAccessKey,
+  region,
+  fromEmail,
+  fromName,
+  to,
+  subject,
+  html
+}) => {
+  if (!fromEmail) {
+    throw new Error('SES From email is required. Use a verified identity in AWS SES (email or domain).');
+  }
+
+  const client = new SESClient({
+    region: region || 'ap-south-1',
+    credentials: {
+      accessKeyId,
+      secretAccessKey
+    }
+  });
+
+  const source = fromName ? `"${fromName}" <${fromEmail}>` : fromEmail;
+
+  try {
+    const result = await client.send(new SendEmailCommand({
+      Source: source,
+      Destination: { ToAddresses: [to] },
+      Message: {
+        Subject: { Data: subject, Charset: 'UTF-8' },
+        Body: {
+          Html: { Data: html, Charset: 'UTF-8' }
+        }
+      }
+    }));
+    return { sent: true, messageId: result.MessageId, provider: 'ses' };
+  } catch (error) {
+    const msg = error.message || String(error);
+    if (/not verified|Email address is not verified|MessageRejected/i.test(msg)) {
+      throw new Error(
+        `AWS SES rejected the send: ${msg}. ` +
+        'Verify the From email (or domain) in AWS SES console, and if your account is still in Sandbox, ' +
+        'verify the recipient email too (or request production access).'
+      );
+    }
+    throw new Error(`AWS SES failed: ${msg}`);
+  }
+};
 
 const sendViaResend = async ({ apiKey, from, to, subject, html }) => {
   const response = await fetch('https://api.resend.com/emails', {
@@ -24,7 +74,14 @@ const sendViaResend = async ({ apiKey, from, to, subject, html }) => {
 
   const data = await response.json().catch(() => ({}));
   if (!response.ok) {
-    throw new Error(data?.message || `Resend failed with status ${response.status}`);
+    const raw = data?.message || `Resend failed with status ${response.status}`;
+    if (/only send testing emails to your own email/i.test(raw) || /verify a domain/i.test(raw)) {
+      throw new Error(
+        'Resend test mode can only send to your Resend account email. ' +
+        'Verify your domain at https://resend.com/domains, set From email to an address on that domain, then Save.'
+      );
+    }
+    throw new Error(raw);
   }
   return { sent: true, messageId: data.id, provider: 'resend' };
 };
@@ -68,15 +125,20 @@ const sendViaGmailSmtp = async ({ gmailUser, appPassword, fromName, message }) =
         error.code === 'ECONNECTION';
       if (!isTimeout) {
         throw new Error(
-          `Gmail login failed: ${error.response || error.message}. Use a 16-character Gmail App Password and enable 2-Step Verification.`
+          `Gmail login failed: ${error.response || error.message}. Use a 16-character Gmail App Password.`
         );
       }
     }
   }
 
-  throw new Error(
-    `${RENDER_SMTP_HINT} (Last error: ${lastError?.message || 'connection timeout'})`
-  );
+  throw new Error(`${RENDER_SMTP_HINT} (Last error: ${lastError?.message || 'connection timeout'})`);
+};
+
+const requireEncryption = () => {
+  if (!process.env.ENCRYPTION_KEY) {
+    return 'ENCRYPTION_KEY is missing on the server (Render Environment).';
+  }
+  return null;
 };
 
 const sendWithCompany = async (companyId, message) => {
@@ -86,20 +148,50 @@ const sendWithCompany = async (companyId, message) => {
   }
 
   const fromName = settings.email.fromName || 'ProjectFlow';
-  const provider = settings.email.provider || 'resend';
+  const provider = settings.email.provider || 'ses';
+  const encError = requireEncryption();
 
-  if (provider === 'resend') {
-    if (!settings.email.resendApiKeyEncrypted) {
+  if (provider === 'ses') {
+    if (encError) return { skipped: true, reason: encError };
+    if (!settings.email.sesAccessKeyId || !settings.email.sesSecretAccessKeyEncrypted) {
       return {
         skipped: true,
-        reason: 'Resend API key is missing. Paste it in Settings and Save.'
+        reason: 'AWS SES Access Key / Secret Key missing. Paste them in Settings and Save.'
       };
     }
-    if (!process.env.ENCRYPTION_KEY) {
+    if (!settings.email.fromEmail) {
       return {
         skipped: true,
-        reason: 'ENCRYPTION_KEY is missing on the server (Render Environment).'
+        reason: 'SES From email is required (must be verified in AWS SES).'
       };
+    }
+
+    let secretAccessKey;
+    try {
+      secretAccessKey = decrypt(settings.email.sesSecretAccessKeyEncrypted);
+    } catch (_) {
+      return {
+        skipped: true,
+        reason: 'Could not decrypt SES secret. ENCRYPTION_KEY may have changed — paste secret again and Save.'
+      };
+    }
+
+    return sendViaSes({
+      accessKeyId: settings.email.sesAccessKeyId,
+      secretAccessKey,
+      region: settings.email.sesRegion || 'ap-south-1',
+      fromEmail: settings.email.fromEmail,
+      fromName,
+      to: message.to,
+      subject: message.subject,
+      html: message.html
+    });
+  }
+
+  if (provider === 'resend') {
+    if (encError) return { skipped: true, reason: encError };
+    if (!settings.email.resendApiKeyEncrypted) {
+      return { skipped: true, reason: 'Resend API key is missing. Paste it in Settings and Save.' };
     }
 
     let apiKey;
@@ -108,35 +200,28 @@ const sendWithCompany = async (companyId, message) => {
     } catch (_) {
       return {
         skipped: true,
-        reason: 'Could not decrypt Resend API key. ENCRYPTION_KEY may have changed — paste the key again and Save.'
+        reason: 'Could not decrypt Resend API key. ENCRYPTION_KEY may have changed — paste key again and Save.'
       };
     }
 
     const fromEmail = settings.email.fromEmail || 'onboarding@resend.dev';
-    const from = `${fromName} <${fromEmail}>`;
-
     return sendViaResend({
       apiKey,
-      from,
+      from: `${fromName} <${fromEmail}>`,
       to: message.to,
       subject: message.subject,
       html: message.html
     });
   }
 
-  // Gmail SMTP (works locally; usually blocked on Render)
+  // Gmail SMTP
   if (!settings.email.gmailUser || !settings.email.appPasswordEncrypted) {
     return {
       skipped: true,
-      reason: 'Gmail address or App Password is missing. Save Settings again, or switch provider to Resend.'
+      reason: 'Gmail address or App Password is missing. Prefer AWS SES on Render.'
     };
   }
-  if (!process.env.ENCRYPTION_KEY) {
-    return {
-      skipped: true,
-      reason: 'ENCRYPTION_KEY is missing on the server (Render Environment).'
-    };
-  }
+  if (encError) return { skipped: true, reason: encError };
 
   let appPassword;
   try {
@@ -144,7 +229,7 @@ const sendWithCompany = async (companyId, message) => {
   } catch (_) {
     return {
       skipped: true,
-      reason: 'Could not decrypt Gmail App Password. ENCRYPTION_KEY may have changed — paste App Password again and Save.'
+      reason: 'Could not decrypt Gmail App Password. Paste it again and Save.'
     };
   }
 

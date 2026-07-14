@@ -8,16 +8,24 @@ const { sendWithCompany } = require('../services/emailService');
 const router = express.Router();
 router.use(auth, adminOnly);
 
+const normalizeProvider = (value) => {
+  if (value === 'gmail' || value === 'resend' || value === 'ses') return value;
+  return 'ses';
+};
+
 const publicSettings = (settings) => ({
   email: {
     enabled: settings?.email?.enabled || false,
-    provider: settings?.email?.provider || 'resend',
+    provider: settings?.email?.provider || 'ses',
     gmailUser: settings?.email?.gmailUser || '',
     fromEmail: settings?.email?.fromEmail || '',
     fromName: settings?.email?.fromName || 'ProjectFlow',
+    sesAccessKeyId: settings?.email?.sesAccessKeyId || '',
+    sesRegion: settings?.email?.sesRegion || 'ap-south-1',
     assignmentEnabled: settings?.email?.assignmentEnabled ?? true,
     hasAppPassword: Boolean(settings?.email?.appPasswordEncrypted),
-    hasResendApiKey: Boolean(settings?.email?.resendApiKeyEncrypted)
+    hasResendApiKey: Boolean(settings?.email?.resendApiKeyEncrypted),
+    hasSesSecret: Boolean(settings?.email?.sesSecretAccessKeyEncrypted)
   },
   digest: {
     enabled: settings?.digest?.enabled || false,
@@ -41,7 +49,7 @@ router.put('/', async (req, res) => {
     const { email = {}, digest = {} } = req.body;
     const timezone = digest.timezone || 'Asia/Kolkata';
     const time = digest.time || '10:00';
-    const provider = email.provider === 'gmail' ? 'gmail' : 'resend';
+    const provider = normalizeProvider(email.provider);
 
     if (!isValidTimezone(timezone)) {
       return res.status(400).json({ message: 'Invalid timezone' });
@@ -53,17 +61,18 @@ router.put('/', async (req, res) => {
     const existing = await CompanySettings.findOne({ company: req.user.company._id });
     let appPasswordEncrypted = existing?.email?.appPasswordEncrypted || '';
     let resendApiKeyEncrypted = existing?.email?.resendApiKeyEncrypted || '';
+    let sesSecretAccessKeyEncrypted = existing?.email?.sesSecretAccessKeyEncrypted || '';
 
-    const encryptSecret = (plain, label) => {
+    const encryptSecret = (plain) => {
       if (!process.env.ENCRYPTION_KEY) {
         throw new Error('ENCRYPTION_KEY is not set on the server. Add it in Render Environment, then redeploy.');
       }
-      return encrypt(String(plain).replace(/\s/g, ''));
+      return encrypt(String(plain).trim());
     };
 
     if (email.appPassword) {
       try {
-        appPasswordEncrypted = encryptSecret(email.appPassword, 'App Password');
+        appPasswordEncrypted = encryptSecret(String(email.appPassword).replace(/\s/g, ''));
       } catch (error) {
         return res.status(500).json({ message: error.message });
       }
@@ -71,16 +80,34 @@ router.put('/', async (req, res) => {
 
     if (email.resendApiKey) {
       try {
-        resendApiKeyEncrypted = encryptSecret(email.resendApiKey, 'Resend API key');
+        resendApiKeyEncrypted = encryptSecret(email.resendApiKey);
+      } catch (error) {
+        return res.status(500).json({ message: error.message });
+      }
+    }
+
+    if (email.sesSecretAccessKey) {
+      try {
+        sesSecretAccessKeyEncrypted = encryptSecret(email.sesSecretAccessKey);
       } catch (error) {
         return res.status(500).json({ message: error.message });
       }
     }
 
     if (email.enabled || digest.enabled) {
-      if (provider === 'resend') {
+      if (provider === 'ses') {
+        if (!email.fromEmail) {
+          return res.status(400).json({ message: 'SES From email is required (must be verified in AWS SES)' });
+        }
+        if (!email.sesAccessKeyId && !existing?.email?.sesAccessKeyId) {
+          return res.status(400).json({ message: 'AWS Access Key ID is required' });
+        }
+        if (!sesSecretAccessKeyEncrypted) {
+          return res.status(400).json({ message: 'AWS Secret Access Key is required' });
+        }
+      } else if (provider === 'resend') {
         if (!resendApiKeyEncrypted) {
-          return res.status(400).json({ message: 'Resend API key is required for Render email delivery' });
+          return res.status(400).json({ message: 'Resend API key is required' });
         }
       } else if (!email.gmailUser || !appPasswordEncrypted) {
         return res.status(400).json({ message: 'Gmail address and App Password are required' });
@@ -99,6 +126,9 @@ router.put('/', async (req, res) => {
           'email.assignmentEnabled': email.assignmentEnabled !== false,
           'email.appPasswordEncrypted': appPasswordEncrypted,
           'email.resendApiKeyEncrypted': resendApiKeyEncrypted,
+          'email.sesAccessKeyId': String(email.sesAccessKeyId || existing?.email?.sesAccessKeyId || '').trim(),
+          'email.sesSecretAccessKeyEncrypted': sesSecretAccessKeyEncrypted,
+          'email.sesRegion': String(email.sesRegion || 'ap-south-1').trim(),
           'digest.enabled': Boolean(digest.enabled),
           'digest.time': time,
           'digest.timezone': timezone,
@@ -124,22 +154,23 @@ router.post('/test-email', async (req, res) => {
     const settings = await CompanySettings.findOne({ company: req.user.company._id });
     if (!settings?.email?.enabled) {
       return res.status(400).json({
-        message: 'Enable email, choose Resend (recommended on Render), Save Settings, then Send test.'
+        message: 'Enable email, choose AWS SES, Save Settings, then Send test.'
       });
     }
 
     const result = await sendWithCompany(req.user.company._id, {
       to: recipient,
       subject: 'ProjectFlow email test',
-      html: '<h2>Email configuration works</h2><p>Your ProjectFlow email settings are ready.</p>'
+      html: '<h2>Email configuration works</h2><p>Your ProjectFlow AWS SES / email settings are ready.</p>'
     });
     if (result.skipped) return res.status(400).json({ message: result.reason });
     res.json({
       message: `Test email sent to ${recipient}${result.provider ? ` via ${result.provider}` : ''}`
     });
   } catch (error) {
-    console.error('Test email failed:', error);
-    res.status(400).json({ message: error.message || 'Email failed' });
+    const message = error?.message || 'Email failed';
+    console.error('Test email failed:', message);
+    res.status(400).json({ message });
   }
 });
 

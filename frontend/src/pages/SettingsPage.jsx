@@ -18,6 +18,16 @@ const timezones = [
   'Australia/Sydney',
 ];
 
+const sesRegions = [
+  'ap-south-1',
+  'us-east-1',
+  'us-west-2',
+  'eu-west-1',
+  'eu-central-1',
+  'ap-southeast-1',
+  'ap-northeast-1',
+];
+
 export default function SettingsPage() {
   const { user } = useAuth();
   const [loading, setLoading] = useState(true);
@@ -28,13 +38,17 @@ export default function SettingsPage() {
   const [form, setForm] = useState({
     email: {
       enabled: false,
-      provider: 'resend',
+      provider: 'ses',
       gmailUser: '',
       fromEmail: '',
       appPassword: '',
       resendApiKey: '',
+      sesAccessKeyId: '',
+      sesSecretAccessKey: '',
+      sesRegion: 'ap-south-1',
       hasAppPassword: false,
       hasResendApiKey: false,
+      hasSesSecret: false,
       fromName: 'ProjectFlow',
       assignmentEnabled: true,
     },
@@ -53,7 +67,8 @@ export default function SettingsPage() {
           ...res.data.email,
           appPassword: '',
           resendApiKey: '',
-          provider: res.data.email?.provider || 'resend',
+          sesSecretAccessKey: '',
+          provider: res.data.email?.provider || 'ses',
         },
         digest: { ...current.digest, ...res.data.digest },
       })))
@@ -77,6 +92,7 @@ export default function SettingsPage() {
           ...res.data.email,
           appPassword: '',
           resendApiKey: '',
+          sesSecretAccessKey: '',
         },
         digest: { ...current.digest, ...res.data.digest },
       }));
@@ -96,6 +112,16 @@ export default function SettingsPage() {
     if (!form.email.enabled) {
       toast.error('Enable email, save settings, then send a test');
       return;
+    }
+    if (form.email.provider === 'ses') {
+      if (!form.email.fromEmail) {
+        toast.error('Enter SES From email and Save Settings first');
+        return;
+      }
+      if (!form.email.sesAccessKeyId || (!form.email.hasSesSecret && !form.email.sesSecretAccessKey)) {
+        toast.error('Enter AWS Access Key + Secret and Save Settings first');
+        return;
+      }
     }
     if (form.email.provider === 'resend' && !form.email.hasResendApiKey && !form.email.resendApiKey) {
       toast.error('Enter Resend API key and click Save Settings first');
@@ -117,7 +143,7 @@ export default function SettingsPage() {
     } catch (error) {
       const message =
         error.code === 'ECONNABORTED'
-          ? 'Request timed out. On Render, use Resend (not Gmail SMTP).'
+          ? 'Request timed out. Prefer AWS SES or Resend on Render (not Gmail SMTP).'
           : error.response?.data?.message
             || error.message
             || 'Test email failed';
@@ -132,40 +158,42 @@ export default function SettingsPage() {
     return <div className="p-8 text-center text-slate-500">Loading settings…</div>;
   }
 
-  const usingResend = form.email.provider === 'resend';
+  const provider = form.email.provider;
 
   return (
     <div className="p-6 max-w-4xl mx-auto animate-fade-in">
       <div className="mb-6">
         <h2 className="text-2xl font-bold text-slate-800">Email & Schedule Settings</h2>
         <p className="text-sm text-slate-500 mt-1">
-          Assignment alerts and daily task reminders.
+          Assignment alerts and daily task reminders via AWS SES, Resend, or Gmail.
         </p>
       </div>
 
-      <div className="mb-5 flex gap-3 rounded-2xl border border-amber-200 bg-amber-50 p-4 text-sm text-amber-900">
+      <div className="mb-5 flex gap-3 rounded-2xl border border-sky-200 bg-sky-50 p-4 text-sm text-sky-950">
         <Info size={18} className="flex-shrink-0 mt-0.5" />
-        <p>
-          <strong>Render blocks Gmail SMTP</strong> (that’s why you saw Connection timeout).
-          Use <strong>Resend</strong> for production emails — it works over HTTPS.
-          Sign up free at{' '}
-          <a href="https://resend.com" target="_blank" rel="noreferrer" className="underline font-semibold">
-            resend.com
-          </a>
-          , create an API key, then paste it below.
-        </p>
+        <div className="space-y-1">
+          <p><strong>Recommended on Render: AWS SES</strong> (HTTPS — not blocked like Gmail SMTP).</p>
+          <p>
+            1) Verify From email / domain in AWS SES → 2) Create IAM user with
+            <code className="mx-1 px-1 bg-white/70 rounded">ses:SendEmail</code> →
+            3) Paste Access Key + Secret below → 4) Save &amp; Send test.
+          </p>
+          <p className="text-xs text-sky-800">
+            Sandbox accounts can only send to verified recipient emails until you request production access.
+          </p>
+        </div>
       </div>
 
       <form onSubmit={save} className="space-y-5">
         <section className="bg-white rounded-2xl border border-slate-100 shadow-sm p-6">
           <div className="flex items-start justify-between gap-4 mb-5">
             <div className="flex gap-3">
-              <div className="w-10 h-10 rounded-xl bg-red-50 text-red-600 flex items-center justify-center">
+              <div className="w-10 h-10 rounded-xl bg-orange-50 text-orange-600 flex items-center justify-center">
                 <Mail size={20} />
               </div>
               <div>
                 <h3 className="font-bold text-slate-800">Email configuration</h3>
-                <p className="text-xs text-slate-500 mt-1">Choose Resend for GitHub Pages + Render.</p>
+                <p className="text-xs text-slate-500 mt-1">Choose your mail provider</p>
               </div>
             </div>
             <label className="flex items-center gap-2 text-sm font-medium text-slate-600">
@@ -179,10 +207,11 @@ export default function SettingsPage() {
             </label>
           </div>
 
-          <div className="grid grid-cols-2 gap-2 mb-4">
+          <div className="grid sm:grid-cols-3 gap-2 mb-4">
             {[
-              { id: 'resend', label: 'Resend (recommended on Render)' },
-              { id: 'gmail', label: 'Gmail SMTP (local only)' },
+              { id: 'ses', label: 'AWS SES' },
+              { id: 'resend', label: 'Resend' },
+              { id: 'gmail', label: 'Gmail SMTP' },
             ].map((option) => (
               <button
                 key={option.id}
@@ -209,12 +238,71 @@ export default function SettingsPage() {
               />
             </label>
 
-            {usingResend ? (
+            {provider === 'ses' && (
               <>
                 <label className="text-sm text-slate-600">
-                  <span className="block text-xs font-semibold uppercase mb-1.5">
-                    From email (optional)
+                  <span className="block text-xs font-semibold uppercase mb-1.5">From email *</span>
+                  <input
+                    type="email"
+                    value={form.email.fromEmail}
+                    onChange={(e) => updateEmail('fromEmail', e.target.value)}
+                    placeholder="noreply@supporticon.com"
+                    required={form.email.enabled}
+                    className="w-full px-4 py-3 rounded-xl border border-slate-200 focus:ring-2 focus:ring-indigo-500 outline-none"
+                  />
+                  <span className="text-[11px] text-slate-400 mt-1 block">
+                    Must be a verified identity in AWS SES
                   </span>
+                </label>
+                <label className="text-sm text-slate-600">
+                  <span className="block text-xs font-semibold uppercase mb-1.5">AWS Region</span>
+                  <select
+                    value={form.email.sesRegion}
+                    onChange={(e) => updateEmail('sesRegion', e.target.value)}
+                    className="w-full px-4 py-3 rounded-xl border border-slate-200 bg-white focus:ring-2 focus:ring-indigo-500 outline-none"
+                  >
+                    {sesRegions.map((region) => (
+                      <option key={region} value={region}>{region}</option>
+                    ))}
+                  </select>
+                </label>
+                <label className="text-sm text-slate-600">
+                  <span className="block text-xs font-semibold uppercase mb-1.5">Access Key ID *</span>
+                  <input
+                    value={form.email.sesAccessKeyId}
+                    onChange={(e) => updateEmail('sesAccessKeyId', e.target.value)}
+                    placeholder="AKIA..."
+                    className="w-full px-4 py-3 rounded-xl border border-slate-200 focus:ring-2 focus:ring-indigo-500 outline-none"
+                  />
+                </label>
+                <label className="sm:col-span-2 text-sm text-slate-600">
+                  <span className="block text-xs font-semibold uppercase mb-1.5">
+                    Secret Access Key {form.email.hasSesSecret && '(saved — leave blank to keep)'}
+                  </span>
+                  <div className="relative">
+                    <input
+                      type={showPassword ? 'text' : 'password'}
+                      value={form.email.sesSecretAccessKey}
+                      onChange={(e) => updateEmail('sesSecretAccessKey', e.target.value)}
+                      placeholder={form.email.hasSesSecret ? '••••••••••••' : 'wJalrXUtnFEMI/...'}
+                      className="w-full px-4 py-3 pr-11 rounded-xl border border-slate-200 focus:ring-2 focus:ring-indigo-500 outline-none"
+                    />
+                    <button
+                      type="button"
+                      onClick={() => setShowPassword((value) => !value)}
+                      className="absolute right-3 top-3.5 text-slate-400"
+                    >
+                      {showPassword ? <EyeOff size={17} /> : <Eye size={17} />}
+                    </button>
+                  </div>
+                </label>
+              </>
+            )}
+
+            {provider === 'resend' && (
+              <>
+                <label className="text-sm text-slate-600">
+                  <span className="block text-xs font-semibold uppercase mb-1.5">From email</span>
                   <input
                     type="email"
                     value={form.email.fromEmail}
@@ -222,9 +310,6 @@ export default function SettingsPage() {
                     placeholder="onboarding@resend.dev"
                     className="w-full px-4 py-3 rounded-xl border border-slate-200 focus:ring-2 focus:ring-indigo-500 outline-none"
                   />
-                  <span className="text-[11px] text-slate-400 mt-1 block">
-                    Leave blank to use onboarding@resend.dev for testing. For custom Gmail-looking from address, verify a domain in Resend.
-                  </span>
                 </label>
                 <label className="sm:col-span-2 text-sm text-slate-600">
                   <span className="block text-xs font-semibold uppercase mb-1.5">
@@ -248,7 +333,9 @@ export default function SettingsPage() {
                   </div>
                 </label>
               </>
-            ) : (
+            )}
+
+            {provider === 'gmail' && (
               <>
                 <label className="text-sm text-slate-600">
                   <span className="block text-xs font-semibold uppercase mb-1.5">Gmail address</span>
@@ -281,7 +368,7 @@ export default function SettingsPage() {
                     </button>
                   </div>
                   <span className="text-[11px] text-amber-600 mt-1 block">
-                    Usually blocked on Render. Prefer Resend for your live site.
+                    Often blocked on Render. Prefer AWS SES.
                   </span>
                 </label>
               </>
