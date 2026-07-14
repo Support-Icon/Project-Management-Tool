@@ -8,6 +8,7 @@ import UsersPage from './pages/UsersPage';
 import ReportsPage from './pages/ReportsPage';
 import AnalyticsPage from './pages/AnalyticsPage';
 import SettingsPage from './pages/SettingsPage';
+import AiChatPage from './pages/AiChatPage';
 import Layout from './components/Layout';
 
 const Spinner = () => (
@@ -46,6 +47,7 @@ const AppRoutes = () => {
         <Route path="reports" element={<ReportsPage />} />
         <Route path="analytics" element={<AnalyticsPage />} />
         <Route path="settings" element={<SettingsPage />} />
+        <Route path="ai-chat" element={<AiChatPage />} />
       </Route>
       <Route path="*" element={<Navigate to="/" replace />} />
     </Routes>

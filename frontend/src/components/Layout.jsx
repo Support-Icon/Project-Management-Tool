@@ -6,7 +6,7 @@ import { withMineOnly } from '../utils/apiQuery';
 import {
   LayoutDashboard, Users, FolderKanban, Plus, LogOut,
   ChevronRight, Layers, Menu, X, Building2, Briefcase, FileSpreadsheet, UserCheck,
-  BarChart3, Settings
+  BarChart3, Settings, Bot
 } from 'lucide-react';
 import toast from 'react-hot-toast';
 import ProjectModal from './ProjectModal';
@@ -81,6 +81,20 @@ export default function Layout() {
           >
             <LayoutDashboard size={17} />
             Dashboard
+          </NavLink>
+
+          <NavLink
+            to="/ai-chat"
+            className={({ isActive }) =>
+              `flex items-center gap-3 px-3 py-2.5 rounded-xl text-sm font-medium transition-all ${
+                isActive
+                  ? 'bg-indigo-600 text-white shadow-lg shadow-indigo-500/20'
+                  : 'text-slate-400 hover:bg-white/10 hover:text-white'
+              }`
+            }
+          >
+            <Bot size={17} />
+            AI Chat
           </NavLink>
 
           {user?.role === 'admin' && (

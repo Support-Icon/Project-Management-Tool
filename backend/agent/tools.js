@@ -248,12 +248,21 @@ const buildAgentTools = (actor) => {
           task: u.task?.title,
           progressPercent: u.progressPercent,
           content: u.content
-        }))
+        })),
+        readable: [
+          `Personal Daily-Update Report (${today})`,
+          `Open assigned tasks: ${openTasks.length}`,
+          `Daily updated correctly: ${openTasks.filter((t) => updatedSet.has(t._id.toString())).length}`,
+          `Missed daily updates: ${openTasks.filter((t) => !updatedSet.has(t._id.toString())).length}`,
+          ...openTasks
+            .filter((t) => !updatedSet.has(t._id.toString()))
+            .map((t) => `- Missed: ${t.title} (${t.project?.title || 'project'})`)
+        ].join('\n')
       });
     },
     {
       name: 'get_personal_report',
-      description: 'Get the current user’s personal task and daily-update report.',
+      description: 'Get the current user’s personal task and daily-update report. Prefer the readable field when answering the user.',
       schema: z.object({
         reason: z.string().optional().describe('Optional reason for personal report')
       })
@@ -294,11 +303,24 @@ const buildAgentTools = (actor) => {
         };
       });
 
-      return JSON.stringify({ date: today, team: report });
+      const readable = [
+        `Team Daily-Update Report (${today})`,
+        '',
+        ...report.map((row) =>
+          [
+            `• **${row.username}** (${row.role})`,
+            `  Open tasks: ${row.openTasks}`,
+            `  Daily updated correctly: ${row.dailyUpdatedCorrectly}`,
+            `  Missed daily updates: ${row.missedDailyUpdates}`
+          ].join('\n')
+        )
+      ].join('\n');
+
+      return JSON.stringify({ date: today, team: report, readable });
     },
     {
       name: 'get_team_report',
-      description: 'Admin only. Get daily-update report for all workers.',
+      description: 'Admin only. Get daily-update report for all workers. Prefer the readable field when answering the user — never use markdown tables.',
       schema: z.object({
         reason: z.string().optional().describe('Optional reason for team report')
       })
