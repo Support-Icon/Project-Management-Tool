@@ -50,9 +50,20 @@ router.put('/', async (req, res) => {
     }
 
     const existing = await CompanySettings.findOne({ company: req.user.company._id });
-    const appPasswordEncrypted = email.appPassword
-      ? encrypt(String(email.appPassword).replace(/\s/g, ''))
-      : existing?.email?.appPasswordEncrypted || '';
+    let appPasswordEncrypted = existing?.email?.appPasswordEncrypted || '';
+
+    if (email.appPassword) {
+      if (!process.env.ENCRYPTION_KEY) {
+        return res.status(500).json({
+          message: 'ENCRYPTION_KEY is not set on the server. Add it in Render Environment, then redeploy.'
+        });
+      }
+      try {
+        appPasswordEncrypted = encrypt(String(email.appPassword).replace(/\s/g, ''));
+      } catch (error) {
+        return res.status(500).json({ message: `Could not encrypt App Password: ${error.message}` });
+      }
+    }
 
     if ((email.enabled || digest.enabled) && !appPasswordEncrypted) {
       return res.status(400).json({ message: 'Gmail app password is required' });
@@ -84,9 +95,22 @@ router.put('/', async (req, res) => {
 
 router.post('/test-email', async (req, res) => {
   try {
+    if (!process.env.ENCRYPTION_KEY) {
+      return res.status(500).json({
+        message: 'ENCRYPTION_KEY is not set on Render. Add it under Environment, then redeploy.'
+      });
+    }
+
     const recipient = String(req.body.recipient || req.user.email || '').trim();
     if (!recipient) {
-      return res.status(400).json({ message: 'Add an email to your user or enter a test recipient' });
+      return res.status(400).json({ message: 'Enter a test recipient email address first.' });
+    }
+
+    const settings = await CompanySettings.findOne({ company: req.user.company._id });
+    if (!settings?.email?.enabled) {
+      return res.status(400).json({
+        message: 'Enable Gmail (checkbox), enter App Password, click Save Settings, then try Send test.'
+      });
     }
 
     const result = await sendWithCompany(req.user.company._id, {
@@ -97,7 +121,8 @@ router.post('/test-email', async (req, res) => {
     if (result.skipped) return res.status(400).json({ message: result.reason });
     res.json({ message: `Test email sent to ${recipient}` });
   } catch (error) {
-    res.status(400).json({ message: `Email failed: ${error.message}` });
+    console.error('Test email failed:', error);
+    res.status(400).json({ message: error.message || 'Email failed' });
   }
 });
 

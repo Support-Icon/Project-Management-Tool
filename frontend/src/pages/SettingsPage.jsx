@@ -74,12 +74,35 @@ export default function SettingsPage() {
   };
 
   const sendTest = async () => {
+    if (!testRecipient.trim()) {
+      toast.error('Enter a test recipient email first');
+      return;
+    }
+    if (!form.email.enabled) {
+      toast.error('Enable Gmail, save settings, then send a test');
+      return;
+    }
+    if (!form.email.hasAppPassword && !form.email.appPassword) {
+      toast.error('Enter Gmail App Password and click Save Settings first');
+      return;
+    }
+
     setTesting(true);
     try {
-      const res = await api.post('/api/settings/test-email', { recipient: testRecipient });
+      const res = await api.post(
+        '/api/settings/test-email',
+        { recipient: testRecipient.trim() },
+        { timeout: 25000 }
+      );
       toast.success(res.data.message);
     } catch (error) {
-      toast.error(error.response?.data?.message || 'Test email failed');
+      const message =
+        error.code === 'ECONNABORTED'
+          ? 'Request timed out. Check Render logs and ENCRYPTION_KEY / Gmail App Password.'
+          : error.response?.data?.message
+            || error.message
+            || 'Test email failed';
+      toast.error(message);
     } finally {
       setTesting(false);
     }

@@ -11,17 +11,43 @@ const escapeHtml = (value) => String(value ?? '')
 
 const getMailer = async (companyId) => {
   const settings = await CompanySettings.findOne({ company: companyId });
-  if (!settings?.email?.enabled || !settings.email.gmailUser ||
-      !settings.email.appPasswordEncrypted) {
-    return null;
+  if (!settings) {
+    return { error: 'Save email settings first (Save Settings button).' };
+  }
+  if (!settings.email?.enabled) {
+    return { error: 'Turn on "Enabled" under Gmail configuration, then Save Settings.' };
+  }
+  if (!settings.email.gmailUser) {
+    return { error: 'Gmail address is missing. Save settings again.' };
+  }
+  if (!settings.email.appPasswordEncrypted) {
+    return { error: 'Gmail App Password is missing. Paste it and Save Settings again.' };
+  }
+  if (!process.env.ENCRYPTION_KEY) {
+    return { error: 'ENCRYPTION_KEY is missing on the server. Add it in Render Environment, then redeploy.' };
+  }
+
+  let appPassword;
+  try {
+    appPassword = decrypt(settings.email.appPasswordEncrypted);
+  } catch (error) {
+    return {
+      error: 'Could not decrypt Gmail App Password. ENCRYPTION_KEY on Render may have changed — paste the App Password again and Save Settings.'
+    };
   }
 
   const transport = nodemailer.createTransport({
-    service: 'gmail',
+    host: 'smtp.gmail.com',
+    port: 587,
+    secure: false,
     auth: {
       user: settings.email.gmailUser,
-      pass: decrypt(settings.email.appPasswordEncrypted)
-    }
+      pass: appPassword
+    },
+    connectionTimeout: 12000,
+    greetingTimeout: 12000,
+    socketTimeout: 20000,
+    tls: { minVersion: 'TLSv1.2' }
   });
 
   return { transport, settings };
@@ -29,9 +55,20 @@ const getMailer = async (companyId) => {
 
 const sendWithCompany = async (companyId, message) => {
   const mailer = await getMailer(companyId);
-  if (!mailer) return { skipped: true, reason: 'Email is not configured' };
+  if (mailer.error) return { skipped: true, reason: mailer.error };
+  if (!mailer.transport) return { skipped: true, reason: 'Email is not configured' };
 
   const { transport, settings } = mailer;
+
+  try {
+    await transport.verify();
+  } catch (error) {
+    const msg = error.response || error.message || 'SMTP connection failed';
+    throw new Error(
+      `Gmail login failed: ${msg}. Use a 16-character Gmail App Password (not your normal password), and make sure 2-Step Verification is on.`
+    );
+  }
+
   const info = await transport.sendMail({
     from: `"${settings.email.fromName || 'ProjectFlow'}" <${settings.email.gmailUser}>`,
     ...message
