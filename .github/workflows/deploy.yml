@@ -29,6 +29,26 @@ jobs:
         working-directory: ./frontend
         run: npm ci
 
+      - name: Verify API URL secret
+        run: |
+          URL="${{ secrets.VITE_API_URL }}"
+          if [ -z "$URL" ] || [ "$URL" = "/" ]; then
+            echo "::error::Set GitHub secret VITE_API_URL to your Render backend URL (e.g. https://project-management-tool-c6f9.onrender.com). Do NOT use / or the custom domain."
+            exit 1
+          fi
+          case "$URL" in
+            http://*|https://*) ;;
+            *)
+              echo "::error::VITE_API_URL must start with https:// (Render API), got: $URL"
+              exit 1
+              ;;
+          esac
+          if echo "$URL" | grep -qiE 'projectflow\.supporticon\.com|github\.io'; then
+            echo "::error::VITE_API_URL must be the Render API host, not the frontend domain."
+            exit 1
+          fi
+          echo "VITE_API_URL looks valid (host only check)."
+
       - name: Build React app
         working-directory: ./frontend
         run: npm run build
