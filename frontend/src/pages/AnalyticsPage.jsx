@@ -1,7 +1,7 @@
 import React, { useEffect, useMemo, useState } from 'react';
 import {
   Activity, AlertCircle, CheckCircle2, ClipboardList,
-  RefreshCw, TrendingUp, Users,
+  RefreshCw, TrendingUp, Users, UserRound,
 } from 'lucide-react';
 import toast from 'react-hot-toast';
 import api from '../api/axios';
@@ -21,20 +21,28 @@ const Stat = ({ icon: Icon, label, value, tone }) => (
 
 export default function AnalyticsPage() {
   const { user } = useAuth();
+  const isAdmin = user?.role === 'admin';
+  const [tab, setTab] = useState(isAdmin ? 'team' : 'personal');
   const [days, setDays] = useState(7);
   const [overview, setOverview] = useState(null);
+  const [personal, setPersonal] = useState(null);
   const [updates, setUpdates] = useState([]);
   const [loading, setLoading] = useState(true);
 
   const load = async () => {
     setLoading(true);
     try {
-      const [overviewRes, updatesRes] = await Promise.all([
-        api.get(`/api/analytics/overview?days=${days}`),
-        api.get(`/api/analytics/daily-updates?days=${days}`),
-      ]);
-      setOverview(overviewRes.data);
-      setUpdates(updatesRes.data);
+      if (isAdmin && tab === 'team') {
+        const [overviewRes, updatesRes] = await Promise.all([
+          api.get(`/api/analytics/overview?days=${days}`),
+          api.get(`/api/analytics/daily-updates?days=${days}`),
+        ]);
+        setOverview(overviewRes.data);
+        setUpdates(updatesRes.data);
+      } else {
+        const personalRes = await api.get(`/api/analytics/personal?days=${days}`);
+        setPersonal(personalRes.data);
+      }
     } catch (error) {
       toast.error(error.response?.data?.message || 'Failed to load analytics');
     } finally {
@@ -42,21 +50,46 @@ export default function AnalyticsPage() {
     }
   };
 
-  useEffect(() => { load(); }, [days]);
+  useEffect(() => { load(); }, [days, tab, isAdmin]);
 
   const recentUpdates = useMemo(() => updates.slice(0, 25), [updates]);
-  if (user?.role !== 'admin') return null;
 
   return (
     <div className="p-6 max-w-7xl mx-auto animate-fade-in">
       <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 mb-6">
         <div>
-          <h2 className="text-2xl font-bold text-slate-800">Team Analytics</h2>
+          <h2 className="text-2xl font-bold text-slate-800">
+            {tab === 'team' ? 'Team Analytics' : 'My Personal Report'}
+          </h2>
           <p className="text-sm text-slate-500 mt-1">
-            Daily progress, update compliance, blockers and workload.
+            {tab === 'team'
+              ? 'Daily progress, update compliance, blockers and workload.'
+              : 'Your open tasks, daily update compliance, and recent progress.'}
           </p>
         </div>
-        <div className="flex gap-2">
+        <div className="flex flex-wrap gap-2">
+          {isAdmin && (
+            <div className="flex rounded-xl border border-slate-200 bg-white overflow-hidden">
+              <button
+                type="button"
+                onClick={() => setTab('team')}
+                className={`px-3 py-2 text-sm font-semibold flex items-center gap-1.5 ${
+                  tab === 'team' ? 'bg-indigo-600 text-white' : 'text-slate-600'
+                }`}
+              >
+                <Users size={15} /> Team
+              </button>
+              <button
+                type="button"
+                onClick={() => setTab('personal')}
+                className={`px-3 py-2 text-sm font-semibold flex items-center gap-1.5 ${
+                  tab === 'personal' ? 'bg-indigo-600 text-white' : 'text-slate-600'
+                }`}
+              >
+                <UserRound size={15} /> Personal
+              </button>
+            </div>
+          )}
           <select
             value={days}
             onChange={(event) => setDays(Number(event.target.value))}
@@ -77,9 +110,9 @@ export default function AnalyticsPage() {
         </div>
       </div>
 
-      {loading && !overview ? (
+      {loading && !(overview || personal) ? (
         <div className="py-20 text-center text-slate-500">Loading analytics…</div>
-      ) : overview && (
+      ) : tab === 'team' && overview ? (
         <>
           <div className="grid grid-cols-2 lg:grid-cols-5 gap-4 mb-6">
             <Stat icon={ClipboardList} label="Open assigned tasks" value={overview.summary.openTasks} tone="bg-indigo-50 text-indigo-600" />
@@ -156,7 +189,7 @@ export default function AnalyticsPage() {
                 <article key={update._id} className="p-5">
                   <div className="flex flex-wrap items-center gap-x-2 gap-y-1 mb-2">
                     <span className="font-semibold text-slate-800">{update.author?.username}</span>
-                    <span className="text-xs text-slate-400">• {update.updateDate}</span>
+                    <span className="text-xs text-slate-400">· {update.updateDate}</span>
                     <span className="text-xs px-2 py-0.5 rounded-full bg-indigo-50 text-indigo-600 font-semibold">
                       {update.progressPercent}%
                     </span>
@@ -175,6 +208,81 @@ export default function AnalyticsPage() {
             </div>
           </section>
         </>
+      ) : personal ? (
+        <>
+          <div className="grid grid-cols-2 lg:grid-cols-4 gap-4 mb-6">
+            <Stat icon={ClipboardList} label="My open tasks" value={personal.summary.openTasks} tone="bg-indigo-50 text-indigo-600" />
+            <Stat icon={Activity} label="Daily updated correctly" value={personal.summary.updatesToday} tone="bg-emerald-50 text-emerald-600" />
+            <Stat icon={AlertCircle} label="Missed update reports" value={personal.summary.missingToday} tone="bg-amber-50 text-amber-600" />
+            <Stat icon={CheckCircle2} label="Completed in period" value={personal.summary.completedInPeriod} tone="bg-purple-50 text-purple-600" />
+          </div>
+
+          <div className="grid lg:grid-cols-2 gap-6 mb-6">
+            <section className="bg-white rounded-2xl border border-slate-100 shadow-sm p-5">
+              <h3 className="font-bold text-slate-800 mb-1">Compliance</h3>
+              <p className="text-xs text-slate-500 mb-4">Timezone: {personal.timezone}</p>
+              <div className="flex items-center gap-3 mb-2">
+                <div className="h-3 flex-1 bg-slate-100 rounded-full overflow-hidden">
+                  <div
+                    className={`h-full ${personal.summary.compliancePercent >= 70 ? 'bg-emerald-500' : 'bg-amber-500'}`}
+                    style={{ width: `${personal.summary.compliancePercent}%` }}
+                  />
+                </div>
+                <span className="text-sm font-bold text-slate-700">{personal.summary.compliancePercent}%</span>
+              </div>
+              <p className="text-xs text-slate-500">Blockers logged: {personal.summary.blockerCount}</p>
+            </section>
+
+            <section className="bg-white rounded-2xl border border-slate-100 shadow-sm overflow-hidden">
+              <div className="px-5 py-4 border-b border-slate-100">
+                <h3 className="font-bold text-slate-800">Open tasks</h3>
+              </div>
+              <div className="divide-y divide-slate-50 max-h-72 overflow-y-auto">
+                {personal.openTasks.length === 0 ? (
+                  <p className="p-6 text-sm text-slate-400 text-center">No open tasks.</p>
+                ) : personal.openTasks.map((task) => (
+                  <div key={task._id} className="px-5 py-3 flex items-start justify-between gap-3">
+                    <div>
+                      <p className="text-sm font-semibold text-slate-800">{task.title}</p>
+                      <p className="text-xs text-slate-400">{task.project}</p>
+                    </div>
+                    <span className={`text-[10px] font-bold px-2 py-1 rounded-full ${
+                      task.hasTodayUpdate ? 'bg-emerald-50 text-emerald-700' : 'bg-amber-50 text-amber-700'
+                    }`}>
+                      {task.hasTodayUpdate ? 'Updated today' : 'Missing today'}
+                    </span>
+                  </div>
+                ))}
+              </div>
+            </section>
+          </div>
+
+          <section className="bg-white rounded-2xl border border-slate-100 shadow-sm">
+            <div className="px-5 py-4 border-b border-slate-100">
+              <h3 className="font-bold text-slate-800">My recent updates</h3>
+            </div>
+            <div className="divide-y divide-slate-50">
+              {personal.recentUpdates.length === 0 ? (
+                <p className="p-8 text-center text-sm text-slate-400">No updates in this period.</p>
+              ) : personal.recentUpdates.map((update) => (
+                <article key={update._id} className="p-5">
+                  <div className="flex flex-wrap items-center gap-x-2 gap-y-1 mb-2">
+                    <span className="text-xs text-slate-400">{update.updateDate}</span>
+                    <span className="text-xs px-2 py-0.5 rounded-full bg-indigo-50 text-indigo-600 font-semibold">
+                      {update.progressPercent}%
+                    </span>
+                  </div>
+                  <p className="text-xs text-slate-500 mb-1">
+                    {update.task?.project?.title} / {update.task?.title}
+                  </p>
+                  <p className="text-sm text-slate-700 whitespace-pre-wrap">{update.content}</p>
+                </article>
+              ))}
+            </div>
+          </section>
+        </>
+      ) : (
+        <div className="py-20 text-center text-slate-500">No analytics data yet.</div>
       )}
     </div>
   );

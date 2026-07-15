@@ -69,6 +69,15 @@ export default function SettingsPage() {
       time: '10:00',
       timezone: 'Asia/Kolkata',
     },
+    emailTemplates: {
+      brandColor: '#4f46e5',
+      logoUrl: '',
+      assignmentSubject: '',
+      assignmentHtml: '',
+      digestSubject: '',
+      digestHtml: '',
+      footerText: 'Sent by ProjectFlow',
+    },
   });
 
   useEffect(() => {
@@ -87,6 +96,7 @@ export default function SettingsPage() {
             provider: emailRes.data.email?.provider || 'ses',
           },
           digest: { ...current.digest, ...emailRes.data.digest },
+          emailTemplates: { ...current.emailTemplates, ...emailRes.data.emailTemplates },
         }));
         setAiForm((current) => ({
           ...current,
@@ -102,6 +112,11 @@ export default function SettingsPage() {
     setForm((current) => ({ ...current, email: { ...current.email, [key]: value } }));
   const updateDigest = (key, value) =>
     setForm((current) => ({ ...current, digest: { ...current.digest, [key]: value } }));
+  const updateTemplate = (key, value) =>
+    setForm((current) => ({
+      ...current,
+      emailTemplates: { ...current.emailTemplates, [key]: value },
+    }));
   const updateAi = (key, value) =>
     setAiForm((current) => ({ ...current, [key]: value }));
 
@@ -119,6 +134,7 @@ export default function SettingsPage() {
           sesSecretAccessKey: '',
         },
         digest: { ...current.digest, ...res.data.digest },
+        emailTemplates: { ...current.emailTemplates, ...res.data.emailTemplates },
       }));
       toast.success('Email settings saved');
     } catch (error) {
@@ -499,6 +515,95 @@ export default function SettingsPage() {
               >
                 {timezones.map((timezone) => <option key={timezone}>{timezone}</option>)}
               </select>
+            </label>
+          </div>
+        </section>
+
+        <section className="bg-white rounded-2xl border border-slate-100 shadow-sm p-6">
+          <div className="flex gap-3 mb-4">
+            <div className="w-10 h-10 rounded-xl bg-fuchsia-50 text-fuchsia-600 flex items-center justify-center">
+              <Mail size={20} />
+            </div>
+            <div>
+              <h3 className="font-bold text-slate-800">Email template design</h3>
+              <p className="text-xs text-slate-500 mt-1">
+                Brand color, logo image URL, and optional HTML. Use placeholders like
+                {' '}&#123;&#123;username&#125;&#125;, &#123;&#123;taskTitle&#125;&#125;, &#123;&#123;projectTitle&#125;&#125;, &#123;&#123;dueDate&#125;&#125;, &#123;&#123;taskRows&#125;&#125;.
+              </p>
+            </div>
+          </div>
+
+          <div className="grid sm:grid-cols-2 gap-4">
+            <label className="text-sm text-slate-600">
+              <span className="block text-xs font-semibold uppercase mb-1.5">Brand color</span>
+              <div className="flex gap-2">
+                <input
+                  type="color"
+                  value={form.emailTemplates.brandColor || '#4f46e5'}
+                  onChange={(e) => updateTemplate('brandColor', e.target.value)}
+                  className="h-11 w-14 rounded-lg border border-slate-200 p-1"
+                />
+                <input
+                  value={form.emailTemplates.brandColor}
+                  onChange={(e) => updateTemplate('brandColor', e.target.value)}
+                  className="flex-1 px-4 py-3 rounded-xl border border-slate-200"
+                />
+              </div>
+            </label>
+            <label className="text-sm text-slate-600">
+              <span className="block text-xs font-semibold uppercase mb-1.5">Logo image URL</span>
+              <input
+                value={form.emailTemplates.logoUrl}
+                onChange={(e) => updateTemplate('logoUrl', e.target.value)}
+                placeholder="https://…/logo.png"
+                className="w-full px-4 py-3 rounded-xl border border-slate-200"
+              />
+            </label>
+            <label className="sm:col-span-2 text-sm text-slate-600">
+              <span className="block text-xs font-semibold uppercase mb-1.5">Footer text</span>
+              <input
+                value={form.emailTemplates.footerText}
+                onChange={(e) => updateTemplate('footerText', e.target.value)}
+                className="w-full px-4 py-3 rounded-xl border border-slate-200"
+              />
+            </label>
+            <label className="sm:col-span-2 text-sm text-slate-600">
+              <span className="block text-xs font-semibold uppercase mb-1.5">Assignment subject (optional)</span>
+              <input
+                value={form.emailTemplates.assignmentSubject}
+                onChange={(e) => updateTemplate('assignmentSubject', e.target.value)}
+                placeholder="New task: {{taskTitle}}"
+                className="w-full px-4 py-3 rounded-xl border border-slate-200"
+              />
+            </label>
+            <label className="sm:col-span-2 text-sm text-slate-600">
+              <span className="block text-xs font-semibold uppercase mb-1.5">Assignment HTML body (optional)</span>
+              <textarea
+                rows={5}
+                value={form.emailTemplates.assignmentHtml}
+                onChange={(e) => updateTemplate('assignmentHtml', e.target.value)}
+                placeholder={'<h2>Hi {{username}}</h2><p>Task: <strong>{{taskTitle}}</strong></p>'}
+                className="w-full px-4 py-3 rounded-xl border border-slate-200 font-mono text-xs"
+              />
+            </label>
+            <label className="sm:col-span-2 text-sm text-slate-600">
+              <span className="block text-xs font-semibold uppercase mb-1.5">Digest subject (optional)</span>
+              <input
+                value={form.emailTemplates.digestSubject}
+                onChange={(e) => updateTemplate('digestSubject', e.target.value)}
+                placeholder="Daily reminder — {{localDate}}"
+                className="w-full px-4 py-3 rounded-xl border border-slate-200"
+              />
+            </label>
+            <label className="sm:col-span-2 text-sm text-slate-600">
+              <span className="block text-xs font-semibold uppercase mb-1.5">Digest HTML body (optional)</span>
+              <textarea
+                rows={5}
+                value={form.emailTemplates.digestHtml}
+                onChange={(e) => updateTemplate('digestHtml', e.target.value)}
+                placeholder={'<p>Hello {{username}}</p><table>{{taskRows}}</table>'}
+                className="w-full px-4 py-3 rounded-xl border border-slate-200 font-mono text-xs"
+              />
             </label>
           </div>
         </section>

@@ -91,7 +91,7 @@ const buildAgentTools = (actor) => {
   );
 
   const createAndAssignTask = tool(
-    async ({ projectId, title, description, assigneeUsername, column, priority }) => {
+    async ({ projectId, title, description, assigneeUsername, column, priority, dueDate }) => {
       const project = await Project.findOne({ _id: projectId, company: companyId });
       if (!project) return JSON.stringify({ error: 'Project not found.' });
 
@@ -107,6 +107,15 @@ const buildAgentTools = (actor) => {
         assigneeId = actor._id;
       }
 
+      let due = null;
+      if (dueDate && String(dueDate).trim() && !/^skip|none|n\/a$/i.test(String(dueDate).trim())) {
+        const parsed = new Date(dueDate);
+        if (Number.isNaN(parsed.getTime())) {
+          return JSON.stringify({ error: 'Invalid dueDate. Use YYYY-MM-DD.' });
+        }
+        due = parsed;
+      }
+
       const col = column || 'todo';
       const maxTask = await Task.findOne({ project: projectId, column: col }).sort({ order: -1 });
       const task = await Task.create({
@@ -116,6 +125,7 @@ const buildAgentTools = (actor) => {
         column: col,
         order: maxTask ? maxTask.order + 1 : 0,
         priority: priority || 'medium',
+        dueDate: due,
         assignee: assigneeId,
         createdBy: actor._id
       });
@@ -137,20 +147,71 @@ const buildAgentTools = (actor) => {
         title: task.title,
         assignee: assignee?.username,
         project: project.title,
+        dueDate: due ? due.toISOString().slice(0, 10) : null,
         message: `Task "${task.title}" assigned to ${assignee?.username || 'user'}.`
       });
     },
     {
       name: 'create_and_assign_task',
       description:
-        'Create a task in a project. Admins can assign to any username. Members auto-assign to themselves.',
+        'Create a task in a project. Admins can assign to any username. Members auto-assign to themselves. Ask for dueDate (YYYY-MM-DD) when creating.',
       schema: z.object({
         projectId: z.string().min(1),
         title: z.string().min(1),
         description: z.string().optional().default(''),
         assigneeUsername: z.string().optional(),
         column: z.enum(['todo', 'inprogress', 'review', 'done']).optional().default('todo'),
-        priority: z.enum(['low', 'medium', 'high']).optional().default('medium')
+        priority: z.enum(['low', 'medium', 'high']).optional().default('medium'),
+        dueDate: z.string().optional().describe('Due date YYYY-MM-DD, or omit/skip')
+      })
+    }
+  );
+
+  const completeTask = tool(
+    async ({ taskId, taskTitle }) => {
+      let task = null;
+      if (taskId) {
+        task = await Task.findById(taskId).populate({ path: 'project', select: 'company title' });
+      } else if (taskTitle) {
+        const projectIds = await Project.find({ company: companyId }).distinct('_id');
+        const query = {
+          project: { $in: projectIds },
+          title: new RegExp(`^${String(taskTitle).trim().replace(/[.*+?^${}()|[\]\\]/g, '\\$&')}$`, 'i')
+        };
+        if (!isAdmin) query.assignee = actor._id;
+        task = await Task.findOne(query).populate({ path: 'project', select: 'company title' });
+      }
+      if (!task || task.project.company.toString() !== companyId.toString()) {
+        return JSON.stringify({ error: 'Task not found.' });
+      }
+      if (!isAdmin && task.assignee?.toString() !== actor._id.toString()) {
+        return JSON.stringify({ error: 'You can only complete your own tasks.' });
+      }
+      if (task.column === 'done') {
+        return JSON.stringify({ success: true, message: `Task "${task.title}" is already completed.` });
+      }
+
+      const maxDone = await Task.findOne({ project: task.project._id, column: 'done' }).sort({ order: -1 });
+      task.column = 'done';
+      task.order = maxDone ? maxDone.order + 1 : 0;
+      task.completedAt = new Date();
+      await task.save();
+
+      return JSON.stringify({
+        success: true,
+        id: task._id.toString(),
+        title: task.title,
+        column: 'done',
+        message: `Task "${task.title}" marked complete (moved to Done).`
+      });
+    },
+    {
+      name: 'complete_task',
+      description:
+        'Mark a task as complete (status/column = done). Use when the user asks to complete/finish a task. Prefer taskId from list_tasks; taskTitle works if unique.',
+      schema: z.object({
+        taskId: z.string().optional(),
+        taskTitle: z.string().optional()
       })
     }
   );
@@ -362,6 +423,7 @@ const buildAgentTools = (actor) => {
     listProjects,
     listMyTasks,
     createAndAssignTask,
+    completeTask,
     addDailyUpdate,
     getPersonalReport
   ];

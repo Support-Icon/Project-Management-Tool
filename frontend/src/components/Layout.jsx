@@ -97,6 +97,20 @@ export default function Layout() {
             AI Chat
           </NavLink>
 
+          <NavLink
+            to="/analytics"
+            className={({ isActive }) =>
+              `flex items-center gap-3 px-3 py-2.5 rounded-xl text-sm font-medium transition-all ${
+                isActive
+                  ? 'bg-indigo-600 text-white shadow-lg shadow-indigo-500/20'
+                  : 'text-slate-400 hover:bg-white/10 hover:text-white'
+              }`
+            }
+          >
+            <BarChart3 size={17} />
+            Analytics
+          </NavLink>
+
           {user?.role === 'admin' && (
             <>
               <NavLink
@@ -124,19 +138,6 @@ export default function Layout() {
               >
                 <FileSpreadsheet size={17} />
                 Reports
-              </NavLink>
-              <NavLink
-                to="/analytics"
-                className={({ isActive }) =>
-                  `flex items-center gap-3 px-3 py-2.5 rounded-xl text-sm font-medium transition-all ${
-                    isActive
-                      ? 'bg-indigo-600 text-white shadow-lg shadow-indigo-500/20'
-                      : 'text-slate-400 hover:bg-white/10 hover:text-white'
-                  }`
-                }
-              >
-                <BarChart3 size={17} />
-                Analytics
               </NavLink>
               <NavLink
                 to="/settings"

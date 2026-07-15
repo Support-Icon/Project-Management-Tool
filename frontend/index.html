@@ -11,6 +11,17 @@
   </head>
   <body>
     <div id="root"></div>
+    <script>
+      (function () {
+        var redirect = sessionStorage.getItem('pf-redirect');
+        if (redirect) {
+          sessionStorage.removeItem('pf-redirect');
+          if (redirect !== location.pathname + location.search + location.hash) {
+            history.replaceState(null, '', redirect);
+          }
+        }
+      })();
+    </script>
     <script type="module" src="/src/main.jsx"></script>
   </body>
 </html>

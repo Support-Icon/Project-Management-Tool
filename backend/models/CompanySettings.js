@@ -28,6 +28,15 @@ const companySettingsSchema = new mongoose.Schema({
     lastSentDate: { type: String, default: '' },
     lastSentAt: { type: Date, default: null }
   },
+  emailTemplates: {
+    brandColor: { type: String, default: '#4f46e5' },
+    logoUrl: { type: String, default: '' },
+    assignmentSubject: { type: String, default: '' },
+    assignmentHtml: { type: String, default: '' },
+    digestSubject: { type: String, default: '' },
+    digestHtml: { type: String, default: '' },
+    footerText: { type: String, default: 'Sent by ProjectFlow' }
+  },
   ai: {
     enabled: { type: Boolean, default: false },
     provider: {

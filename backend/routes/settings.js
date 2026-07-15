@@ -13,6 +13,16 @@ const normalizeProvider = (value) => {
   return 'ses';
 };
 
+const publicTemplates = (settings) => ({
+  brandColor: settings?.emailTemplates?.brandColor || '#4f46e5',
+  logoUrl: settings?.emailTemplates?.logoUrl || '',
+  assignmentSubject: settings?.emailTemplates?.assignmentSubject || '',
+  assignmentHtml: settings?.emailTemplates?.assignmentHtml || '',
+  digestSubject: settings?.emailTemplates?.digestSubject || '',
+  digestHtml: settings?.emailTemplates?.digestHtml || '',
+  footerText: settings?.emailTemplates?.footerText || 'Sent by ProjectFlow'
+});
+
 const publicSettings = (settings) => ({
   email: {
     enabled: settings?.email?.enabled || false,
@@ -32,7 +42,8 @@ const publicSettings = (settings) => ({
     time: settings?.digest?.time || '10:00',
     timezone: settings?.digest?.timezone || 'Asia/Kolkata',
     lastSentAt: settings?.digest?.lastSentAt || null
-  }
+  },
+  emailTemplates: publicTemplates(settings)
 });
 
 router.get('/', async (req, res) => {
@@ -46,10 +57,11 @@ router.get('/', async (req, res) => {
 
 router.put('/', async (req, res) => {
   try {
-    const { email = {}, digest = {} } = req.body;
+    const { email = {}, digest = {}, emailTemplates = {} } = req.body;
     const timezone = digest.timezone || 'Asia/Kolkata';
     const time = digest.time || '10:00';
     const provider = normalizeProvider(email.provider);
+    const brandColor = String(emailTemplates.brandColor || '#4f46e5').trim() || '#4f46e5';
 
     if (!isValidTimezone(timezone)) {
       return res.status(400).json({ message: 'Invalid timezone' });
@@ -132,6 +144,13 @@ router.put('/', async (req, res) => {
           'digest.enabled': Boolean(digest.enabled),
           'digest.time': time,
           'digest.timezone': timezone,
+          'emailTemplates.brandColor': brandColor,
+          'emailTemplates.logoUrl': String(emailTemplates.logoUrl || '').trim(),
+          'emailTemplates.assignmentSubject': String(emailTemplates.assignmentSubject || ''),
+          'emailTemplates.assignmentHtml': String(emailTemplates.assignmentHtml || ''),
+          'emailTemplates.digestSubject': String(emailTemplates.digestSubject || ''),
+          'emailTemplates.digestHtml': String(emailTemplates.digestHtml || ''),
+          'emailTemplates.footerText': String(emailTemplates.footerText || 'Sent by ProjectFlow').trim(),
           updatedAt: new Date()
         }
       },
@@ -158,10 +177,22 @@ router.post('/test-email', async (req, res) => {
       });
     }
 
+    const { wrapShell } = require('../utils/emailTemplates');
+    const brandColor = settings.emailTemplates?.brandColor || '#4f46e5';
+    const html = wrapShell({
+      brandColor,
+      logoUrl: settings.emailTemplates?.logoUrl || '',
+      footerText: settings.emailTemplates?.footerText || 'Sent by ProjectFlow',
+      bodyHtml: `
+        <h2 style="margin:0 0 12px">Email configuration works</h2>
+        <p>Your ProjectFlow mail settings are ready. Brand color and logo from Templates are applied here.</p>
+      `
+    });
+
     const result = await sendWithCompany(req.user.company._id, {
       to: recipient,
       subject: 'ProjectFlow email test',
-      html: '<h2>Email configuration works</h2><p>Your ProjectFlow AWS SES / email settings are ready.</p>'
+      html
     });
     if (result.skipped) return res.status(400).json({ message: result.reason });
     res.json({

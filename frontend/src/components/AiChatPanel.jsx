@@ -1,5 +1,5 @@
 import React, { useEffect, useMemo, useRef, useState } from 'react';
-import { Bot, Send, Sparkles, FolderPlus, ClipboardList, BarChart3, UserRound, X, Maximize2 } from 'lucide-react';
+import { Bot, Send, Sparkles, FolderPlus, ClipboardList, BarChart3, UserRound, X, Maximize2, CheckCircle2 } from 'lucide-react';
 import toast from 'react-hot-toast';
 import api from '../api/axios';
 import { useAuth } from '../context/AuthContext';
@@ -17,6 +17,7 @@ export default function AiChatPanel({ compact = false, onClose, onExpand }) {
   const [sending, setSending] = useState(false);
   const [projects, setProjects] = useState([]);
   const [members, setMembers] = useState([]);
+  const [openTasks, setOpenTasks] = useState([]);
   const [flow, setFlow] = useState(null);
   const [messages, setMessages] = useState([
     { role: 'assistant', content: welcome(user?.role) },
@@ -27,12 +28,27 @@ export default function AiChatPanel({ compact = false, onClose, onExpand }) {
     endRef.current?.scrollIntoView({ behavior: 'smooth' });
   }, [messages, sending, flow]);
 
+  const loadOpenTasks = async () => {
+    try {
+      const projectRes = await api.get('/api/projects');
+      const projectList = projectRes.data || [];
+      setProjects(projectList);
+      const taskLists = await Promise.all(
+        projectList.slice(0, 12).map((p) =>
+          api.get(`/api/tasks/${p._id}`).then((r) => r.data).catch(() => [])
+        )
+      );
+      const flat = taskLists.flat().filter((t) => t.column !== 'done');
+      setOpenTasks(flat);
+      return flat;
+    } catch (_) {
+      return [];
+    }
+  };
+
   useEffect(() => {
     const load = async () => {
-      try {
-        const projectRes = await api.get('/api/projects');
-        setProjects(projectRes.data || []);
-      } catch (_) {}
+      await loadOpenTasks();
       if (isAdmin) {
         try {
           const userRes = await api.get('/api/users');
@@ -111,12 +127,15 @@ export default function AiChatPanel({ compact = false, onClose, onExpand }) {
         column: 'todo',
         priority: data.priority || 'medium',
         assigneeId: data.assigneeId || undefined,
+        dueDate: data.dueDate || undefined,
       });
       setFlow(null);
+      await loadOpenTasks();
       const assigneeName = res.data.assignee?.username || 'unassigned';
+      const dueLabel = data.dueDate || 'Not set';
       push({
         role: 'assistant',
-        content: `Task **${res.data.title}** created in **${data.projectTitle}** and assigned to **${assigneeName}**.`,
+        content: `Task **${res.data.title}** created in **${data.projectTitle}**, assigned to **${assigneeName}**, due **${dueLabel}**.`,
       });
       toast.success('Task created');
     } catch (error) {
@@ -124,6 +143,43 @@ export default function AiChatPanel({ compact = false, onClose, onExpand }) {
     } finally {
       setSending(false);
     }
+  };
+
+  const startCompleteTask = async () => {
+    const tasks = await loadOpenTasks();
+    if (!tasks.length) {
+      push({ role: 'assistant', content: 'You have no open tasks to complete.' });
+      return;
+    }
+    setFlow({ type: 'complete_task', step: 'pick', data: {} });
+    push({
+      role: 'assistant',
+      content: 'Which task should I mark as **complete**?\nPick a task below or type its title.',
+      suggestions: tasks.slice(0, 12).map((t) => t.title),
+    });
+  };
+
+  const tomorrowIso = () => {
+    const d = new Date();
+    d.setDate(d.getDate() + 1);
+    return d.toISOString().slice(0, 10);
+  };
+
+  const nextWeekIso = () => {
+    const d = new Date();
+    d.setDate(d.getDate() + 7);
+    return d.toISOString().slice(0, 10);
+  };
+
+  const parseDueDate = (answer) => {
+    const text = String(answer || '').trim();
+    if (/^skip|none|no$/i.test(text)) return null;
+    if (/^tomorrow$/i.test(text)) return tomorrowIso();
+    if (/^next week$/i.test(text)) return nextWeekIso();
+    if (/^\d{4}-\d{2}-\d{2}$/.test(text)) return text;
+    const parsed = new Date(text);
+    if (!Number.isNaN(parsed.getTime())) return parsed.toISOString().slice(0, 10);
+    return undefined;
   };
 
   const handleFlowAnswer = async (raw) => {
@@ -234,6 +290,26 @@ export default function AiChatPanel({ compact = false, onClose, onExpand }) {
           ? answer.toLowerCase()
           : 'medium';
         const data = { ...flow.data, priority };
+        setFlow({ type: 'create_task', step: 'dueDate', data });
+        push({
+          role: 'assistant',
+          content: `Priority: **${priority}**.\n\n**What is the due date?** (YYYY-MM-DD, or Skip)`,
+          suggestions: [tomorrowIso(), nextWeekIso(), 'Skip'],
+        });
+        return;
+      }
+
+      if (flow.step === 'dueDate') {
+        const dueDate = parseDueDate(answer);
+        if (dueDate === undefined) {
+          push({
+            role: 'assistant',
+            content: 'Please use **YYYY-MM-DD**, or tap Skip / Tomorrow.',
+            suggestions: [tomorrowIso(), nextWeekIso(), 'Skip'],
+          });
+          return;
+        }
+        const data = { ...flow.data, dueDate };
         setFlow({ type: 'create_task', step: 'confirm', data });
         push({
           role: 'assistant',
@@ -243,7 +319,8 @@ export default function AiChatPanel({ compact = false, onClose, onExpand }) {
             `- **Project:** ${data.projectTitle}`,
             `- **Title:** ${data.title}`,
             `- **Assignee:** ${data.assigneeName || user.username}`,
-            `- **Priority:** ${priority}`,
+            `- **Priority:** ${data.priority}`,
+            `- **Due date:** ${dueDate || 'Not set'}`,
             '',
             'Confirm to create.',
           ].join('\n'),
@@ -259,6 +336,51 @@ export default function AiChatPanel({ compact = false, onClose, onExpand }) {
           return;
         }
         await finishCreateTask(flow.data);
+      }
+      return;
+    }
+
+    if (flow.type === 'complete_task') {
+      if (flow.step === 'pick') {
+        const found = openTasks.find((t) => t.title.toLowerCase() === answer.toLowerCase())
+          || openTasks.find((t) => t.title.toLowerCase().includes(answer.toLowerCase()));
+        if (!found) {
+          push({
+            role: 'assistant',
+            content: `No open task matched “${answer}”. Pick one:`,
+            suggestions: openTasks.slice(0, 12).map((t) => t.title),
+          });
+          return;
+        }
+        setFlow({ type: 'complete_task', step: 'confirm', data: { task: found } });
+        push({
+          role: 'assistant',
+          content: `Mark **${found.title}** as complete (Done)?`,
+          suggestions: ['Confirm complete', 'Cancel'],
+        });
+        return;
+      }
+      if (flow.step === 'confirm') {
+        if (/^cancel$/i.test(answer)) {
+          setFlow(null);
+          push({ role: 'assistant', content: 'Canceled. What else can I help with?' });
+          return;
+        }
+        setSending(true);
+        try {
+          await api.put(`/api/tasks/${flow.data.task._id}`, { column: 'done' });
+          setFlow(null);
+          await loadOpenTasks();
+          push({
+            role: 'assistant',
+            content: `Task **${flow.data.task.title}** is now **complete** (moved to Done).`,
+          });
+          toast.success('Task completed');
+        } catch (error) {
+          push({ role: 'assistant', content: error.response?.data?.message || 'Failed to complete task' });
+        } finally {
+          setSending(false);
+        }
       }
     }
   };
@@ -308,6 +430,7 @@ export default function AiChatPanel({ compact = false, onClose, onExpand }) {
   const actionChips = [
     isAdmin && { label: 'Create project', icon: FolderPlus, onClick: startCreateProject },
     { label: 'Create task', icon: ClipboardList, onClick: startCreateTask },
+    { label: 'Complete task', icon: CheckCircle2, onClick: startCompleteTask },
     { label: isAdmin ? 'Team report' : 'My report', icon: isAdmin ? BarChart3 : UserRound, onClick: askReport },
   ].filter(Boolean);
 

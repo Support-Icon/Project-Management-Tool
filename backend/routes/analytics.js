@@ -8,7 +8,7 @@ const CompanySettings = require('../models/CompanySettings');
 const { auth, adminOnly } = require('../middleware/auth');
 
 const router = express.Router();
-router.use(auth, adminOnly);
+router.use(auth);
 
 const getContext = async (companyId, daysParam) => {
   const settings = await CompanySettings.findOne({ company: companyId });
@@ -22,10 +22,34 @@ const getContext = async (companyId, daysParam) => {
   return { timezone, today: today.toISODate(), dates, projectIds };
 };
 
-router.get('/overview', async (req, res) => {
+const buildPersonStats = ({ user, openTasks, updates, today, dates }) => {
+  const userId = user._id.toString();
+  const assignedOpenTasks = openTasks.filter((task) => task.assignee?.toString() === userId);
+  const userUpdates = updates.filter((update) => update.author.toString() === userId);
+  const userTodayTaskIds = new Set(
+    userUpdates.filter((update) => update.updateDate === today).map((update) => update.task.toString())
+  );
+  const missing = assignedOpenTasks.filter((task) => !userTodayTaskIds.has(task._id.toString())).length;
+  const daysUpdated = new Set(userUpdates.map((update) => update.updateDate)).size;
+
+  return {
+    _id: user._id,
+    username: user.username,
+    email: user.email,
+    role: user.role,
+    assignedOpen: assignedOpenTasks.length,
+    updatesToday: userUpdates.filter((update) => update.updateDate === today).length,
+    missingToday: missing,
+    updatesInPeriod: userUpdates.length,
+    compliancePercent: Math.round((daysUpdated / dates.length) * 100),
+    blockerCount: userUpdates.filter((update) => update.blockers).length
+  };
+};
+
+router.get('/overview', adminOnly, async (req, res) => {
   try {
     const companyId = req.user.company._id;
-    const { today, dates, projectIds } = await getContext(companyId, req.query.days);
+    const { today, dates, projectIds, timezone } = await getContext(companyId, req.query.days);
     const users = await User.find({ company: companyId }).select('username email role');
 
     const openTasks = await Task.find({
@@ -48,32 +72,12 @@ router.get('/overview', async (req, res) => {
       completedAt: { $gte: DateTime.fromISO(dates[0]).startOf('day').toJSDate() }
     });
 
-    const people = users.map((user) => {
-      const userId = user._id.toString();
-      const assignedOpenTasks = openTasks.filter((task) => task.assignee?.toString() === userId);
-      const userUpdates = updates.filter((update) => update.author.toString() === userId);
-      const userTodayTaskIds = new Set(
-        userUpdates.filter((update) => update.updateDate === today).map((update) => update.task.toString())
-      );
-      const missing = assignedOpenTasks.filter((task) => !userTodayTaskIds.has(task._id.toString())).length;
-      const daysUpdated = new Set(userUpdates.map((update) => update.updateDate)).size;
-
-      return {
-        _id: user._id,
-        username: user.username,
-        email: user.email,
-        role: user.role,
-        assignedOpen: assignedOpenTasks.length,
-        updatesToday: userUpdates.filter((update) => update.updateDate === today).length,
-        missingToday: missing,
-        updatesInPeriod: userUpdates.length,
-        compliancePercent: Math.round((daysUpdated / dates.length) * 100),
-        blockerCount: userUpdates.filter((update) => update.blockers).length
-      };
-    });
+    const people = users.map((user) =>
+      buildPersonStats({ user, openTasks, updates, today, dates })
+    );
 
     res.json({
-      timezone: (await CompanySettings.findOne({ company: companyId }))?.digest?.timezone || 'Asia/Kolkata',
+      timezone,
       period: { start: dates[0], end: dates[dates.length - 1], days: dates.length },
       summary: {
         openTasks: openTasks.length,
@@ -89,7 +93,88 @@ router.get('/overview', async (req, res) => {
   }
 });
 
-router.get('/daily-updates', async (req, res) => {
+router.get('/personal', async (req, res) => {
+  try {
+    const companyId = req.user.company._id;
+    const { today, dates, projectIds, timezone } = await getContext(companyId, req.query.days);
+    const userId = req.user._id;
+
+    const openTasks = await Task.find({
+      project: { $in: projectIds },
+      assignee: userId,
+      column: { $ne: 'done' }
+    })
+      .populate('project', 'title')
+      .select('title assignee column priority dueDate project');
+
+    const allAssigned = await Task.find({
+      project: { $in: projectIds },
+      assignee: userId
+    }).select('_id');
+
+    const updates = await TaskUpdate.find({
+      company: companyId,
+      author: userId,
+      updateDate: { $in: dates }
+    })
+      .populate({
+        path: 'task',
+        select: 'title project',
+        populate: { path: 'project', select: 'title' }
+      })
+      .sort({ updateDate: -1, createdAt: -1 });
+
+    const updatedTodaySet = new Set(
+      updates.filter((u) => u.updateDate === today).map((u) => u.task?._id?.toString()).filter(Boolean)
+    );
+
+    const completedInPeriod = await Task.countDocuments({
+      project: { $in: projectIds },
+      assignee: userId,
+      completedAt: { $gte: DateTime.fromISO(dates[0]).startOf('day').toJSDate() }
+    });
+
+    const person = buildPersonStats({
+      user: req.user,
+      openTasks: openTasks.map((t) => ({ _id: t._id, assignee: t.assignee })),
+      updates: updates.map((u) => ({
+        author: userId,
+        task: u.task?._id,
+        updateDate: u.updateDate,
+        blockers: u.blockers
+      })),
+      today,
+      dates
+    });
+
+    res.json({
+      timezone,
+      period: { start: dates[0], end: dates[dates.length - 1], days: dates.length },
+      summary: {
+        openTasks: openTasks.length,
+        updatesToday: person.updatesToday,
+        missingToday: person.missingToday,
+        completedInPeriod,
+        assignedTotal: allAssigned.length,
+        compliancePercent: person.compliancePercent,
+        blockerCount: person.blockerCount
+      },
+      openTasks: openTasks.map((t) => ({
+        _id: t._id,
+        title: t.title,
+        project: t.project?.title,
+        priority: t.priority,
+        dueDate: t.dueDate,
+        hasTodayUpdate: updatedTodaySet.has(t._id.toString())
+      })),
+      recentUpdates: updates.filter((u) => u.task).slice(0, 25)
+    });
+  } catch (error) {
+    res.status(500).json({ message: error.message });
+  }
+});
+
+router.get('/daily-updates', adminOnly, async (req, res) => {
   try {
     const companyId = req.user.company._id;
     const { dates } = await getContext(companyId, req.query.days);
