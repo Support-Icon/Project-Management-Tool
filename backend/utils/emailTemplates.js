@@ -39,7 +39,7 @@ const wrapShell = ({ brandColor, logoUrl, bodyHtml, footerText }) => {
   </div>`;
 };
 
-const defaultAssignmentBody = ({ username, assignedBy, projectTitle, taskTitle, taskDescription, priority, dueDate }) => `
+const defaultAssignmentBody = ({ username, assignedBy, projectTitle, taskTitle, taskDescription, priority, startDate, dueDate }) => `
   <h2 style="margin:0 0 12px;color:#0f172a">New task assigned</h2>
   <p>Hello <strong>${escapeHtml(username)}</strong>,</p>
   <p><strong>${escapeHtml(assignedBy)}</strong> assigned you a task in <strong>${escapeHtml(projectTitle)}</strong>.</p>
@@ -47,9 +47,10 @@ const defaultAssignmentBody = ({ username, assignedBy, projectTitle, taskTitle, 
     <h3 style="margin:0 0 8px">${escapeHtml(taskTitle)}</h3>
     <p style="margin:0 0 8px">${escapeHtml(taskDescription || 'No description')}</p>
     <p style="margin:0"><strong>Priority:</strong> ${escapeHtml(priority)}</p>
+    <p style="margin:6px 0 0"><strong>Start date:</strong> ${escapeHtml(startDate)}</p>
     <p style="margin:6px 0 0"><strong>Due date:</strong> ${escapeHtml(dueDate)}</p>
   </div>
-  <p>Please add a daily update until the task is completed.</p>
+  <p>Please add a daily update while this task is In Progress.</p>
 `;
 
 const defaultDigestBody = ({ username, companyName, localDate, rowsHtml }) => `
@@ -76,6 +77,9 @@ const renderAssignmentEmail = (settings, data) => {
   const dueDate = data.task.dueDate
     ? new Date(data.task.dueDate).toLocaleDateString()
     : 'Not set';
+  const startDate = data.task.startDate
+    ? new Date(data.task.startDate).toLocaleDateString()
+    : 'Not set';
 
   const vars = {
     username: escapeHtml(data.assignee.username),
@@ -84,6 +88,7 @@ const renderAssignmentEmail = (settings, data) => {
     taskTitle: escapeHtml(data.task.title),
     taskDescription: escapeHtml(data.task.description || 'No description'),
     priority: escapeHtml(data.task.priority),
+    startDate: escapeHtml(startDate),
     dueDate: escapeHtml(dueDate),
     brandColor: escapeHtml(brandColor),
     logoUrl: escapeHtml(logoUrl),
@@ -107,6 +112,7 @@ const renderAssignmentEmail = (settings, data) => {
       taskTitle: data.task.title,
       taskDescription: data.task.description,
       priority: data.task.priority,
+      startDate,
       dueDate
     });
 

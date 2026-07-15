@@ -27,7 +27,7 @@ router.get('/pending/mine', auth, async (req, res) => {
     const today = await getToday(companyId);
     const tasks = await Task.find({
       assignee: req.user._id,
-      column: { $ne: 'done' }
+      column: 'inprogress'
     }).populate({
       path: 'project',
       match: { company: companyId },
@@ -52,7 +52,8 @@ router.get('/pending/mine', auth, async (req, res) => {
           title: task.title,
           project: task.project,
           priority: task.priority,
-          dueDate: task.dueDate
+          dueDate: task.dueDate,
+          column: task.column
         }))
     });
   } catch (error) {
@@ -89,8 +90,10 @@ router.post('/:taskId', auth, async (req, res) => {
     if (!assigneeId || assigneeId !== req.user._id.toString()) {
       return res.status(403).json({ message: 'Only the assigned person can add a daily update' });
     }
-    if (task.column === 'done') {
-      return res.status(400).json({ message: 'Completed tasks do not accept daily updates' });
+    if (task.column !== 'inprogress') {
+      return res.status(400).json({
+        message: 'Daily updates are only for In Progress tasks. Move the task to In Progress first.'
+      });
     }
 
     const content = String(req.body.content || '').trim();

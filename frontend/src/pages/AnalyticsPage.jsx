@@ -115,7 +115,7 @@ export default function AnalyticsPage() {
       ) : tab === 'team' && overview ? (
         <>
           <div className="grid grid-cols-2 lg:grid-cols-5 gap-4 mb-6">
-            <Stat icon={ClipboardList} label="Open assigned tasks" value={overview.summary.openTasks} tone="bg-indigo-50 text-indigo-600" />
+            <Stat icon={ClipboardList} label="In Progress tasks" value={overview.summary.openTasks} tone="bg-indigo-50 text-indigo-600" />
             <Stat icon={Activity} label="Daily updated correctly" value={overview.summary.updatesToday} tone="bg-emerald-50 text-emerald-600" />
             <Stat icon={AlertCircle} label="Missed update reports" value={overview.summary.missingToday} tone="bg-amber-50 text-amber-600" />
             <Stat icon={CheckCircle2} label="Completed in period" value={overview.summary.completedInPeriod} tone="bg-purple-50 text-purple-600" />
@@ -126,7 +126,7 @@ export default function AnalyticsPage() {
             <div className="px-5 py-4 border-b border-slate-100">
               <h3 className="font-bold text-slate-800">Performance by Person</h3>
               <p className="text-xs text-slate-500 mt-1">
-                Daily updated correctly = submitted today. Missed update report = open tasks without today&apos;s update.
+                Daily updated correctly = submitted today for In Progress tasks. To Do tasks do not need daily updates.
               </p>
             </div>
             <div className="overflow-x-auto">
@@ -211,7 +211,7 @@ export default function AnalyticsPage() {
       ) : personal ? (
         <>
           <div className="grid grid-cols-2 lg:grid-cols-4 gap-4 mb-6">
-            <Stat icon={ClipboardList} label="My open tasks" value={personal.summary.openTasks} tone="bg-indigo-50 text-indigo-600" />
+            <Stat icon={ClipboardList} label="My In Progress tasks" value={personal.summary.openTasks} tone="bg-indigo-50 text-indigo-600" />
             <Stat icon={Activity} label="Daily updated correctly" value={personal.summary.updatesToday} tone="bg-emerald-50 text-emerald-600" />
             <Stat icon={AlertCircle} label="Missed update reports" value={personal.summary.missingToday} tone="bg-amber-50 text-amber-600" />
             <Stat icon={CheckCircle2} label="Completed in period" value={personal.summary.completedInPeriod} tone="bg-purple-50 text-purple-600" />
@@ -235,7 +235,7 @@ export default function AnalyticsPage() {
 
             <section className="bg-white rounded-2xl border border-slate-100 shadow-sm overflow-hidden">
               <div className="px-5 py-4 border-b border-slate-100">
-                <h3 className="font-bold text-slate-800">Open tasks</h3>
+                <h3 className="font-bold text-slate-800">In Progress tasks</h3>
               </div>
               <div className="divide-y divide-slate-50 max-h-72 overflow-y-auto">
                 {personal.openTasks.length === 0 ? (

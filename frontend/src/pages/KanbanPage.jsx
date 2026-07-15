@@ -65,6 +65,18 @@ export default function KanbanPage() {
     if (!destination) return;
     if (source.droppableId === destination.droppableId && source.index === destination.index) return;
 
+    const movedTask = tasks.find((t) => t._id === draggableId);
+    if (
+      movedTask?.waitingOnPredecessor
+      && destination.droppableId !== 'todo'
+      && destination.droppableId !== 'done'
+    ) {
+      toast.error(
+        `Cannot start yet — waiting for "${movedTask.dependsOn?.title || 'another task'}" to complete.`
+      );
+      return;
+    }
+
     const sourceTasks = getTasksByColumn(source.droppableId);
     const destTasks =
       source.droppableId === destination.droppableId
@@ -125,8 +137,11 @@ export default function KanbanPage() {
       });
 
       await api.post('/api/tasks/reorder', { updates });
-    } catch (_) {
-      toast.error('Failed to save task order');
+      if (destination.droppableId === 'done' || source.droppableId === 'done') {
+        fetchData();
+      }
+    } catch (error) {
+      toast.error(error.response?.data?.message || 'Failed to save task order');
       fetchData();
     } finally {
       setSaving(false);
@@ -262,7 +277,7 @@ export default function KanbanPage() {
                               onEdit={(t) => setModal({ mode: 'edit', task: t })}
                               onDelete={handleDelete}
                               onDailyUpdate={setDailyUpdateTask}
-                              canAddDailyUpdate={task.assignee?._id === user?._id}
+                              canAddDailyUpdate={task.assignee?._id === user?._id && task.column === 'inprogress'}
                             />
                           ))}
                           {provided.placeholder}
@@ -296,6 +311,7 @@ export default function KanbanPage() {
           projectId={projectId}
           column={modal.mode === 'create' ? modal.column : null}
           columns={project.columns}
+          projectTasks={tasks}
           onClose={() => setModal(null)}
           onSaved={handleTaskSaved}
         />

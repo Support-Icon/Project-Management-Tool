@@ -127,15 +127,19 @@ export default function AiChatPanel({ compact = false, onClose, onExpand }) {
         column: 'todo',
         priority: data.priority || 'medium',
         assigneeId: data.assigneeId || undefined,
+        startDate: data.startDate || undefined,
         dueDate: data.dueDate || undefined,
+        dependsOn: data.dependsOn || undefined,
       });
       setFlow(null);
       await loadOpenTasks();
       const assigneeName = res.data.assignee?.username || 'unassigned';
+      const startLabel = data.startDate || 'Not set';
       const dueLabel = data.dueDate || 'Not set';
+      const depLabel = data.dependsOnTitle || 'None';
       push({
         role: 'assistant',
-        content: `Task **${res.data.title}** created in **${data.projectTitle}**, assigned to **${assigneeName}**, due **${dueLabel}**.`,
+        content: `Task **${res.data.title}** created in **${data.projectTitle}**, assigned to **${assigneeName}**.\n- Start: **${startLabel}**\n- Due: **${dueLabel}**\n- Starts after: **${depLabel}**`,
       });
       toast.success('Task created');
     } catch (error) {
@@ -290,10 +294,30 @@ export default function AiChatPanel({ compact = false, onClose, onExpand }) {
           ? answer.toLowerCase()
           : 'medium';
         const data = { ...flow.data, priority };
+        setFlow({ type: 'create_task', step: 'startDate', data });
+        push({
+          role: 'assistant',
+          content: `Priority: **${priority}**.\n\n**What is the start date?** (YYYY-MM-DD, or Skip)`,
+          suggestions: [tomorrowIso(), nextWeekIso(), 'Skip'],
+        });
+        return;
+      }
+
+      if (flow.step === 'startDate') {
+        const startDate = parseDueDate(answer);
+        if (startDate === undefined) {
+          push({
+            role: 'assistant',
+            content: 'Please use **YYYY-MM-DD**, or tap Skip / Tomorrow.',
+            suggestions: [tomorrowIso(), nextWeekIso(), 'Skip'],
+          });
+          return;
+        }
+        const data = { ...flow.data, startDate };
         setFlow({ type: 'create_task', step: 'dueDate', data });
         push({
           role: 'assistant',
-          content: `Priority: **${priority}**.\n\n**What is the due date?** (YYYY-MM-DD, or Skip)`,
+          content: `Start date: **${startDate || 'Not set'}**.\n\n**What is the due date?** (YYYY-MM-DD, or Skip)`,
           suggestions: [tomorrowIso(), nextWeekIso(), 'Skip'],
         });
         return;
@@ -310,6 +334,35 @@ export default function AiChatPanel({ compact = false, onClose, onExpand }) {
           return;
         }
         const data = { ...flow.data, dueDate };
+        setFlow({ type: 'create_task', step: 'dependsOn', data });
+        const suggestions = ['Skip', ...openTasks.map((t) => t.title).slice(0, 10)];
+        const unique = [...new Set(suggestions)];
+        push({
+          role: 'assistant',
+          content: `Due date: **${dueDate || 'Not set'}**.\n\n**Should this start only after another task completes?** Pick a task, or Skip.`,
+          suggestions: unique,
+        });
+        return;
+      }
+
+      if (flow.step === 'dependsOn') {
+        let dependsOn = null;
+        let dependsOnTitle = null;
+        if (!/^skip|none|no$/i.test(answer)) {
+          const found = openTasks.find((t) => t.title.toLowerCase() === answer.toLowerCase())
+            || openTasks.find((t) => t.title.toLowerCase().includes(answer.toLowerCase()));
+          if (!found) {
+            push({
+              role: 'assistant',
+              content: `No task matched “${answer}”. Pick one, or Skip.`,
+              suggestions: ['Skip', ...openTasks.map((t) => t.title).slice(0, 10)],
+            });
+            return;
+          }
+          dependsOn = found._id;
+          dependsOnTitle = found.title;
+        }
+        const data = { ...flow.data, dependsOn, dependsOnTitle };
         setFlow({ type: 'create_task', step: 'confirm', data });
         push({
           role: 'assistant',
@@ -320,7 +373,9 @@ export default function AiChatPanel({ compact = false, onClose, onExpand }) {
             `- **Title:** ${data.title}`,
             `- **Assignee:** ${data.assigneeName || user.username}`,
             `- **Priority:** ${data.priority}`,
-            `- **Due date:** ${dueDate || 'Not set'}`,
+            `- **Start date:** ${data.startDate || 'Not set'}`,
+            `- **Due date:** ${data.dueDate || 'Not set'}`,
+            `- **Starts after:** ${dependsOnTitle || 'None'}`,
             '',
             'Confirm to create.',
           ].join('\n'),

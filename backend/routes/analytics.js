@@ -55,7 +55,7 @@ router.get('/overview', adminOnly, async (req, res) => {
     const openTasks = await Task.find({
       project: { $in: projectIds },
       assignee: { $ne: null },
-      column: { $ne: 'done' }
+      column: 'inprogress'
     }).select('assignee');
 
     const updates = await TaskUpdate.find({
@@ -102,7 +102,7 @@ router.get('/personal', async (req, res) => {
     const openTasks = await Task.find({
       project: { $in: projectIds },
       assignee: userId,
-      column: { $ne: 'done' }
+      column: 'inprogress'
     })
       .populate('project', 'title')
       .select('title assignee column priority dueDate project');

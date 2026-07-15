@@ -42,7 +42,7 @@ const runDueDigests = async () => {
       const tasks = await Task.find({
         project: { $in: projectIds },
         assignee: user._id,
-        column: { $ne: 'done' }
+        column: 'inprogress'
       }).populate('project', 'title');
       if (tasks.length === 0) continue;
 

@@ -2,7 +2,7 @@ import React, { useState, useEffect } from 'react';
 import api from '../api/axios';
 import { useAuth } from '../context/AuthContext';
 import toast from 'react-hot-toast';
-import { X, Check, Flag, Calendar, User, Tag } from 'lucide-react';
+import { X, Check, Flag, Calendar, User, Tag, Link2 } from 'lucide-react';
 
 const priorities = [
   { value: 'low', label: 'Low', color: 'text-emerald-600 bg-emerald-50 border-emerald-200' },
@@ -10,7 +10,13 @@ const priorities = [
   { value: 'high', label: 'High', color: 'text-red-600 bg-red-50 border-red-200' },
 ];
 
-export default function TaskModal({ task, projectId, column, columns, onClose, onSaved }) {
+const toDateInput = (value) => {
+  if (!value) return '';
+  const str = typeof value === 'string' ? value : new Date(value).toISOString();
+  return str.slice(0, 10);
+};
+
+export default function TaskModal({ task, projectId, column, columns, projectTasks = [], onClose, onSaved }) {
   const { user } = useAuth();
   const isAdmin = user?.role === 'admin';
 
@@ -20,7 +26,9 @@ export default function TaskModal({ task, projectId, column, columns, onClose, o
     column: task?.column || column || 'todo',
     priority: task?.priority || 'medium',
     assigneeId: task?.assignee?._id || user?._id || '',
-    dueDate: task?.dueDate ? task.dueDate.slice(0, 10) : '',
+    startDate: toDateInput(task?.startDate),
+    dueDate: toDateInput(task?.dueDate),
+    dependsOn: task?.dependsOn?._id || task?.dependsOn || '',
     tags: task?.tags?.join(', ') || '',
   });
   const [members, setMembers] = useState([]);
@@ -33,11 +41,16 @@ export default function TaskModal({ task, projectId, column, columns, onClose, o
   }, [isAdmin]);
 
   const set = (k) => (e) => setForm((f) => ({ ...f, [k]: e.target.value }));
+  const dependencyOptions = projectTasks.filter((t) => t._id !== task?._id);
 
   const handleSubmit = async (e) => {
     e.preventDefault();
     if (!form.title.trim()) {
       toast.error('Task title is required');
+      return;
+    }
+    if (form.startDate && form.dueDate && form.startDate > form.dueDate) {
+      toast.error('Start date must be on or before due date');
       return;
     }
     setLoading(true);
@@ -48,7 +61,9 @@ export default function TaskModal({ task, projectId, column, columns, onClose, o
         column: form.column,
         priority: form.priority,
         assigneeId: isAdmin ? (form.assigneeId || null) : user._id,
+        startDate: form.startDate || null,
         dueDate: form.dueDate || null,
+        dependsOn: form.dependsOn || null,
         tags: form.tags ? form.tags.split(',').map((t) => t.trim()).filter(Boolean) : [],
       };
 
@@ -82,7 +97,6 @@ export default function TaskModal({ task, projectId, column, columns, onClose, o
         </div>
 
         <form onSubmit={handleSubmit} className="p-6 space-y-5">
-          {/* Title */}
           <div>
             <label className="block text-xs font-semibold text-slate-600 mb-1.5 uppercase tracking-wide">
               Title <span className="text-red-500">*</span>
@@ -98,7 +112,6 @@ export default function TaskModal({ task, projectId, column, columns, onClose, o
             />
           </div>
 
-          {/* Description */}
           <div>
             <label className="block text-xs font-semibold text-slate-600 mb-1.5 uppercase tracking-wide">
               Description
@@ -112,7 +125,6 @@ export default function TaskModal({ task, projectId, column, columns, onClose, o
             />
           </div>
 
-          {/* Priority & Column */}
           <div className="grid grid-cols-2 gap-4">
             <div>
               <label className="block text-xs font-semibold text-slate-600 mb-1.5 uppercase tracking-wide flex items-center gap-1">
@@ -126,7 +138,7 @@ export default function TaskModal({ task, projectId, column, columns, onClose, o
                     onClick={() => setForm((f) => ({ ...f, priority: p.value }))}
                     className={`flex-1 py-2 px-1 rounded-lg border text-xs font-semibold transition-all ${
                       form.priority === p.value
-                        ? p.color + ' border-current'
+                        ? `${p.color} border-current`
                         : 'border-slate-200 text-slate-500 hover:border-slate-300'
                     }`}
                   >
@@ -152,26 +164,36 @@ export default function TaskModal({ task, projectId, column, columns, onClose, o
             </div>
           </div>
 
-          {/* Assignee (admin only) & Due Date */}
-          <div className={`grid gap-4 ${isAdmin ? 'grid-cols-2' : 'grid-cols-1'}`}>
-            {isAdmin && (
-              <div>
-                <label className="block text-xs font-semibold text-slate-600 mb-1.5 uppercase tracking-wide flex items-center gap-1">
-                  <User size={12} /> Assignee
-                </label>
-                <select
-                  value={form.assigneeId}
-                  onChange={set('assigneeId')}
-                  className="w-full px-3 py-2.5 rounded-xl border border-slate-200 text-slate-800 text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500 focus:border-transparent transition bg-white"
-                >
-                  <option value="">Unassigned</option>
-                  {members.map((m) => (
-                    <option key={m._id} value={m._id}>{m.username}</option>
-                  ))}
-                </select>
-              </div>
-            )}
+          {isAdmin && (
+            <div>
+              <label className="block text-xs font-semibold text-slate-600 mb-1.5 uppercase tracking-wide flex items-center gap-1">
+                <User size={12} /> Assignee
+              </label>
+              <select
+                value={form.assigneeId}
+                onChange={set('assigneeId')}
+                className="w-full px-3 py-2.5 rounded-xl border border-slate-200 text-slate-800 text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500 focus:border-transparent transition bg-white"
+              >
+                <option value="">Unassigned</option>
+                {members.map((m) => (
+                  <option key={m._id} value={m._id}>{m.username}</option>
+                ))}
+              </select>
+            </div>
+          )}
 
+          <div className="grid grid-cols-2 gap-4">
+            <div>
+              <label className="block text-xs font-semibold text-slate-600 mb-1.5 uppercase tracking-wide flex items-center gap-1">
+                <Calendar size={12} /> Start Date
+              </label>
+              <input
+                type="date"
+                value={form.startDate}
+                onChange={set('startDate')}
+                className="w-full px-3 py-2.5 rounded-xl border border-slate-200 text-slate-800 text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500 focus:border-transparent transition"
+              />
+            </div>
             <div>
               <label className="block text-xs font-semibold text-slate-600 mb-1.5 uppercase tracking-wide flex items-center gap-1">
                 <Calendar size={12} /> Due Date
@@ -185,13 +207,33 @@ export default function TaskModal({ task, projectId, column, columns, onClose, o
             </div>
           </div>
 
+          <div>
+            <label className="block text-xs font-semibold text-slate-600 mb-1.5 uppercase tracking-wide flex items-center gap-1">
+              <Link2 size={12} /> Start after task completes
+            </label>
+            <select
+              value={form.dependsOn}
+              onChange={set('dependsOn')}
+              className="w-full px-3 py-2.5 rounded-xl border border-slate-200 text-slate-800 text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500 focus:border-transparent transition bg-white"
+            >
+              <option value="">None — can start anytime</option>
+              {dependencyOptions.map((t) => (
+                <option key={t._id} value={t._id}>
+                  {t.title}{t.column === 'done' ? ' (done)' : ''}
+                </option>
+              ))}
+            </select>
+            <p className="text-[11px] text-slate-400 mt-1.5">
+              This task waits until the selected task is completed, then start date unlocks automatically.
+            </p>
+          </div>
+
           {!isAdmin && (
             <p className="text-xs text-indigo-600 bg-indigo-50 px-3 py-2 rounded-lg">
               This task will be assigned to you automatically.
             </p>
           )}
 
-          {/* Tags */}
           <div>
             <label className="block text-xs font-semibold text-slate-600 mb-1.5 uppercase tracking-wide flex items-center gap-1">
               <Tag size={12} /> Tags

@@ -91,7 +91,7 @@ const buildAgentTools = (actor) => {
   );
 
   const createAndAssignTask = tool(
-    async ({ projectId, title, description, assigneeUsername, column, priority, dueDate }) => {
+    async ({ projectId, title, description, assigneeUsername, column, priority, dueDate, startDate, dependsOnTaskTitle }) => {
       const project = await Project.findOne({ _id: projectId, company: companyId });
       if (!project) return JSON.stringify({ error: 'Project not found.' });
 
@@ -107,13 +107,30 @@ const buildAgentTools = (actor) => {
         assigneeId = actor._id;
       }
 
-      let due = null;
-      if (dueDate && String(dueDate).trim() && !/^skip|none|n\/a$/i.test(String(dueDate).trim())) {
-        const parsed = new Date(dueDate);
-        if (Number.isNaN(parsed.getTime())) {
-          return JSON.stringify({ error: 'Invalid dueDate. Use YYYY-MM-DD.' });
+      const parseDate = (value, label) => {
+        if (!value || !String(value).trim() || /^skip|none|n\/a$/i.test(String(value).trim())) {
+          return { ok: true, value: null };
         }
-        due = parsed;
+        const parsed = new Date(value);
+        if (Number.isNaN(parsed.getTime())) {
+          return { ok: false, error: `Invalid ${label}. Use YYYY-MM-DD.` };
+        }
+        return { ok: true, value: parsed };
+      };
+
+      const due = parseDate(dueDate, 'dueDate');
+      if (!due.ok) return JSON.stringify({ error: due.error });
+      const start = parseDate(startDate, 'startDate');
+      if (!start.ok) return JSON.stringify({ error: start.error });
+
+      let dependsOn = null;
+      if (dependsOnTaskTitle && !/^skip|none|n\/a$/i.test(String(dependsOnTaskTitle).trim())) {
+        const dep = await Task.findOne({
+          project: projectId,
+          title: new RegExp(`^${String(dependsOnTaskTitle).trim().replace(/[.*+?^${}()|[\]\\]/g, '\\$&')}$`, 'i')
+        });
+        if (!dep) return JSON.stringify({ error: `Dependency task "${dependsOnTaskTitle}" not found.` });
+        dependsOn = dep._id;
       }
 
       const col = column || 'todo';
@@ -125,7 +142,9 @@ const buildAgentTools = (actor) => {
         column: col,
         order: maxTask ? maxTask.order + 1 : 0,
         priority: priority || 'medium',
-        dueDate: due,
+        dueDate: due.value,
+        startDate: start.value,
+        dependsOn,
         assignee: assigneeId,
         createdBy: actor._id
       });
@@ -147,14 +166,16 @@ const buildAgentTools = (actor) => {
         title: task.title,
         assignee: assignee?.username,
         project: project.title,
-        dueDate: due ? due.toISOString().slice(0, 10) : null,
+        startDate: start.value ? start.value.toISOString().slice(0, 10) : null,
+        dueDate: due.value ? due.value.toISOString().slice(0, 10) : null,
+        dependsOn: dependsOnTaskTitle || null,
         message: `Task "${task.title}" assigned to ${assignee?.username || 'user'}.`
       });
     },
     {
       name: 'create_and_assign_task',
       description:
-        'Create a task in a project. Admins can assign to any username. Members auto-assign to themselves. Ask for dueDate (YYYY-MM-DD) when creating.',
+        'Create a task. Ask for startDate, dueDate (YYYY-MM-DD), and optional dependsOnTaskTitle (start after that task completes).',
       schema: z.object({
         projectId: z.string().min(1),
         title: z.string().min(1),
@@ -162,7 +183,9 @@ const buildAgentTools = (actor) => {
         assigneeUsername: z.string().optional(),
         column: z.enum(['todo', 'inprogress', 'review', 'done']).optional().default('todo'),
         priority: z.enum(['low', 'medium', 'high']).optional().default('medium'),
-        dueDate: z.string().optional().describe('Due date YYYY-MM-DD, or omit/skip')
+        startDate: z.string().optional().describe('Start date YYYY-MM-DD'),
+        dueDate: z.string().optional().describe('Due date YYYY-MM-DD'),
+        dependsOnTaskTitle: z.string().optional().describe('Title of task that must complete first')
       })
     }
   );
@@ -197,18 +220,24 @@ const buildAgentTools = (actor) => {
       task.completedAt = new Date();
       await task.save();
 
+      const unlocked = await Task.updateMany(
+        { dependsOn: task._id, column: { $ne: 'done' } },
+        { $set: { startDate: new Date() } }
+      );
+
       return JSON.stringify({
         success: true,
         id: task._id.toString(),
         title: task.title,
         column: 'done',
+        unlockedDependents: unlocked.modifiedCount || 0,
         message: `Task "${task.title}" marked complete (moved to Done).`
       });
     },
     {
       name: 'complete_task',
       description:
-        'Mark a task as complete (status/column = done). Use when the user asks to complete/finish a task. Prefer taskId from list_tasks; taskTitle works if unique.',
+        'Mark a task as complete (status/column = done). Unlocks tasks that were waiting on this one (dependsOn). Prefer taskId from list_tasks; taskTitle works if unique.',
       schema: z.object({
         taskId: z.string().optional(),
         taskTitle: z.string().optional()
@@ -226,8 +255,10 @@ const buildAgentTools = (actor) => {
       if (!assigneeId || assigneeId !== actor._id.toString()) {
         return JSON.stringify({ error: 'Only the assigned person can add a daily update.' });
       }
-      if (task.column === 'done') {
-        return JSON.stringify({ error: 'Completed tasks do not accept daily updates.' });
+      if (task.column !== 'inprogress') {
+        return JSON.stringify({
+          error: 'Daily updates are only for In Progress tasks. Move the task to In Progress first.'
+        });
       }
 
       const today = await getToday(companyId);
@@ -258,7 +289,7 @@ const buildAgentTools = (actor) => {
     },
     {
       name: 'add_daily_update',
-      description: 'Add or replace today’s daily progress update for a task assigned to the current user.',
+      description: 'Add or replace today’s daily progress update for an In Progress task assigned to the current user (not To Do).',
       schema: z.object({
         taskId: z.string().min(1),
         content: z.string().min(1),
@@ -278,7 +309,7 @@ const buildAgentTools = (actor) => {
         assignee: actor._id
       }).populate('project', 'title');
 
-      const openTasks = tasks.filter((t) => t.column !== 'done');
+      const openTasks = tasks.filter((t) => t.column === 'inprogress');
       const updatedIds = await TaskUpdate.distinct('task', {
         company: companyId,
         author: actor._id,
@@ -297,7 +328,7 @@ const buildAgentTools = (actor) => {
       return JSON.stringify({
         username: actor.username,
         date: today,
-        assignedOpen: openTasks.length,
+        inProgressTasks: openTasks.length,
         dailyUpdatedCorrectly: openTasks.filter((t) => updatedSet.has(t._id.toString())).length,
         missedDailyUpdates: openTasks.filter((t) => !updatedSet.has(t._id.toString())).map((t) => ({
           id: t._id.toString(),
@@ -312,7 +343,7 @@ const buildAgentTools = (actor) => {
         })),
         readable: [
           `Personal Daily-Update Report (${today})`,
-          `Open assigned tasks: ${openTasks.length}`,
+          `In Progress tasks: ${openTasks.length}`,
           `Daily updated correctly: ${openTasks.filter((t) => updatedSet.has(t._id.toString())).length}`,
           `Missed daily updates: ${openTasks.filter((t) => !updatedSet.has(t._id.toString())).length}`,
           ...openTasks
@@ -323,7 +354,7 @@ const buildAgentTools = (actor) => {
     },
     {
       name: 'get_personal_report',
-      description: 'Get the current user’s personal task and daily-update report. Prefer the readable field when answering the user.',
+      description: 'Get the current user’s personal In Progress daily-update report. Prefer the readable field when answering the user.',
       schema: z.object({
         reason: z.string().optional().describe('Optional reason for personal report')
       })
@@ -339,7 +370,7 @@ const buildAgentTools = (actor) => {
       const openTasks = await Task.find({
         project: { $in: projectIds },
         assignee: { $ne: null },
-        column: { $ne: 'done' }
+        column: 'inprogress'
       }).select('assignee title');
       const todayUpdates = await TaskUpdate.find({
         company: companyId,
@@ -358,7 +389,7 @@ const buildAgentTools = (actor) => {
         return {
           username: u.username,
           role: u.role,
-          openTasks: assigned.length,
+          inProgressTasks: assigned.length,
           dailyUpdatedCorrectly: dailyUpdated,
           missedDailyUpdates: missed
         };
@@ -366,11 +397,12 @@ const buildAgentTools = (actor) => {
 
       const readable = [
         `Team Daily-Update Report (${today})`,
+        'Daily updates are required only for In Progress tasks.',
         '',
         ...report.map((row) =>
           [
             `• **${row.username}** (${row.role})`,
-            `  Open tasks: ${row.openTasks}`,
+            `  In Progress tasks: ${row.inProgressTasks}`,
             `  Daily updated correctly: ${row.dailyUpdatedCorrectly}`,
             `  Missed daily updates: ${row.missedDailyUpdates}`
           ].join('\n')
@@ -381,7 +413,7 @@ const buildAgentTools = (actor) => {
     },
     {
       name: 'get_team_report',
-      description: 'Admin only. Get daily-update report for all workers. Prefer the readable field when answering the user — never use markdown tables.',
+      description: 'Admin only. Daily-update report for In Progress tasks only. Prefer the readable field — never use markdown tables.',
       schema: z.object({
         reason: z.string().optional().describe('Optional reason for team report')
       })

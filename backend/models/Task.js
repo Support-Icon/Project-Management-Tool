@@ -21,6 +21,13 @@ const taskSchema = new mongoose.Schema({
     default: 'medium'
   },
   dueDate: { type: Date, default: null },
+  startDate: { type: Date, default: null },
+  // Start this task only after the dependency task is completed
+  dependsOn: {
+    type: mongoose.Schema.Types.ObjectId,
+    ref: 'Task',
+    default: null
+  },
   tags: [{ type: String, trim: true }],
   createdBy: {
     type: mongoose.Schema.Types.ObjectId,

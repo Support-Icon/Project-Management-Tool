@@ -1,6 +1,6 @@
 import React from 'react';
 import { Draggable } from '@hello-pangea/dnd';
-import { Activity, Calendar, Edit3, Trash2 } from 'lucide-react';
+import { Activity, Calendar, Edit3, Trash2, Link2 } from 'lucide-react';
 
 const priorityConfig = {
   high: {
@@ -30,6 +30,13 @@ export default function TaskCard({ task, index, onEdit, onDelete, onDailyUpdate,
     ? new Date(task.dueDate).toLocaleDateString('en-US', { month: 'short', day: 'numeric' })
     : null;
 
+  const startDateStr = task.startDate
+    ? new Date(task.startDate).toLocaleDateString('en-US', { month: 'short', day: 'numeric' })
+    : null;
+
+  const waiting = task.waitingOnPredecessor;
+  const dependsTitle = task.dependsOn?.title;
+
   return (
     <Draggable draggableId={task._id} index={index}>
       {(provided, snapshot) => (
@@ -45,7 +52,7 @@ export default function TaskCard({ task, index, onEdit, onDelete, onDailyUpdate,
           <div className="flex items-start justify-between gap-2 mb-2">
             <p className="font-semibold text-slate-800 text-sm leading-snug flex-1">{task.title}</p>
             <div className="flex items-center gap-1 opacity-0 group-hover:opacity-100 transition-opacity flex-shrink-0">
-              {canAddDailyUpdate && task.column !== 'done' && (
+              {canAddDailyUpdate && task.column === 'inprogress' && (
                 <button
                   onClick={(e) => { e.stopPropagation(); onDailyUpdate(task); }}
                   className="p-1 text-slate-400 hover:text-emerald-600 hover:bg-emerald-50 rounded-lg transition-all"
@@ -76,7 +83,14 @@ export default function TaskCard({ task, index, onEdit, onDelete, onDailyUpdate,
             </p>
           )}
 
-          {task.column !== 'done' && task.assignee && (
+          {waiting && (
+            <div className="mb-3 px-2.5 py-1.5 rounded-lg bg-slate-100 text-slate-600 text-xs font-semibold flex items-center gap-1.5">
+              <Link2 size={12} />
+              Starts after: {dependsTitle || 'another task'}
+            </div>
+          )}
+
+          {task.column === 'inprogress' && task.assignee && (
             <button
               type="button"
               onClick={(e) => {
@@ -125,9 +139,14 @@ export default function TaskCard({ task, index, onEdit, onDelete, onDailyUpdate,
             </div>
 
             <div className="flex items-center gap-2">
-              {/* Due date */}
+              {startDateStr && (
+                <span className="flex items-center gap-1 text-xs font-medium text-slate-400" title="Start date">
+                  <Calendar size={11} />
+                  {startDateStr}
+                </span>
+              )}
               {dueDateStr && (
-                <span className={`flex items-center gap-1 text-xs font-medium ${isOverdue ? 'text-red-500' : 'text-slate-400'}`}>
+                <span className={`flex items-center gap-1 text-xs font-medium ${isOverdue ? 'text-red-500' : 'text-slate-400'}`} title="Due date">
                   <Calendar size={11} />
                   {dueDateStr}
                 </span>
