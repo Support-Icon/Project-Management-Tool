@@ -3,16 +3,17 @@ const Project = require('../models/Project');
 const Task = require('../models/Task');
 const { auth, adminOnly } = require('../middleware/auth');
 const { getInvolvedProjectIds, userCanAccessProject, isMineOnlyRequest } = require('../utils/taskAccess');
+const { canSeeAll } = require('../utils/roles');
 
 const router = express.Router();
 
-// Get all projects (admin: all company projects; member: only projects they are assigned to)
+// Get all projects (admin/manager: all company projects; others: only projects in their scope)
 router.get('/', auth, async (req, res) => {
   try {
     const companyId = req.user.company._id;
     const filter = { company: companyId };
 
-    if (req.user.role !== 'admin' || isMineOnlyRequest(req.query.mineOnly)) {
+    if (!canSeeAll(req.user) || isMineOnlyRequest(req.query.mineOnly)) {
       const involvedIds = await getInvolvedProjectIds(req.user, companyId);
       filter._id = { $in: involvedIds };
     }

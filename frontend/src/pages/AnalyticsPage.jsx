@@ -3,9 +3,93 @@ import {
   Activity, AlertCircle, CheckCircle2, ClipboardList,
   RefreshCw, TrendingUp, Users, UserRound,
 } from 'lucide-react';
+import {
+  Area, Bar, BarChart, CartesianGrid, Cell, ComposedChart, Legend,
+  Line, Pie, PieChart, ResponsiveContainer, Tooltip, XAxis, YAxis,
+} from 'recharts';
 import toast from 'react-hot-toast';
 import api from '../api/axios';
 import { useAuth } from '../context/AuthContext';
+import { canViewTeamAnalytics } from '../utils/roles';
+
+const STATUS_COLORS = {
+  todo: '#6366f1',
+  inprogress: '#f59e0b',
+  review: '#8b5cf6',
+  done: '#10b981',
+};
+
+const Charts = ({ charts }) => {
+  if (!charts?.trend?.length) return null;
+  const statusData = charts.status
+    ? [
+        { name: 'To Do', value: charts.status.todo || 0, color: STATUS_COLORS.todo },
+        { name: 'In Progress', value: charts.status.inprogress || 0, color: STATUS_COLORS.inprogress },
+        { name: 'Review', value: charts.status.review || 0, color: STATUS_COLORS.review },
+        { name: 'Done', value: charts.status.done || 0, color: STATUS_COLORS.done },
+      ].filter((row) => row.value > 0)
+    : [];
+
+  return (
+    <div className="grid lg:grid-cols-2 gap-4 mb-6">
+      <section className="bg-white rounded-2xl border border-slate-100 shadow-sm p-5">
+        <h3 className="font-bold text-slate-800 mb-1">Activity trend</h3>
+        <p className="text-xs text-slate-400 mb-3">Daily updates, completions and new tasks</p>
+        <div className="h-56">
+          <ResponsiveContainer width="100%" height="100%">
+            <ComposedChart data={charts.trend}>
+              <defs>
+                <linearGradient id="upd" x1="0" y1="0" x2="0" y2="1">
+                  <stop offset="5%" stopColor="#4f46e5" stopOpacity={0.35} />
+                  <stop offset="95%" stopColor="#4f46e5" stopOpacity={0} />
+                </linearGradient>
+              </defs>
+              <CartesianGrid strokeDasharray="3 3" stroke="#e2e8f0" />
+              <XAxis dataKey="date" tick={{ fontSize: 11 }} />
+              <YAxis allowDecimals={false} tick={{ fontSize: 11 }} />
+              <Tooltip />
+              <Legend />
+              <Area type="monotone" dataKey="updates" name="Updates" stroke="#4f46e5" fill="url(#upd)" />
+              <Line type="monotone" dataKey="completed" name="Completed" stroke="#10b981" strokeWidth={2} />
+              <Line type="monotone" dataKey="created" name="Created" stroke="#f59e0b" strokeWidth={2} />
+            </ComposedChart>
+          </ResponsiveContainer>
+        </div>
+      </section>
+      {statusData.length > 0 && (
+        <section className="bg-white rounded-2xl border border-slate-100 shadow-sm p-5">
+          <h3 className="font-bold text-slate-800 mb-1">Task status mix</h3>
+          <p className="text-xs text-slate-400 mb-3">Current board distribution</p>
+          <div className="h-56">
+            <ResponsiveContainer width="100%" height="100%">
+              <PieChart>
+                <Pie data={statusData} dataKey="value" nameKey="name" innerRadius={48} outerRadius={78} paddingAngle={3}>
+                  {statusData.map((row) => <Cell key={row.name} fill={row.color} />)}
+                </Pie>
+                <Tooltip />
+                <Legend />
+              </PieChart>
+            </ResponsiveContainer>
+          </div>
+        </section>
+      )}
+      <section className={`bg-white rounded-2xl border border-slate-100 shadow-sm p-5 ${statusData.length ? 'lg:col-span-2' : ''}`}>
+        <h3 className="font-bold text-slate-800 mb-3">Updates per day</h3>
+        <div className="h-44">
+          <ResponsiveContainer width="100%" height="100%">
+            <BarChart data={charts.trend}>
+              <CartesianGrid strokeDasharray="3 3" stroke="#e2e8f0" />
+              <XAxis dataKey="date" tick={{ fontSize: 11 }} />
+              <YAxis allowDecimals={false} tick={{ fontSize: 11 }} />
+              <Tooltip />
+              <Bar dataKey="updates" name="Updates" fill="#6366f1" radius={[6, 6, 0, 0]} />
+            </BarChart>
+          </ResponsiveContainer>
+        </div>
+      </section>
+    </div>
+  );
+};
 
 const Stat = ({ icon: Icon, label, value, tone }) => (
   <div className="bg-white rounded-2xl border border-slate-100 shadow-sm p-5 flex items-center gap-4">
@@ -21,7 +105,7 @@ const Stat = ({ icon: Icon, label, value, tone }) => (
 
 export default function AnalyticsPage() {
   const { user } = useAuth();
-  const isAdmin = user?.role === 'admin';
+  const isAdmin = canViewTeamAnalytics(user);
   const [tab, setTab] = useState(isAdmin ? 'team' : 'personal');
   const [days, setDays] = useState(7);
   const [overview, setOverview] = useState(null);
@@ -122,6 +206,8 @@ export default function AnalyticsPage() {
             <Stat icon={Users} label="Active people" value={overview.summary.activePeople} tone="bg-sky-50 text-sky-600" />
           </div>
 
+          <Charts charts={overview.charts} />
+
           <section className="bg-white rounded-2xl border border-slate-100 shadow-sm overflow-hidden mb-6">
             <div className="px-5 py-4 border-b border-slate-100">
               <h3 className="font-bold text-slate-800">Performance by Person</h3>
@@ -216,6 +302,8 @@ export default function AnalyticsPage() {
             <Stat icon={AlertCircle} label="Missed update reports" value={personal.summary.missingToday} tone="bg-amber-50 text-amber-600" />
             <Stat icon={CheckCircle2} label="Completed in period" value={personal.summary.completedInPeriod} tone="bg-purple-50 text-purple-600" />
           </div>
+
+          <Charts charts={personal.charts} />
 
           <div className="grid lg:grid-cols-2 gap-6 mb-6">
             <section className="bg-white rounded-2xl border border-slate-100 shadow-sm p-5">

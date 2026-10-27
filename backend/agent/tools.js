@@ -7,6 +7,9 @@ const User = require('../models/User');
 const CompanySettings = require('../models/CompanySettings');
 const { todayInZone } = require('../utils/companyTime');
 const { sendAssignmentEmail } = require('../services/emailService');
+const { notifyTaskAssigned } = require('../services/notificationService');
+const { canSeeAll, canAssignOthers } = require('../utils/roles');
+const { parseDuration, computeDeadline, IST } = require('../utils/duration');
 
 const getToday = async (companyId) => {
   const settings = await CompanySettings.findOne({ company: companyId });
@@ -15,7 +18,8 @@ const getToday = async (companyId) => {
 
 const buildAgentTools = (actor) => {
   const companyId = actor.company._id;
-  const isAdmin = actor.role === 'admin';
+  const isAdmin = canSeeAll(actor);
+  const canAssign = canAssignOthers(actor);
 
   const listProjects = tool(
     async () => {
@@ -91,19 +95,19 @@ const buildAgentTools = (actor) => {
   );
 
   const createAndAssignTask = tool(
-    async ({ projectId, title, description, assigneeUsername, column, priority, dueDate, startDate, dependsOnTaskTitle }) => {
+    async ({ projectId, title, description, assigneeUsername, column, priority, dueDate, startDate, dependsOnTaskTitle, durationValue, durationUnit }) => {
       const project = await Project.findOne({ _id: projectId, company: companyId });
       if (!project) return JSON.stringify({ error: 'Project not found.' });
 
       let assigneeId = actor._id;
-      if (isAdmin && assigneeUsername) {
+      if (canAssign && assigneeUsername) {
         const assignee = await User.findOne({
           company: companyId,
           username: assigneeUsername.trim()
         });
         if (!assignee) return JSON.stringify({ error: `User "${assigneeUsername}" not found.` });
         assigneeId = assignee._id;
-      } else if (!isAdmin) {
+      } else if (!canAssign) {
         assigneeId = actor._id;
       }
 
@@ -135,6 +139,13 @@ const buildAgentTools = (actor) => {
 
       const col = column || 'todo';
       const maxTask = await Task.findOne({ project: projectId, column: col }).sort({ order: -1 });
+      const parsedDuration = parseDuration(
+        durationValue ? { value: durationValue, unit: durationUnit || 'hours' } : null
+      );
+      const now = new Date();
+      const deadlineAt = parsedDuration && !parsedDuration.error
+        ? computeDeadline(parsedDuration, start.value && start.value > now ? start.value : now, IST)
+        : null;
       const task = await Task.create({
         title: title.trim(),
         description: (description || '').trim(),
@@ -142,16 +153,26 @@ const buildAgentTools = (actor) => {
         column: col,
         order: maxTask ? maxTask.order + 1 : 0,
         priority: priority || 'medium',
-        dueDate: due.value,
+        dueDate: due.value || deadlineAt,
         startDate: start.value,
+        duration: parsedDuration && !parsedDuration.error ? parsedDuration : { value: null, unit: null },
+        deadlineAt,
+        assignedAt: assigneeId ? now : null,
         dependsOn,
         assignee: assigneeId,
         createdBy: actor._id
       });
 
       const assignee = await User.findById(assigneeId).select('username email emailNotifications');
-      if (assignee && isAdmin) {
+      if (assignee && canAssign) {
         sendAssignmentEmail({
+          companyId,
+          assignee,
+          task,
+          project,
+          assignedBy: actor
+        }).catch(() => {});
+        notifyTaskAssigned({
           companyId,
           assignee,
           task,
@@ -185,6 +206,8 @@ const buildAgentTools = (actor) => {
         priority: z.enum(['low', 'medium', 'high']).optional().default('medium'),
         startDate: z.string().optional().describe('Start date YYYY-MM-DD'),
         dueDate: z.string().optional().describe('Due date YYYY-MM-DD'),
+        durationValue: z.number().optional().describe('How long the task should take, e.g. 2'),
+        durationUnit: z.enum(['minutes', 'hours', 'days']).optional().describe('hours or days, Indian time'),
         dependsOnTaskTitle: z.string().optional().describe('Title of task that must complete first')
       })
     }
@@ -363,9 +386,13 @@ const buildAgentTools = (actor) => {
 
   const getTeamReport = tool(
     async () => {
-      if (!isAdmin) return JSON.stringify({ error: 'Only admins can view the full team report.' });
+      if (!canAssign) return JSON.stringify({ error: 'Only managers and team leads can view the team report.' });
       const today = await getToday(companyId);
-      const users = await User.find({ company: companyId }).select('username email role');
+      const userFilter = { company: companyId };
+      if (!isAdmin && actor.role === 'team_lead') {
+        userFilter.$or = [{ _id: actor._id }, { teamLead: actor._id }];
+      }
+      const users = await User.find(userFilter).select('username email role');
       const projectIds = await Project.find({ company: companyId }).distinct('_id');
       const openTasks = await Task.find({
         project: { $in: projectIds },

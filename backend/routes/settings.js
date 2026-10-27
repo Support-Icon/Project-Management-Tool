@@ -43,6 +43,11 @@ const publicSettings = (settings) => ({
     timezone: settings?.digest?.timezone || 'Asia/Kolkata',
     lastSentAt: settings?.digest?.lastSentAt || null
   },
+  report: {
+    enabled: settings?.report?.enabled ?? true,
+    time: settings?.report?.time || '19:30',
+    lastSentAt: settings?.report?.lastSentAt || null
+  },
   emailTemplates: publicTemplates(settings)
 });
 
@@ -57,9 +62,10 @@ router.get('/', async (req, res) => {
 
 router.put('/', async (req, res) => {
   try {
-    const { email = {}, digest = {}, emailTemplates = {} } = req.body;
+    const { email = {}, digest = {}, report = {}, emailTemplates = {} } = req.body;
     const timezone = digest.timezone || 'Asia/Kolkata';
     const time = digest.time || '10:00';
+    const reportTime = report.time || '19:30';
     const provider = normalizeProvider(email.provider);
     const brandColor = String(emailTemplates.brandColor || '#4f46e5').trim() || '#4f46e5';
 
@@ -68,6 +74,9 @@ router.put('/', async (req, res) => {
     }
     if (!/^([01]\d|2[0-3]):[0-5]\d$/.test(time)) {
       return res.status(400).json({ message: 'Digest time must use HH:mm format' });
+    }
+    if (!/^([01]\d|2[0-3]):[0-5]\d$/.test(reportTime)) {
+      return res.status(400).json({ message: 'Daily report time must use HH:mm format' });
     }
 
     const existing = await CompanySettings.findOne({ company: req.user.company._id });
@@ -144,6 +153,8 @@ router.put('/', async (req, res) => {
           'digest.enabled': Boolean(digest.enabled),
           'digest.time': time,
           'digest.timezone': timezone,
+          'report.enabled': report.enabled !== false,
+          'report.time': reportTime,
           'emailTemplates.brandColor': brandColor,
           'emailTemplates.logoUrl': String(emailTemplates.logoUrl || '').trim(),
           'emailTemplates.assignmentSubject': String(emailTemplates.assignmentSubject || ''),
@@ -160,6 +171,20 @@ router.put('/', async (req, res) => {
     res.json(publicSettings(settings));
   } catch (error) {
     res.status(500).json({ message: error.message });
+  }
+});
+
+router.post('/send-daily-report', async (req, res) => {
+  try {
+    const settings = await CompanySettings.findOne({ company: req.user.company._id });
+    if (!settings?.email?.enabled) {
+      return res.status(400).json({ message: 'Enable email and Save Settings first.' });
+    }
+    const { runDueDailyReports } = require('../jobs/runDailyReports');
+    const results = await runDueDailyReports({ forceCompanyId: req.user.company._id });
+    res.json({ message: 'Daily report sent to managers and team leads', results });
+  } catch (error) {
+    res.status(400).json({ message: error.message || 'Failed to send daily report' });
   }
 });
 
@@ -227,6 +252,10 @@ router.delete('/email', async (req, res) => {
           'digest.timezone': 'Asia/Kolkata',
           'digest.lastSentDate': '',
           'digest.lastSentAt': null,
+          'report.enabled': true,
+          'report.time': '19:30',
+          'report.lastSentDate': '',
+          'report.lastSentAt': null,
           updatedAt: new Date()
         }
       },

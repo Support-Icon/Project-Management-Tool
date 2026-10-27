@@ -1,5 +1,7 @@
 const mongoose = require('mongoose');
 
+const ROLES = ['admin', 'manager', 'team_lead', 'member'];
+
 const userSchema = new mongoose.Schema({
   username: {
     type: String,
@@ -18,8 +20,14 @@ const userSchema = new mongoose.Schema({
   emailNotifications: { type: Boolean, default: true },
   role: {
     type: String,
-    enum: ['admin', 'member'],
+    enum: ROLES,
     default: 'member'
+  },
+  // Team lead this user reports to (used for team-scoped reports)
+  teamLead: {
+    type: mongoose.Schema.Types.ObjectId,
+    ref: 'User',
+    default: null
   },
   company: {
     type: mongoose.Schema.Types.ObjectId,
@@ -29,4 +37,7 @@ const userSchema = new mongoose.Schema({
   createdAt: { type: Date, default: Date.now }
 });
 
-module.exports = mongoose.model('User', userSchema);
+const User = mongoose.model('User', userSchema);
+User.ROLES = ROLES;
+
+module.exports = User;

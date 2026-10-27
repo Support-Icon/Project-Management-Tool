@@ -7,13 +7,16 @@ A full-stack project management tool with a **Kanban board**, company-based mult
 ## ✨ Features
 
 - **Kanban Board** — Drag-and-drop tasks across To Do / In Progress / Review / Done columns
+- **Task duration (IST)** — Assign work as “2 hours” or “1 day”; deadline is calculated in Indian time
+- **In-app notifications** — Sound + desktop alert when a task is assigned
+- **Company chat + DMs** — Message everyone in the company or a person directly, including document attachments
+- **Roles** — Admin creates Managers and Team Leads; managers see all people, team leads see their team
+- **Evening daily report** — Configurable (default 7:30 PM IST): managers get every person, team leads get their members
 - **Daily Task Updates** — Assignees record progress, percentage, blockers, and next steps until completion
-- **Admin Analytics** — Per-person workload, update compliance, missing updates, and blocker reporting
-- **Gmail Notifications** — Assignment alerts and configurable daily task reminder emails
+- **Analytics charts** — Trend lines, status mix, and per-person compliance
+- **Email notifications** — Assignment alerts and daily reminder emails
 - **Company-based Tenancy** — All data scoped by company name
-- **Role System** — First user per company is Admin; only admins can create team members
 - **Auto-Login** — Session persisted in Chrome localStorage using JWT
-- **No Email Required** — Username + password only
 - **Beautiful UI** — Modern glassmorphism design with Tailwind CSS
 
 ---
@@ -177,7 +180,8 @@ project_management_tool/
 4. Enter the Gmail address, App Password, daily time, and company timezone.
 5. Save and use **Send test**.
 
-GitHub Actions checks for due digests hourly. A company configured for 10:00 receives its
-digest on the first hourly scheduler run at or after 10:00 in the selected timezone.
+GitHub Actions checks for due **morning digests** and **evening manager reports** hourly.
+A company configured for 19:30 IST receives the person-wise report on the first hourly run
+at or after 7:30 PM. Admins can change that time under **Settings → Evening daily report**.
 
 > **Note:** `MONGODB_URI` should be set directly in Render.com's environment variables panel — NOT as a GitHub Secret — to keep it secure.

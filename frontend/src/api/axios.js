@@ -49,6 +49,9 @@ api.interceptors.request.use((config) => {
       if (token) config.headers.Authorization = `Bearer ${token}`;
     }
   } catch (_) {}
+  if (typeof FormData !== 'undefined' && config.data instanceof FormData) {
+    delete config.headers['Content-Type'];
+  }
   return config;
 });
 
@@ -62,5 +65,22 @@ api.interceptors.response.use(
     return Promise.reject(error);
   }
 );
+
+export const getApiBase = () => api.defaults.baseURL || '';
+
+export const getAuthToken = () => {
+  try {
+    const stored = localStorage.getItem('auth');
+    if (!stored) return '';
+    return JSON.parse(stored).token || '';
+  } catch {
+    return '';
+  }
+};
+
+export const attachmentUrl = (id, inline = false) => {
+  const token = encodeURIComponent(getAuthToken());
+  return `${getApiBase()}/api/messages/attachments/${id}?token=${token}${inline ? '&inline=1' : ''}`;
+};
 
 export default api;

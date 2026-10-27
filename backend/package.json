@@ -21,6 +21,7 @@
     "jsonwebtoken": "^9.0.2",
     "luxon": "^3.7.2",
     "mongoose": "^7.5.0",
+    "multer": "^2.0.2",
     "nodemailer": "^9.0.3",
     "zod": "^4.4.3"
   },

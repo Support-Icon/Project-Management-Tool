@@ -4,6 +4,7 @@ import { DragDropContext, Droppable } from '@hello-pangea/dnd';
 import api from '../api/axios';
 import { useAuth } from '../context/AuthContext';
 import { withMineOnly } from '../utils/apiQuery';
+import { canSeeAll } from '../utils/roles';
 import toast from 'react-hot-toast';
 import TaskCard from '../components/TaskCard';
 import TaskModal from '../components/TaskModal';
@@ -25,7 +26,7 @@ export default function KanbanPage() {
   const { projectId } = useParams();
   const navigate = useNavigate();
   const { user, adminMineOnly } = useAuth();
-  const isAdmin = user?.role === 'admin';
+  const isAdmin = canSeeAll(user);
   const showMineOnly = isAdmin ? adminMineOnly : true;
 
   const [project, setProject] = useState(null);

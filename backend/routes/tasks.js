@@ -5,9 +5,14 @@ const Project = require('../models/Project');
 const User = require('../models/User');
 const CompanySettings = require('../models/CompanySettings');
 const { auth } = require('../middleware/auth');
-const { getTaskFilterForUser, userCanAccessTask, userCanAccessProject } = require('../utils/taskAccess');
+const {
+  getTaskFilterForUser, userCanAccessTask, userCanAccessProject, userCanAssignTo
+} = require('../utils/taskAccess');
+const { canSeeAll, canAssignOthers } = require('../utils/roles');
 const { sendAssignmentEmail } = require('../services/emailService');
+const { notifyTaskAssigned } = require('../services/notificationService');
 const { todayInZone } = require('../utils/companyTime');
+const { parseDuration, computeDeadline, IST } = require('../utils/duration');
 
 const router = express.Router();
 
@@ -18,15 +23,29 @@ const verifyProject = async (projectId, companyId, user) => {
   return project;
 };
 
-// Get tasks for a project (admin: all; member: only assigned to them)
+const projectNotFound = (req, res) => res.status(canSeeAll(req.user) ? 404 : 403).json({
+  message: canSeeAll(req.user) ? 'Project not found' : 'You do not have access to this project',
+});
+
+const getCompanyTimezone = async (companyId) => {
+  const settings = await CompanySettings.findOne({ company: companyId }).select('digest.timezone');
+  return settings?.digest?.timezone || IST;
+};
+
+/** Fire email + in-app notification when a task lands on someone (in-app skips self-assignment). */
+const announceAssignment = ({ companyId, assignee, task, project, assignedBy }) => {
+  if (!assignee) return;
+  notifyTaskAssigned({ companyId, assignee, task, project, assignedBy })
+    .catch((error) => console.error('Assignment notification failed:', error.message));
+  sendAssignmentEmail({ companyId, assignee, task, project, assignedBy })
+    .catch((error) => console.error('Assignment email failed:', error.message));
+};
+
+// Get tasks for a project (admin/manager: all; team lead: team; member: own)
 router.get('/:projectId', auth, async (req, res) => {
   try {
     const project = await verifyProject(req.params.projectId, req.user.company._id, req.user);
-    if (!project) {
-      return res.status(req.user.role === 'admin' ? 404 : 403).json({
-        message: req.user.role === 'admin' ? 'Project not found' : 'You do not have access to this project',
-      });
-    }
+    if (!project) return projectNotFound(req, res);
 
     const tasks = await Task.find({
       project: req.params.projectId,
@@ -97,7 +116,7 @@ router.post('/', auth, async (req, res) => {
   try {
     const {
       title, description, projectId, column, priority, assigneeId,
-      dueDate, startDate, dependsOn, tags
+      dueDate, startDate, dependsOn, tags, duration
     } = req.body;
 
     if (!title || !projectId || !column) {
@@ -105,24 +124,30 @@ router.post('/', auth, async (req, res) => {
     }
 
     const project = await verifyProject(projectId, req.user.company._id, req.user);
-    if (!project) {
-      return res.status(req.user.role === 'admin' ? 404 : 403).json({
-        message: req.user.role === 'admin' ? 'Project not found' : 'You do not have access to this project',
-      });
-    }
+    if (!project) return projectNotFound(req, res);
 
-    const isAdmin = req.user.role === 'admin';
-    const assignee = isAdmin ? (assigneeId || null) : req.user._id;
+    const assignee = canAssignOthers(req.user) ? (assigneeId || null) : req.user._id;
     let assigneeUser = null;
     if (assignee) {
       assigneeUser = await User.findOne({ _id: assignee, company: req.user.company._id });
       if (!assigneeUser) {
         return res.status(400).json({ message: 'Assignee must belong to your company' });
       }
+      if (!userCanAssignTo(req.user, assigneeUser._id)) {
+        return res.status(403).json({ message: 'You can only assign tasks to people in your team' });
+      }
     }
 
     const depCheck = await validateDependsOn(dependsOn, projectId, null);
     if (!depCheck.ok) return res.status(400).json({ message: depCheck.message });
+
+    const parsedDuration = parseDuration(duration);
+    if (parsedDuration?.error) return res.status(400).json({ message: parsedDuration.error });
+
+    const now = new Date();
+    const timezone = await getCompanyTimezone(req.user.company._id);
+    const deadlineBase = startDate && new Date(startDate) > now ? new Date(startDate) : now;
+    const deadlineAt = parsedDuration ? computeDeadline(parsedDuration, deadlineBase, timezone) : null;
 
     const maxTask = await Task.findOne({ project: projectId, column }).sort({ order: -1 });
     const order = maxTask ? maxTask.order + 1 : 0;
@@ -135,8 +160,11 @@ router.post('/', auth, async (req, res) => {
       order,
       priority: priority || 'medium',
       assignee,
-      dueDate: dueDate || null,
+      assignedAt: assignee ? now : null,
+      dueDate: dueDate || deadlineAt || null,
       startDate: startDate || null,
+      duration: parsedDuration || { value: null, unit: null },
+      deadlineAt,
       dependsOn: depCheck.value,
       tags: tags || [],
       createdBy: req.user._id,
@@ -150,13 +178,13 @@ router.post('/', auth, async (req, res) => {
 
     res.status(201).json(populated);
     if (assigneeUser) {
-      sendAssignmentEmail({
+      announceAssignment({
         companyId: req.user.company._id,
         assignee: assigneeUser,
         task,
         project,
         assignedBy: req.user
-      }).catch((error) => console.error('Assignment email failed:', error.message));
+      });
     }
   } catch (error) {
     res.status(500).json({ message: error.message });
@@ -177,7 +205,7 @@ router.put('/:id', auth, async (req, res) => {
 
     const {
       title, description, column, priority, assigneeId,
-      dueDate, startDate, dependsOn, tags, order
+      dueDate, startDate, dependsOn, tags, order, duration
     } = req.body;
     const updates = {};
 
@@ -198,7 +226,9 @@ router.put('/:id', auth, async (req, res) => {
       updates.dependsOn = depCheck.value;
     }
 
-    if (req.user.role === 'admin' && assigneeId !== undefined) {
+    const now = new Date();
+    let assigneeChanged = false;
+    if (canAssignOthers(req.user) && assigneeId !== undefined) {
       if (assigneeId) {
         const validAssignee = await User.findOne({
           _id: assigneeId,
@@ -207,8 +237,32 @@ router.put('/:id', auth, async (req, res) => {
         if (!validAssignee) {
           return res.status(400).json({ message: 'Assignee must belong to your company' });
         }
+        if (!userCanAssignTo(req.user, validAssignee._id)) {
+          return res.status(403).json({ message: 'You can only assign tasks to people in your team' });
+        }
       }
       updates.assignee = assigneeId || null;
+      assigneeChanged = (assigneeId || '') !== (task.assignee?.toString() || '');
+      if (assigneeChanged && assigneeId) updates.assignedAt = now;
+    }
+
+    // Duration / deadline: recompute when duration changes or the task is (re)assigned
+    if (duration !== undefined) {
+      const parsedDuration = parseDuration(duration);
+      if (parsedDuration?.error) return res.status(400).json({ message: parsedDuration.error });
+      updates.duration = parsedDuration || { value: null, unit: null };
+    }
+    const effectiveDuration = updates.duration !== undefined ? updates.duration : task.duration;
+    const durationChanged = duration !== undefined
+      && (effectiveDuration?.value !== task.duration?.value || effectiveDuration?.unit !== task.duration?.unit);
+    if (effectiveDuration?.value && (durationChanged || assigneeChanged || !task.deadlineAt)) {
+      const timezone = await getCompanyTimezone(req.user.company._id);
+      const effectiveStart = updates.startDate !== undefined ? updates.startDate : task.startDate;
+      const base = effectiveStart && new Date(effectiveStart) > now ? new Date(effectiveStart) : now;
+      updates.deadlineAt = computeDeadline(effectiveDuration, base, timezone);
+      if (dueDate === undefined) updates.dueDate = updates.deadlineAt;
+    } else if (updates.duration && !updates.duration.value) {
+      updates.deadlineAt = null;
     }
 
     // Block moving into active work while predecessor is incomplete
@@ -237,13 +291,13 @@ router.put('/:id', auth, async (req, res) => {
     const oldAssigneeId = task.assignee?.toString() || '';
     const newAssigneeId = updated.assignee?._id?.toString() || '';
     if (newAssigneeId && newAssigneeId !== oldAssigneeId) {
-      sendAssignmentEmail({
+      announceAssignment({
         companyId: req.user.company._id,
         assignee: updated.assignee,
         task: updated,
         project: task.project,
         assignedBy: req.user
-      }).catch((error) => console.error('Assignment email failed:', error.message));
+      });
     }
   } catch (error) {
     res.status(500).json({ message: error.message });

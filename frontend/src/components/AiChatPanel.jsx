@@ -4,15 +4,17 @@ import toast from 'react-hot-toast';
 import api from '../api/axios';
 import { useAuth } from '../context/AuthContext';
 import AiMessageContent from './AiMessageContent';
+import { canViewTeamAnalytics, canManageUsers } from '../utils/roles';
 
 const welcome = (role) =>
-  role === 'admin'
+  ['admin', 'manager', 'team_lead'].includes(role)
     ? 'Hi! I can create projects, assign tasks, and show team daily-update reports. Use the actions below or type freely.'
     : 'Hi! I can help with your tasks, daily updates, and personal reports. Use the actions below or type freely.';
 
 export default function AiChatPanel({ compact = false, onClose, onExpand }) {
   const { user } = useAuth();
-  const isAdmin = user?.role === 'admin';
+  const isAdmin = canViewTeamAnalytics(user);
+  const canManage = canManageUsers(user);
   const [input, setInput] = useState('');
   const [sending, setSending] = useState(false);
   const [projects, setProjects] = useState([]);
@@ -483,7 +485,7 @@ export default function AiChatPanel({ compact = false, onClose, onExpand }) {
   }, [messages]);
 
   const actionChips = [
-    isAdmin && { label: 'Create project', icon: FolderPlus, onClick: startCreateProject },
+    canManage && { label: 'Create project', icon: FolderPlus, onClick: startCreateProject },
     { label: 'Create task', icon: ClipboardList, onClick: startCreateTask },
     { label: 'Complete task', icon: CheckCircle2, onClick: startCompleteTask },
     { label: isAdmin ? 'Team report' : 'My report', icon: isAdmin ? BarChart3 : UserRound, onClick: askReport },

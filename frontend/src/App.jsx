@@ -1,6 +1,7 @@
 import React from 'react';
 import { Routes, Route, Navigate } from 'react-router-dom';
 import { AuthProvider, useAuth } from './context/AuthContext';
+import { NotificationProvider } from './context/NotificationContext';
 import Login from './pages/Login';
 import Dashboard from './pages/Dashboard';
 import KanbanPage from './pages/KanbanPage';
@@ -8,6 +9,7 @@ import UsersPage from './pages/UsersPage';
 import ReportsPage from './pages/ReportsPage';
 import AnalyticsPage from './pages/AnalyticsPage';
 import SettingsPage from './pages/SettingsPage';
+import MessagesPage from './pages/MessagesPage';
 import AiChatPage from './pages/AiChatPage';
 import Layout from './components/Layout';
 
@@ -47,6 +49,8 @@ const AppRoutes = () => {
         <Route path="reports" element={<ReportsPage />} />
         <Route path="analytics" element={<AnalyticsPage />} />
         <Route path="settings" element={<SettingsPage />} />
+        <Route path="messages" element={<MessagesPage />} />
+        <Route path="messages/:conversationId" element={<MessagesPage />} />
         <Route path="ai-chat" element={<AiChatPage />} />
       </Route>
       <Route path="*" element={<Navigate to="/" replace />} />
@@ -56,7 +60,9 @@ const AppRoutes = () => {
 
 const App = () => (
   <AuthProvider>
-    <AppRoutes />
+    <NotificationProvider>
+      <AppRoutes />
+    </NotificationProvider>
   </AuthProvider>
 );
 

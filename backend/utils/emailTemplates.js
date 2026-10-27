@@ -1,3 +1,5 @@
+const { formatDuration, formatIST } = require('./duration');
+
 const escapeHtml = (value) => String(value ?? '')
   .replace(/&/g, '&amp;')
   .replace(/</g, '&lt;')
@@ -39,7 +41,9 @@ const wrapShell = ({ brandColor, logoUrl, bodyHtml, footerText }) => {
   </div>`;
 };
 
-const defaultAssignmentBody = ({ username, assignedBy, projectTitle, taskTitle, taskDescription, priority, startDate, dueDate }) => `
+const defaultAssignmentBody = ({
+  username, assignedBy, projectTitle, taskTitle, taskDescription, priority, startDate, dueDate, duration, deadline
+}) => `
   <h2 style="margin:0 0 12px;color:#0f172a">New task assigned</h2>
   <p>Hello <strong>${escapeHtml(username)}</strong>,</p>
   <p><strong>${escapeHtml(assignedBy)}</strong> assigned you a task in <strong>${escapeHtml(projectTitle)}</strong>.</p>
@@ -47,6 +51,8 @@ const defaultAssignmentBody = ({ username, assignedBy, projectTitle, taskTitle, 
     <h3 style="margin:0 0 8px">${escapeHtml(taskTitle)}</h3>
     <p style="margin:0 0 8px">${escapeHtml(taskDescription || 'No description')}</p>
     <p style="margin:0"><strong>Priority:</strong> ${escapeHtml(priority)}</p>
+    <p style="margin:6px 0 0"><strong>Complete within:</strong> ${escapeHtml(duration)}</p>
+    <p style="margin:6px 0 0"><strong>Deadline (IST):</strong> ${escapeHtml(deadline)}</p>
     <p style="margin:6px 0 0"><strong>Start date:</strong> ${escapeHtml(startDate)}</p>
     <p style="margin:6px 0 0"><strong>Due date:</strong> ${escapeHtml(dueDate)}</p>
   </div>
@@ -75,11 +81,13 @@ const renderAssignmentEmail = (settings, data) => {
   const logoUrl = tpl.logoUrl || '';
   const footerText = tpl.footerText || 'Sent by ProjectFlow';
   const dueDate = data.task.dueDate
-    ? new Date(data.task.dueDate).toLocaleDateString()
+    ? formatIST(data.task.dueDate)
     : 'Not set';
   const startDate = data.task.startDate
-    ? new Date(data.task.startDate).toLocaleDateString()
+    ? formatIST(data.task.startDate)
     : 'Not set';
+  const duration = formatDuration(data.task.duration) || 'Not set';
+  const deadline = data.task.deadlineAt ? formatIST(data.task.deadlineAt) : dueDate;
 
   const vars = {
     username: escapeHtml(data.assignee.username),
@@ -90,6 +98,8 @@ const renderAssignmentEmail = (settings, data) => {
     priority: escapeHtml(data.task.priority),
     startDate: escapeHtml(startDate),
     dueDate: escapeHtml(dueDate),
+    duration: escapeHtml(duration),
+    deadline: escapeHtml(deadline),
     brandColor: escapeHtml(brandColor),
     logoUrl: escapeHtml(logoUrl),
     companyName: escapeHtml(data.companyName || 'ProjectFlow')
@@ -113,7 +123,9 @@ const renderAssignmentEmail = (settings, data) => {
       taskDescription: data.task.description,
       priority: data.task.priority,
       startDate,
-      dueDate
+      dueDate,
+      duration,
+      deadline
     });
 
   return {
@@ -167,9 +179,77 @@ const renderDigestEmail = (settings, data) => {
   };
 };
 
+const defaultDailyReportBody = ({ username, roleLabel, companyName, localDate, peopleHtml }) => `
+  <h2 style="margin:0 0 12px;color:#0f172a">${escapeHtml(companyName)} daily task report</h2>
+  <p>Hello <strong>${escapeHtml(username)}</strong>,</p>
+  <p>Person-wise task summary for <strong>${escapeHtml(localDate)}</strong>
+  ${roleLabel === 'Team Lead' ? ' (your team members only)' : ''}.</p>
+  ${peopleHtml}
+`;
+
+const personBlock = (person) => {
+  const taskRows = (person.tasks || []).map((task) => `
+    <tr>
+      <td style="padding:8px;border:1px solid #e2e8f0">${escapeHtml(task.title)}</td>
+      <td style="padding:8px;border:1px solid #e2e8f0">${escapeHtml(task.project)}</td>
+      <td style="padding:8px;border:1px solid #e2e8f0">${escapeHtml(task.column)}</td>
+      <td style="padding:8px;border:1px solid #e2e8f0">${escapeHtml(task.priority)}</td>
+      <td style="padding:8px;border:1px solid #e2e8f0">${escapeHtml(task.updateStatus)}</td>
+      <td style="padding:8px;border:1px solid #e2e8f0">${escapeHtml(task.deadline || '—')}</td>
+    </tr>`).join('');
+
+  const empty = `
+    <tr>
+      <td colspan="6" style="padding:10px;border:1px solid #e2e8f0;color:#64748b">No assigned tasks today</td>
+    </tr>`;
+
+  return `
+    <div style="margin:20px 0 8px;padding:10px 12px;background:#f8fafc;border-radius:10px;border:1px solid #e2e8f0">
+      <strong>${escapeHtml(person.username)}</strong>
+      <span style="color:#64748b;font-size:12px"> · ${escapeHtml(person.role)} · ${person.openCount} in progress · ${person.doneToday} completed today · ${person.missedUpdates} missed updates</span>
+    </div>
+    <table style="width:100%;border-collapse:collapse;margin-bottom:8px">
+      <thead>
+        <tr>
+          <th style="padding:8px;border:1px solid #e2e8f0;text-align:left;background:#f8fafc">Task</th>
+          <th style="padding:8px;border:1px solid #e2e8f0;text-align:left;background:#f8fafc">Project</th>
+          <th style="padding:8px;border:1px solid #e2e8f0;text-align:left;background:#f8fafc">Status</th>
+          <th style="padding:8px;border:1px solid #e2e8f0;text-align:left;background:#f8fafc">Priority</th>
+          <th style="padding:8px;border:1px solid #e2e8f0;text-align:left;background:#f8fafc">Today</th>
+          <th style="padding:8px;border:1px solid #e2e8f0;text-align:left;background:#f8fafc">Deadline (IST)</th>
+        </tr>
+      </thead>
+      <tbody>${taskRows || empty}</tbody>
+    </table>`;
+};
+
+const renderDailyReportEmail = (settings, data) => {
+  const tpl = settings?.emailTemplates || {};
+  const brandColor = tpl.brandColor || '#4f46e5';
+  const logoUrl = tpl.logoUrl || '';
+  const footerText = tpl.footerText || 'Sent by ProjectFlow';
+  const peopleHtml = (data.people || []).map(personBlock).join('');
+  const roleLabel = data.roleLabel || 'Manager';
+
+  const subject = `${data.companyName} daily task report — ${data.localDate}`;
+  const body = defaultDailyReportBody({
+    username: data.recipient.username,
+    roleLabel,
+    companyName: data.companyName,
+    localDate: data.localDate,
+    peopleHtml
+  });
+
+  return {
+    subject,
+    html: wrapShell({ brandColor, logoUrl, bodyHtml: body, footerText })
+  };
+};
+
 module.exports = {
   escapeHtml,
   renderAssignmentEmail,
   renderDigestEmail,
+  renderDailyReportEmail,
   wrapShell
 };

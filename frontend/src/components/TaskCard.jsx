@@ -1,6 +1,7 @@
 import React from 'react';
 import { Draggable } from '@hello-pangea/dnd';
-import { Activity, Calendar, Edit3, Trash2, Link2 } from 'lucide-react';
+import { Activity, Calendar, Edit3, Trash2, Link2, Timer } from 'lucide-react';
+import { remainingLabel, formatDuration, formatIST } from '../utils/time';
 
 const priorityConfig = {
   high: {
@@ -36,6 +37,8 @@ export default function TaskCard({ task, index, onEdit, onDelete, onDailyUpdate,
 
   const waiting = task.waitingOnPredecessor;
   const dependsTitle = task.dependsOn?.title;
+  const remain = remainingLabel(task.deadlineAt);
+  const overdueDeadline = remain === 'Overdue';
 
   return (
     <Draggable draggableId={task._id} index={index}>
@@ -81,6 +84,18 @@ export default function TaskCard({ task, index, onEdit, onDelete, onDailyUpdate,
             <p className="text-slate-500 text-xs mb-3 line-clamp-2 leading-relaxed">
               {task.description}
             </p>
+          )}
+
+          {task.duration?.value && (
+            <div className={`mb-2 px-2.5 py-1.5 rounded-lg text-xs font-semibold flex items-center gap-1.5 ${
+              overdueDeadline && task.column !== 'done'
+                ? 'bg-red-50 text-red-700'
+                : 'bg-indigo-50 text-indigo-700'
+            }`} title={task.deadlineAt ? formatIST(task.deadlineAt) : ''}>
+              <Timer size={12} />
+              {formatDuration(task.duration)}
+              {remain && task.column !== 'done' ? ` · ${remain}` : ''}
+            </div>
           )}
 
           {waiting && (

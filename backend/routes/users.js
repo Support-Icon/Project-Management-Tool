@@ -2,8 +2,55 @@ const express = require('express');
 const bcrypt = require('bcryptjs');
 const User = require('../models/User');
 const { auth, adminOnly } = require('../middleware/auth');
+const { ROLES, canAssignOthers, canSeeAll } = require('../utils/roles');
 
 const router = express.Router();
+
+const PUBLIC_FIELDS = 'username email role teamLead createdAt';
+
+const normalizeRole = (role) => (ROLES.includes(role) ? role : null);
+
+const resolveTeamLead = async (teamLeadId, companyId, selfId) => {
+  if (!teamLeadId) return { ok: true, value: null };
+  if (selfId && String(teamLeadId) === String(selfId)) {
+    return { ok: false, message: 'A user cannot be their own team lead' };
+  }
+  const lead = await User.findOne({ _id: teamLeadId, company: companyId }).select('role');
+  if (!lead) return { ok: false, message: 'Team lead not found in your company' };
+  if (!['team_lead', 'manager', 'admin'].includes(lead.role)) {
+    return { ok: false, message: 'Selected user is not a team lead' };
+  }
+  return { ok: true, value: lead._id };
+};
+
+// Lightweight directory of everyone in the company (for messaging)
+router.get('/directory', auth, async (req, res) => {
+  try {
+    const users = await User.find({ company: req.user.company._id })
+      .select(PUBLIC_FIELDS)
+      .sort({ username: 1 });
+    res.json(users);
+  } catch (error) {
+    res.status(500).json({ message: error.message });
+  }
+});
+
+// People the current user may assign tasks to
+router.get('/assignable', auth, async (req, res) => {
+  try {
+    if (!canAssignOthers(req.user)) {
+      return res.json([{ _id: req.user._id, username: req.user.username, role: req.user.role }]);
+    }
+    const filter = { company: req.user.company._id };
+    if (!canSeeAll(req.user) && Array.isArray(req.scopeUserIds)) {
+      filter._id = { $in: req.scopeUserIds };
+    }
+    const users = await User.find(filter).select(PUBLIC_FIELDS).sort({ username: 1 });
+    res.json(users);
+  } catch (error) {
+    res.status(500).json({ message: error.message });
+  }
+});
 
 // Get all users in same company (admin only)
 router.get('/', auth, adminOnly, async (req, res) => {
@@ -11,6 +58,7 @@ router.get('/', auth, adminOnly, async (req, res) => {
     const users = await User.find({ company: req.user.company._id })
       .select('-password')
       .populate('company', 'name')
+      .populate('teamLead', 'username role')
       .sort({ createdAt: 1 });
     res.json(users);
   } catch (error) {
@@ -18,10 +66,10 @@ router.get('/', auth, adminOnly, async (req, res) => {
   }
 });
 
-// Create user (admin only)
+// Create user (admin only) — admin decides role: admin / manager / team_lead / member
 router.post('/', auth, adminOnly, async (req, res) => {
   try {
-    const { username, password, email, role = 'member' } = req.body;
+    const { username, password, email, role = 'member', teamLead } = req.body;
 
     if (!username || !password || !email) {
       return res.status(400).json({ message: 'Username, email and password required' });
@@ -29,22 +77,29 @@ router.post('/', auth, adminOnly, async (req, res) => {
     if (password.length < 6) {
       return res.status(400).json({ message: 'Password must be at least 6 characters' });
     }
+    const safeRole = normalizeRole(role);
+    if (!safeRole) return res.status(400).json({ message: 'Invalid role' });
 
     const existing = await User.findOne({ username: username.trim() });
     if (existing) return res.status(400).json({ message: 'Username already taken' });
+
+    const leadCheck = await resolveTeamLead(teamLead, req.user.company._id, null);
+    if (!leadCheck.ok) return res.status(400).json({ message: leadCheck.message });
 
     const hashedPassword = await bcrypt.hash(password, 10);
     const user = await User.create({
       username: username.trim(),
       email: email.trim().toLowerCase(),
       password: hashedPassword,
-      role,
+      role: safeRole,
+      teamLead: leadCheck.value,
       company: req.user.company._id
     });
 
     const populated = await User.findById(user._id)
       .select('-password')
-      .populate('company', 'name');
+      .populate('company', 'name')
+      .populate('teamLead', 'username role');
 
     res.status(201).json(populated);
   } catch (error) {
@@ -55,7 +110,7 @@ router.post('/', auth, adminOnly, async (req, res) => {
 // Update user (admin only)
 router.put('/:id', auth, adminOnly, async (req, res) => {
   try {
-    const { username, password, email, emailNotifications, role } = req.body;
+    const { username, password, email, emailNotifications, role, teamLead } = req.body;
     const updates = {};
 
     if (username) {
@@ -69,15 +124,33 @@ router.put('/:id', auth, adminOnly, async (req, res) => {
     }
     if (email !== undefined) updates.email = String(email).trim().toLowerCase();
     if (emailNotifications !== undefined) updates.emailNotifications = Boolean(emailNotifications);
-    if (role) updates.role = role;
+    if (role) {
+      const safeRole = normalizeRole(role);
+      if (!safeRole) return res.status(400).json({ message: 'Invalid role' });
+      if (req.params.id === req.user._id.toString() && safeRole !== 'admin') {
+        return res.status(400).json({ message: 'You cannot remove your own admin role' });
+      }
+      updates.role = safeRole;
+    }
+    if (teamLead !== undefined) {
+      const leadCheck = await resolveTeamLead(teamLead, req.user.company._id, req.params.id);
+      if (!leadCheck.ok) return res.status(400).json({ message: leadCheck.message });
+      updates.teamLead = leadCheck.value;
+    }
 
     const user = await User.findOneAndUpdate(
       { _id: req.params.id, company: req.user.company._id },
       updates,
       { new: true }
-    ).select('-password').populate('company', 'name');
+    ).select('-password').populate('company', 'name').populate('teamLead', 'username role');
 
     if (!user) return res.status(404).json({ message: 'User not found' });
+
+    // A user demoted from team lead no longer leads anyone
+    if (updates.role && updates.role === 'member') {
+      await User.updateMany({ teamLead: user._id }, { $set: { teamLead: null } });
+    }
+
     res.json(user);
   } catch (error) {
     res.status(500).json({ message: error.message });
@@ -97,6 +170,7 @@ router.delete('/:id', auth, adminOnly, async (req, res) => {
     });
 
     if (!user) return res.status(404).json({ message: 'User not found' });
+    await User.updateMany({ teamLead: user._id }, { $set: { teamLead: null } });
     res.json({ message: 'User deleted successfully' });
   } catch (error) {
     res.status(500).json({ message: error.message });

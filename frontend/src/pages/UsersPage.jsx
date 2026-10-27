@@ -3,29 +3,42 @@ import { useAuth } from '../context/AuthContext';
 import api from '../api/axios';
 import {
   Plus, Trash2, Edit3, Shield, User, Users,
-  Eye, EyeOff, X, Check, Building2
+  Eye, EyeOff, X, Check, Building2, Crown, UserCog
 } from 'lucide-react';
 import toast from 'react-hot-toast';
+import { ROLE_LABELS, roleTone } from '../utils/roles';
 
-const roleBadge = (role) => (
-  <span className={`inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full text-xs font-semibold ${
-    role === 'admin' ? 'bg-purple-100 text-purple-700' : 'bg-blue-100 text-blue-700'
-  }`}>
-    {role === 'admin' ? <Shield size={11} /> : <User size={11} />}
-    {role}
-  </span>
-);
+const ROLE_ICONS = {
+  admin: Shield,
+  manager: Crown,
+  team_lead: UserCog,
+  member: User,
+};
 
-function UserModal({ user: editUser, onClose, onSaved }) {
+const roleBadge = (role) => {
+  const Icon = ROLE_ICONS[role] || User;
+  return (
+    <span className={`inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full text-xs font-semibold ${roleTone(role)}`}>
+      <Icon size={11} />
+      {ROLE_LABELS[role] || role}
+    </span>
+  );
+};
+
+function UserModal({ user: editUser, allUsers = [], onClose, onSaved }) {
   const [form, setForm] = useState({
     username: editUser?.username || '',
     email: editUser?.email || '',
     password: '',
     role: editUser?.role || 'member',
+    teamLead: editUser?.teamLead?._id || editUser?.teamLead || '',
     emailNotifications: editUser?.emailNotifications !== false,
   });
   const [showPass, setShowPass] = useState(false);
   const [loading, setLoading] = useState(false);
+  const leads = (allUsers || []).filter((u) =>
+    ['team_lead', 'manager', 'admin'].includes(u.role) && u._id !== editUser?._id
+  );
 
   const set = (k) => (e) => setForm((f) => ({ ...f, [k]: e.target.value }));
 
@@ -38,6 +51,7 @@ function UserModal({ user: editUser, onClose, onSaved }) {
         const payload = {
           role: form.role,
           email: form.email,
+          teamLead: form.teamLead || null,
           emailNotifications: form.emailNotifications,
         };
         if (form.username) payload.username = form.username;
@@ -129,9 +143,32 @@ function UserModal({ user: editUser, onClose, onSaved }) {
               className="w-full px-4 py-3 rounded-xl border border-slate-200 text-slate-800 text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500 focus:border-transparent transition bg-white"
             >
               <option value="member">Member</option>
+              <option value="team_lead">Team Lead</option>
+              <option value="manager">Manager</option>
               <option value="admin">Admin</option>
             </select>
+            <p className="text-[11px] text-slate-400 mt-1.5">
+              Managers receive the full company daily report. Team leads receive only their team’s report.
+            </p>
           </div>
+
+          {form.role === 'member' && (
+            <div>
+              <label className="block text-xs font-semibold text-slate-600 mb-1.5 uppercase tracking-wide">Reports to (Team Lead)</label>
+              <select
+                value={form.teamLead}
+                onChange={set('teamLead')}
+                className="w-full px-4 py-3 rounded-xl border border-slate-200 text-slate-800 text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500 focus:border-transparent transition bg-white"
+              >
+                <option value="">None</option>
+                {leads.map((lead) => (
+                  <option key={lead._id} value={lead._id}>
+                    {lead.username} ({ROLE_LABELS[lead.role]})
+                  </option>
+                ))}
+              </select>
+            </div>
+          )}
 
           <label className="flex items-center gap-3 text-sm text-slate-700">
             <input
@@ -251,6 +288,7 @@ export default function UsersPage() {
               <tr className="border-b border-slate-100 bg-slate-50">
                 <th className="text-left px-5 py-3 text-xs font-semibold text-slate-500 uppercase tracking-wide">User</th>
                 <th className="text-left px-5 py-3 text-xs font-semibold text-slate-500 uppercase tracking-wide">Role</th>
+                <th className="text-left px-5 py-3 text-xs font-semibold text-slate-500 uppercase tracking-wide hidden md:table-cell">Team Lead</th>
                 <th className="text-left px-5 py-3 text-xs font-semibold text-slate-500 uppercase tracking-wide hidden sm:table-cell">Joined</th>
                 <th className="px-5 py-3 text-xs font-semibold text-slate-500 uppercase tracking-wide text-right">Actions</th>
               </tr>
@@ -277,6 +315,9 @@ export default function UsersPage() {
                     </div>
                   </td>
                   <td className="px-5 py-4">{roleBadge(u.role)}</td>
+                  <td className="px-5 py-4 text-sm text-slate-500 hidden md:table-cell">
+                    {u.teamLead?.username || '—'}
+                  </td>
                   <td className="px-5 py-4 text-sm text-slate-500 hidden sm:table-cell">
                     {new Date(u.createdAt).toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' })}
                   </td>
@@ -310,6 +351,7 @@ export default function UsersPage() {
       {modal && (
         <UserModal
           user={modal === 'create' ? null : modal}
+          allUsers={users}
           onClose={() => setModal(null)}
           onSaved={handleSaved}
         />

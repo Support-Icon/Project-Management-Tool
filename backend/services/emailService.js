@@ -2,7 +2,7 @@ const nodemailer = require('nodemailer');
 const { SESClient, SendEmailCommand } = require('@aws-sdk/client-ses');
 const CompanySettings = require('../models/CompanySettings');
 const { decrypt } = require('../utils/encryption');
-const { renderAssignmentEmail, renderDigestEmail } = require('../utils/emailTemplates');
+const { renderAssignmentEmail, renderDigestEmail, renderDailyReportEmail } = require('../utils/emailTemplates');
 
 const RENDER_SMTP_HINT =
   'Render blocks outbound Gmail SMTP. Use AWS SES or Resend (HTTPS providers).';
@@ -280,4 +280,25 @@ const sendDigestEmail = async ({ companyId, recipient, companyName, localDate, r
   });
 };
 
-module.exports = { sendWithCompany, sendAssignmentEmail, sendDigestEmail };
+const sendDailyReportEmail = async ({ companyId, recipient, companyName, localDate, people, roleLabel }) => {
+  if (!recipient?.email || recipient.emailNotifications === false) {
+    return { skipped: true, reason: 'Recipient email unavailable or disabled' };
+  }
+
+  const settings = await CompanySettings.findOne({ company: companyId });
+  const rendered = renderDailyReportEmail(settings, {
+    recipient,
+    companyName,
+    localDate,
+    people,
+    roleLabel
+  });
+
+  return sendWithCompany(companyId, {
+    to: recipient.email,
+    subject: rendered.subject,
+    html: rendered.html
+  });
+};
+
+module.exports = { sendWithCompany, sendAssignmentEmail, sendDigestEmail, sendDailyReportEmail };

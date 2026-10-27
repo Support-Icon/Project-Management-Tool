@@ -2,7 +2,9 @@ import React, { useState, useEffect } from 'react';
 import api from '../api/axios';
 import { useAuth } from '../context/AuthContext';
 import toast from 'react-hot-toast';
-import { X, Check, Flag, Calendar, User, Tag, Link2 } from 'lucide-react';
+import { X, Check, Flag, Calendar, User, Tag, Link2, Timer } from 'lucide-react';
+import { canAssignOthers } from '../utils/roles';
+import { previewDeadline, formatDuration, formatIST } from '../utils/time';
 
 const priorities = [
   { value: 'low', label: 'Low', color: 'text-emerald-600 bg-emerald-50 border-emerald-200' },
@@ -18,7 +20,7 @@ const toDateInput = (value) => {
 
 export default function TaskModal({ task, projectId, column, columns, projectTasks = [], onClose, onSaved }) {
   const { user } = useAuth();
-  const isAdmin = user?.role === 'admin';
+  const canAssign = canAssignOthers(user);
 
   const [form, setForm] = useState({
     title: task?.title || '',
@@ -29,16 +31,18 @@ export default function TaskModal({ task, projectId, column, columns, projectTas
     startDate: toDateInput(task?.startDate),
     dueDate: toDateInput(task?.dueDate),
     dependsOn: task?.dependsOn?._id || task?.dependsOn || '',
+    durationValue: task?.duration?.value || '',
+    durationUnit: task?.duration?.unit || 'hours',
     tags: task?.tags?.join(', ') || '',
   });
   const [members, setMembers] = useState([]);
   const [loading, setLoading] = useState(false);
 
   useEffect(() => {
-    if (isAdmin) {
-      api.get('/api/users').then((r) => setMembers(r.data)).catch(() => {});
+    if (canAssign) {
+      api.get('/api/users/assignable').then((r) => setMembers(r.data)).catch(() => {});
     }
-  }, [isAdmin]);
+  }, [canAssign]);
 
   const set = (k) => (e) => setForm((f) => ({ ...f, [k]: e.target.value }));
   const dependencyOptions = projectTasks.filter((t) => t._id !== task?._id);
@@ -60,9 +64,12 @@ export default function TaskModal({ task, projectId, column, columns, projectTas
         description: form.description.trim(),
         column: form.column,
         priority: form.priority,
-        assigneeId: isAdmin ? (form.assigneeId || null) : user._id,
+        assigneeId: canAssign ? (form.assigneeId || null) : user._id,
         startDate: form.startDate || null,
         dueDate: form.dueDate || null,
+        duration: form.durationValue
+          ? { value: Number(form.durationValue), unit: form.durationUnit || 'hours' }
+          : null,
         dependsOn: form.dependsOn || null,
         tags: form.tags ? form.tags.split(',').map((t) => t.trim()).filter(Boolean) : [],
       };
@@ -164,7 +171,7 @@ export default function TaskModal({ task, projectId, column, columns, projectTas
             </div>
           </div>
 
-          {isAdmin && (
+          {canAssign && (
             <div>
               <label className="block text-xs font-semibold text-slate-600 mb-1.5 uppercase tracking-wide flex items-center gap-1">
                 <User size={12} /> Assignee
@@ -181,6 +188,39 @@ export default function TaskModal({ task, projectId, column, columns, projectTas
               </select>
             </div>
           )}
+
+          <div>
+            <label className="block text-xs font-semibold text-slate-600 mb-1.5 uppercase tracking-wide flex items-center gap-1">
+              <Timer size={12} /> Complete within (Indian time)
+            </label>
+            <div className="grid grid-cols-2 gap-2">
+              <input
+                type="number"
+                min="0"
+                step="0.5"
+                value={form.durationValue}
+                onChange={set('durationValue')}
+                placeholder="e.g. 2"
+                className="w-full px-3 py-2.5 rounded-xl border border-slate-200 text-slate-800 text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500 focus:border-transparent transition"
+              />
+              <select
+                value={form.durationUnit}
+                onChange={set('durationUnit')}
+                className="w-full px-3 py-2.5 rounded-xl border border-slate-200 text-slate-800 text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500 bg-white"
+              >
+                <option value="minutes">Minutes</option>
+                <option value="hours">Hours</option>
+                <option value="days">Days</option>
+              </select>
+            </div>
+            <p className="text-[11px] text-slate-400 mt-1.5">
+              {form.durationValue
+                ? `Deadline ≈ ${previewDeadline(form.durationValue, form.durationUnit)}`
+                : 'Examples: 2 hours, 1 day. Deadline is calculated in IST when assigned.'}
+              {task?.deadlineAt && !form.durationValue && ` Current: ${formatIST(task.deadlineAt)}`}
+              {task?.duration?.value && !form.durationValue && ` (${formatDuration(task.duration)})`}
+            </p>
+          </div>
 
           <div className="grid grid-cols-2 gap-4">
             <div>
@@ -228,7 +268,7 @@ export default function TaskModal({ task, projectId, column, columns, projectTas
             </p>
           </div>
 
-          {!isAdmin && (
+          {!canAssign && (
             <p className="text-xs text-indigo-600 bg-indigo-50 px-3 py-2 rounded-lg">
               This task will be assigned to you automatically.
             </p>

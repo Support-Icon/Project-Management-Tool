@@ -22,6 +22,14 @@ const taskSchema = new mongoose.Schema({
   },
   dueDate: { type: Date, default: null },
   startDate: { type: Date, default: null },
+  // Expected completion window, e.g. { value: 2, unit: 'hours' } or { value: 1, unit: 'days' }
+  duration: {
+    value: { type: Number, default: null },
+    unit: { type: String, enum: ['minutes', 'hours', 'days', null], default: null }
+  },
+  // Exact deadline (computed from assignment time + duration, in company time — IST by default)
+  deadlineAt: { type: Date, default: null },
+  assignedAt: { type: Date, default: null },
   // Start this task only after the dependency task is completed
   dependsOn: {
     type: mongoose.Schema.Types.ObjectId,

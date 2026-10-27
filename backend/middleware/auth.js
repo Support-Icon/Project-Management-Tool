@@ -1,5 +1,6 @@
 const jwt = require('jsonwebtoken');
 const User = require('../models/User');
+const { getScopeUserIds, canViewTeamAnalytics } = require('../utils/roles');
 
 const auth = async (req, res, next) => {
   try {
@@ -11,7 +12,11 @@ const auth = async (req, res, next) => {
 
     if (!user) return res.status(401).json({ message: 'User not found' });
 
+    // null = unrestricted (admin / manager); array = visible assignee ids
+    const scopeUserIds = await getScopeUserIds(user);
+    user.scopeUserIds = scopeUserIds;
     req.user = user;
+    req.scopeUserIds = scopeUserIds;
     next();
   } catch (error) {
     res.status(401).json({ message: 'Invalid or expired token' });
@@ -25,4 +30,12 @@ const adminOnly = (req, res, next) => {
   next();
 };
 
-module.exports = { auth, adminOnly };
+/** Admin, manager or team lead. */
+const leadersOnly = (req, res, next) => {
+  if (!canViewTeamAnalytics(req.user)) {
+    return res.status(403).json({ message: 'Manager or team lead access required' });
+  }
+  next();
+};
+
+module.exports = { auth, adminOnly, leadersOnly };

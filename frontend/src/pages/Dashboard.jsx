@@ -3,6 +3,7 @@ import { useNavigate, useOutletContext } from 'react-router-dom';
 import { useAuth } from '../context/AuthContext';
 import api from '../api/axios';
 import { withMineOnly } from '../utils/apiQuery';
+import { canSeeAll, canManageUsers } from '../utils/roles';
 import {
   Plus, FolderKanban, Users, CheckSquare, TrendingUp,
   Calendar, ArrowRight, Trash2, MoreVertical, Activity
@@ -24,7 +25,8 @@ const StatCard = ({ icon: Icon, label, value, color, bg }) => (
 
 export default function Dashboard() {
   const { user, adminMineOnly } = useAuth();
-  const isAdmin = user?.role === 'admin';
+  const isAdmin = canSeeAll(user);
+  const canManage = canManageUsers(user);
   const navigate = useNavigate();
   const { projects, setProjects, refetchProjects } = useOutletContext();
   const [taskStats, setTaskStats] = useState({ total: 0, done: 0 });
@@ -38,7 +40,7 @@ export default function Dashboard() {
       try {
         const pendingRes = await api.get('/api/task-updates/pending/mine');
         setPendingUpdates(pendingRes.data);
-        if (user?.role === 'admin') {
+        if (canManage) {
           const usersRes = await api.get('/api/users');
           setUserCount(usersRes.data.length);
         }
@@ -127,7 +129,7 @@ export default function Dashboard() {
         <StatCard icon={FolderKanban} label="Total Projects" value={projects.length} color="text-indigo-600" bg="bg-indigo-50" />
         <StatCard icon={CheckSquare} label="Total Tasks" value={taskStats.total} color="text-violet-600" bg="bg-violet-50" />
         <StatCard icon={TrendingUp} label="Completed" value={taskStats.done} color="text-emerald-600" bg="bg-emerald-50" />
-        {user?.role === 'admin' && (
+        {canManage && (
           <StatCard icon={Users} label="Team Members" value={userCount} color="text-amber-600" bg="bg-amber-50" />
         )}
       </div>
@@ -147,7 +149,7 @@ export default function Dashboard() {
           </div>
           <p className="text-xs text-slate-400 mt-2">
             {taskStats.done} of {taskStats.total} tasks completed
-            {user?.role === 'admin' && !adminMineOnly ? ' across all projects' : ' (your assigned tasks)'}
+            {isAdmin && !adminMineOnly ? ' across all projects' : ' (your assigned tasks)'}
           </p>
         </div>
       )}
@@ -155,7 +157,7 @@ export default function Dashboard() {
       {/* Projects grid */}
       <div className="flex items-center justify-between mb-4">
         <h3 className="text-lg font-bold text-slate-800">Projects</h3>
-        {user?.role === 'admin' && (
+        {canManage && (
           <button
             onClick={() => setShowModal(true)}
             className="flex items-center gap-2 bg-indigo-600 hover:bg-indigo-700 text-white text-sm font-semibold px-4 py-2 rounded-xl transition-all shadow-sm hover:shadow-md"
@@ -170,14 +172,14 @@ export default function Dashboard() {
         <div className="bg-white rounded-2xl border-2 border-dashed border-slate-200 p-12 text-center">
           <FolderKanban size={40} className="text-slate-300 mx-auto mb-3" />
           <h4 className="text-slate-600 font-semibold mb-1">
-            {user?.role === 'admin' ? 'No projects yet' : 'No projects assigned to you'}
+            {canManage ? 'No projects yet' : 'No projects assigned to you'}
           </h4>
           <p className="text-slate-400 text-sm mb-4">
-            {user?.role === 'admin'
+            {canManage
               ? 'Create your first project to get started'
               : 'Ask your admin to assign you tasks in a project'}
           </p>
-          {user?.role === 'admin' && (
+          {canManage && (
             <button
               onClick={() => setShowModal(true)}
               className="inline-flex items-center gap-2 bg-indigo-600 hover:bg-indigo-700 text-white text-sm font-semibold px-5 py-2.5 rounded-xl transition-all"
@@ -198,7 +200,7 @@ export default function Dashboard() {
                 <div className="w-10 h-10 rounded-xl bg-gradient-to-br from-indigo-500 to-purple-600 flex items-center justify-center flex-shrink-0 shadow-sm">
                   <FolderKanban size={18} className="text-white" />
                 </div>
-                {user?.role === 'admin' && (
+                {canManage && (
                   <div className="relative">
                     <button
                       onClick={(e) => { e.stopPropagation(); setMenuOpen(menuOpen === p._id ? null : p._id); }}

@@ -58,6 +58,7 @@ router.post('/register', async (req, res) => {
         username: user.username,
         email: user.email,
         role: user.role,
+        teamLead: user.teamLead || null,
         company: { _id: company._id, name: company.name }
       }
     });
@@ -90,6 +91,7 @@ router.post('/login', async (req, res) => {
         username: user.username,
         email: user.email,
         role: user.role,
+        teamLead: user.teamLead || null,
         company: { _id: user.company._id, name: user.company.name }
       }
     });
@@ -106,6 +108,7 @@ router.get('/me', auth, (req, res) => {
     username: u.username,
     email: u.email,
     role: u.role,
+    teamLead: u.teamLead || null,
     company: { _id: u.company._id, name: u.company.name }
   });
 });
