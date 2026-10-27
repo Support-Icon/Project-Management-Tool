@@ -33,7 +33,7 @@ jobs:
         run: |
           URL="${{ secrets.VITE_API_URL }}"
           if [ -z "$URL" ] || [ "$URL" = "/" ]; then
-            echo "::error::Set GitHub secret VITE_API_URL to your Render backend URL (e.g. https://project-management-tool-c6f9.onrender.com). Do NOT use / or the custom domain."
+            echo "::error::Set GitHub secret VITE_API_URL to your Lambda function URL (e.g. https://xxxx.lambda-url.us-east-1.on.aws). Do NOT use / or the frontend domain."
             exit 1
           fi
           case "$URL" in

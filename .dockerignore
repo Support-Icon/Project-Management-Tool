@@ -1,0 +1,12 @@
+.git
+.github
+.vscode
+**/.env
+**/.env.*
+**/node_modules
+frontend
+*.md
+backend/.env
+backend/.env.*
+backend/node_modules
+backend/render.yaml

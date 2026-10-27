@@ -10,7 +10,17 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - name: Trigger due company digests
+        env:
+          BACKEND_URL: ${{ secrets.BACKEND_URL }}
+          VITE_API_URL: ${{ secrets.VITE_API_URL }}
+          CRON_SECRET: ${{ secrets.CRON_SECRET }}
         run: |
+          API="${BACKEND_URL:-$VITE_API_URL}"
+          API="${API%/}"
+          if [ -z "$API" ]; then
+            echo "Set GitHub secret BACKEND_URL or VITE_API_URL to the Lambda function URL."
+            exit 1
+          fi
           curl --fail-with-body --request POST \
-            --header "X-Cron-Secret: ${{ secrets.CRON_SECRET }}" \
-            "${{ secrets.VITE_API_URL }}/api/internal/digest"
+            --header "X-Cron-Secret: ${CRON_SECRET}" \
+            "${API}/api/internal/digest"

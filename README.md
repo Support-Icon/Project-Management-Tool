@@ -31,7 +31,7 @@ A full-stack project management tool with a **Kanban board**, company-based mult
 | Auth     | JWT (stored in localStorage) |
 | Drag & Drop | @hello-pangea/dnd |
 | Deploy (FE) | GitHub Pages |
-| Deploy (BE) | Render.com |
+| Deploy (BE) | AWS Lambda (ECR container image) |
 
 ---
 
@@ -89,35 +89,41 @@ Backend API: http://localhost:5000
 
 ## ☁️ Deployment
 
-### Backend → Render.com
+### Backend → AWS Lambda (ECR)
 
-1. Go to [render.com](https://render.com) → **New Web Service**
-2. Connect your GitHub repo
-3. Set **Root Directory** to `backend`
-4. Set **Build Command**: `npm install`
-5. Set **Start Command**: `npm start`
-6. Add Environment Variables:
-   - `MONGODB_URI` — your MongoDB Atlas connection string
-   - `JWT_SECRET` — a strong random secret
-   - `FRONTEND_URL` — **origin only, no path**. For a custom domain use `https://your.domain.com`. For github.io use `https://support-icon.github.io` (NOT `/Project-Management-Tool/`). Multiple origins: comma-separated in `ALLOWED_ORIGINS`.
-   - `ENCRYPTION_KEY` — stable 64-character hex key used to encrypt Gmail App Passwords
-   - `CRON_SECRET` — long random value; use the same value in GitHub Actions
-7. Copy your Render URL (e.g. `https://project-management-tool-c6f9.onrender.com`)
+Push to `main` (or run **Actions → Deploy backend to AWS (ECR → Lambda)**). The workflow builds a container image, pushes it to ECR, and updates the `projectflow-backend` Lambda. The function URL prints `hello`.
 
-**MongoDB Atlas (required for Render):**
-1. Atlas → **Network Access** → **Add IP Address** → **Allow Access from Anywhere** (`0.0.0.0/0`)
-2. Atlas → **Database Access** → user with read/write on your database
-3. If the password has special characters, URL-encode it in `MONGODB_URI`
+**One-time AWS setup**
 
-**CORS troubleshooting:** Origin must match exactly (custom domain ≠ `*.github.io`). Set `FRONTEND_URL` or `ALLOWED_ORIGINS` on Render to your live frontend origin.
+1. IAM user for GitHub Actions with ECR, Lambda, `iam:GetRole`, and `kms:DescribeKey` on `alias/aws/lambda`. Put the keys in GitHub secrets `AWS_ACCESS_KEY_ID` and `AWS_SECRET_ACCESS_KEY`.
+2. IAM role **`projectflow-backend-lambda-role`**: trusted entity **Lambda**, attach **AWSLambdaBasicExecutionRole**.
+3. MongoDB Atlas → **Network Access** → allow `0.0.0.0/0` (Lambda IPs are not static).
+
+**GitHub secrets**
+
+| Secret | Value |
+|--------|-------|
+| `AWS_ACCESS_KEY_ID` / `AWS_SECRET_ACCESS_KEY` | IAM user for deploy |
+| `MONGODB_URI` | MongoDB Atlas connection string |
+| `JWT_SECRET` | Strong random secret |
+| `ENCRYPTION_KEY` | Stable 64-character hex key |
+| `CRON_SECRET` | Same value used by the digest/report workflows |
+| `FRONTEND_URL` | Frontend origin only, e.g. `https://projectflow.supporticon.com` |
+| `ALLOWED_ORIGINS` | Optional comma-separated extra origins |
+| `CUSTOM_DOMAIN` | Optional; used as `https://…` if `FRONTEND_URL` is unset |
+
+After deploy, the job summary prints the Lambda URL. Open it in a browser — you should see **hello**. Then set `VITE_API_URL` and `BACKEND_URL` to that URL (no trailing slash) and redeploy the frontend.
+
+**CORS:** Origin must match exactly. Set `FRONTEND_URL` or `ALLOWED_ORIGINS` to the live frontend origin (`https://support-icon.github.io` without `/Project-Management-Tool/`).
 
 ### Frontend → GitHub Pages
 
 1. Push your code to GitHub
 2. Go to **Settings → Secrets and Variables → Actions**
 3. Add the following secrets:
-   - `VITE_API_URL` — your Render backend URL (e.g. `https://project-management-api.onrender.com`)
-   - `CRON_SECRET` — exactly the same value configured on Render
+   - `VITE_API_URL` — Lambda function URL from the backend deploy (e.g. `https://xxxx.lambda-url.us-east-1.on.aws`)
+   - `BACKEND_URL` — same Lambda URL (used by daily digest / report crons)
+   - `CRON_SECRET` — exactly the same value configured on Lambda
    - `CUSTOM_DOMAIN` (optional) — e.g. `app.yourdomain.com` so deploys keep the Pages custom domain
    - Do **not** set `VITE_BASE_URL` when using a custom domain (build uses `/`). Only set `VITE_BASE_URL=/Project-Management-Tool/` if you use the github.io project URL without a custom domain.
 4. Go to **Settings → Pages** → Source: **gh-pages** branch → set Custom domain
@@ -143,15 +149,17 @@ Your app will be live at: `https://YOUR_USERNAME.github.io/YOUR_REPO/`
 project_management_tool/
 ├── .github/
 │   └── workflows/
-│       └── deploy.yml          # Auto-deploy to GitHub Pages
+│       ├── deploy.yml              # Frontend → GitHub Pages
+│       └── deploy-backend.yml      # Backend → ECR → Lambda
+├── scripts/                        # Lambda adapter, function URL, ECR cleanup
 ├── backend/
 │   ├── config/db.js            # MongoDB connection
 │   ├── middleware/auth.js       # JWT middleware
 │   ├── models/                  # Mongoose models
 │   ├── routes/                  # Express routes
 │   ├── server.js               # Express entry point
-│   ├── .env.example
-│   └── render.yaml             # Render.com config
+│   ├── Dockerfile              # Lambda container image
+│   └── .env.example
 ├── frontend/
 │   ├── src/
 │   │   ├── api/axios.js         # Axios with auth headers
@@ -169,8 +177,10 @@ project_management_tool/
 
 | Secret | Value |
 |--------|-------|
-| `VITE_API_URL` | Your Render backend URL (no trailing slash), e.g. `https://project-management-tool-c6f9.onrender.com` |
-| `CRON_SECRET` | Same long random secret configured as `CRON_SECRET` on Render |
+| `VITE_API_URL` | Lambda function URL (no trailing slash), e.g. `https://xxxx.lambda-url.us-east-1.on.aws` |
+| `BACKEND_URL` | Same Lambda URL (daily digest / weekly report crons) |
+| `CRON_SECRET` | Same long random secret configured as `CRON_SECRET` on Lambda |
+| `MONGODB_URI` | MongoDB Atlas URI (used by the backend Lambda deploy) |
 
 ## Gmail and Daily Reminders
 
@@ -184,4 +194,4 @@ GitHub Actions checks for due **morning digests** and **evening manager reports*
 A company configured for 19:30 IST receives the person-wise report on the first hourly run
 at or after 7:30 PM. Admins can change that time under **Settings → Evening daily report**.
 
-> **Note:** `MONGODB_URI` should be set directly in Render.com's environment variables panel — NOT as a GitHub Secret — to keep it secure.
+> **Note:** `MONGODB_URI` is a GitHub Actions secret. The backend deploy copies it onto the Lambda function environment — it is not baked into the Docker image.

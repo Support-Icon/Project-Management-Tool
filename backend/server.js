@@ -13,6 +13,10 @@ app.use(express.json());
 
 connectDB();
 
+app.get('/', (_req, res) => {
+  res.status(200).type('text/plain').send('hello');
+});
+
 app.use('/api/auth', require('./routes/auth'));
 app.use('/api/users', require('./routes/users'));
 app.use('/api/projects', require('./routes/projects'));

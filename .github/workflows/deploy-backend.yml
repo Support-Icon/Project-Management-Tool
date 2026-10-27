@@ -1,0 +1,191 @@
+name: Deploy backend to AWS (ECR → Lambda)
+
+on:
+  push:
+    branches:
+      - main
+    paths:
+      - 'backend/**'
+      - 'scripts/**'
+      - '.github/workflows/deploy-backend.yml'
+      - '.dockerignore'
+  workflow_dispatch:
+
+env:
+  AWS_REGION: us-east-1
+  ECR_REPO: projectflow-backend
+  LAMBDA_FUNCTION: projectflow-backend
+  LAMBDA_ROLE_NAME: projectflow-backend-lambda-role
+  ECR_KEEP_IMAGES: 1
+
+permissions:
+  contents: read
+
+jobs:
+  deploy:
+    name: Deploy backend
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Configure AWS credentials
+        uses: aws-actions/configure-aws-credentials@v4
+        with:
+          aws-access-key-id: ${{ secrets.AWS_ACCESS_KEY_ID }}
+          aws-secret-access-key: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
+          aws-region: ${{ env.AWS_REGION }}
+
+      - name: Login to Amazon ECR
+        id: login-ecr
+        uses: aws-actions/amazon-ecr-login@v2
+
+      # Avoid public.ecr.aws (anonymous 429) and ecr-public:GetAuthorizationToken.
+      # Pull the adapter binary from the public AWS Lambda layer instead.
+      - name: Fetch Lambda Web Adapter binary
+        run: |
+          chmod +x scripts/fetch_lambda_adapter.sh
+          bash scripts/fetch_lambda_adapter.sh .docker-cache
+
+      - name: Resolve Lambda KMS key ARN
+        id: kms
+        run: |
+          KMS_ARN="$(aws kms describe-key --key-id alias/aws/lambda --query 'KeyMetadata.Arn' --output text)"
+          echo "arn=${KMS_ARN}" >> "$GITHUB_OUTPUT"
+
+      - name: Verify required secrets
+        env:
+          MONGODB_URI: ${{ secrets.MONGODB_URI }}
+          JWT_SECRET: ${{ secrets.JWT_SECRET }}
+          ENCRYPTION_KEY: ${{ secrets.ENCRYPTION_KEY }}
+          CRON_SECRET: ${{ secrets.CRON_SECRET }}
+        run: |
+          set -euo pipefail
+          missing=0
+          for name in MONGODB_URI JWT_SECRET ENCRYPTION_KEY CRON_SECRET; do
+            if [[ -z "${!name}" ]]; then
+              echo "::error::GitHub secret ${name} is required for Lambda deploy."
+              missing=1
+            fi
+          done
+          if [[ "$missing" -ne 0 ]]; then
+            exit 1
+          fi
+
+      - name: Verify Lambda execution role
+        run: |
+          set -euo pipefail
+          ROLE_NAME="${{ env.LAMBDA_ROLE_NAME }}"
+          if aws iam get-role --role-name "$ROLE_NAME" >/dev/null 2>&1; then
+            echo "Lambda execution role found: ${ROLE_NAME}"
+            exit 0
+          fi
+          echo "Missing IAM role: ${ROLE_NAME}"
+          echo "Create this role once in AWS Console (IAM -> Roles -> Create role)."
+          echo "Trusted entity: AWS service -> Lambda."
+          echo "Attach policy: AWSLambdaBasicExecutionRole"
+          exit 1
+
+      - name: Ensure ECR repository exists
+        run: |
+          aws ecr describe-repositories --repository-names "${{ env.ECR_REPO }}" \
+            || aws ecr create-repository --repository-name "${{ env.ECR_REPO }}"
+
+      - name: Build and push image
+        id: build
+        env:
+          ECR_REGISTRY: ${{ steps.login-ecr.outputs.registry }}
+          IMAGE_TAG: ${{ github.sha }}
+        run: |
+          IMAGE_URI="${ECR_REGISTRY}/${{ env.ECR_REPO }}:${IMAGE_TAG}"
+          docker build -f backend/Dockerfile -t "${IMAGE_URI}" .
+          docker push "${IMAGE_URI}"
+          echo "image_uri=${IMAGE_URI}" >> "$GITHUB_OUTPUT"
+
+      - name: Ensure Lambda function exists
+        env:
+          IMAGE_URI: ${{ steps.build.outputs.image_uri }}
+        run: |
+          set -euo pipefail
+          ACCOUNT_ID="$(aws sts get-caller-identity --query Account --output text)"
+          ROLE_ARN="arn:aws:iam::${ACCOUNT_ID}:role/${{ env.LAMBDA_ROLE_NAME }}"
+
+          if aws lambda get-function --function-name "${{ env.LAMBDA_FUNCTION }}" >/dev/null 2>&1; then
+            echo "Lambda function already exists."
+          else
+            aws lambda create-function \
+              --function-name "${{ env.LAMBDA_FUNCTION }}" \
+              --package-type Image \
+              --code ImageUri="${IMAGE_URI}" \
+              --role "${ROLE_ARN}" \
+              --timeout 120 \
+              --memory-size 1024 \
+              --architectures x86_64
+
+            aws lambda wait function-active \
+              --function-name "${{ env.LAMBDA_FUNCTION }}"
+          fi
+
+      - name: Update Lambda function
+        env:
+          IMAGE_URI: ${{ steps.build.outputs.image_uri }}
+        run: |
+          aws lambda update-function-code \
+            --function-name "${{ env.LAMBDA_FUNCTION }}" \
+            --image-uri "${IMAGE_URI}"
+
+          aws lambda wait function-updated \
+            --function-name "${{ env.LAMBDA_FUNCTION }}"
+
+      - name: Configure Lambda environment
+        env:
+          LAMBDA_KMS_KEY: ${{ steps.kms.outputs.arn }}
+          NODE_ENV: production
+          PORT: "8080"
+          AWS_LWA_PORT: "8080"
+          AWS_LWA_READINESS_CHECK_PATH: "/"
+          MONGODB_URI: ${{ secrets.MONGODB_URI }}
+          JWT_SECRET: ${{ secrets.JWT_SECRET }}
+          ENCRYPTION_KEY: ${{ secrets.ENCRYPTION_KEY }}
+          CRON_SECRET: ${{ secrets.CRON_SECRET }}
+          FRONTEND_URL: ${{ secrets.FRONTEND_URL }}
+          ALLOWED_ORIGINS: ${{ secrets.ALLOWED_ORIGINS }}
+          CUSTOM_DOMAIN: ${{ secrets.CUSTOM_DOMAIN }}
+        run: |
+          set -euo pipefail
+          if [[ -z "${FRONTEND_URL}" && -n "${CUSTOM_DOMAIN}" ]]; then
+            FRONTEND_URL="https://${CUSTOM_DOMAIN}"
+            export FRONTEND_URL
+          fi
+
+          CURRENT_ENV="$(aws lambda get-function-configuration \
+            --function-name "${{ env.LAMBDA_FUNCTION }}" \
+            --query Environment.Variables \
+            --output json)"
+          export CURRENT_ENV
+
+          python3 scripts/update_backend_lambda_env.py "${{ env.LAMBDA_FUNCTION }}"
+
+          aws lambda wait function-updated \
+            --function-name "${{ env.LAMBDA_FUNCTION }}"
+
+      - name: Ensure Lambda function URL
+        id: url
+        run: |
+          chmod +x scripts/ensure_function_url.sh
+          BACKEND_URL="$(bash scripts/ensure_function_url.sh "${{ env.LAMBDA_FUNCTION }}")"
+          BACKEND_URL="${BACKEND_URL%/}"
+          echo "url=${BACKEND_URL}" >> "$GITHUB_OUTPUT"
+          echo "Backend URL: ${BACKEND_URL}"
+
+      - name: Cleanup old ECR images
+        if: success()
+        run: |
+          chmod +x scripts/cleanup_ecr_images.sh
+          bash scripts/cleanup_ecr_images.sh "${{ env.ECR_REPO }}" "${{ env.ECR_KEEP_IMAGES }}"
+
+      - name: Deployment summary
+        run: |
+          echo "Backend URL: ${{ steps.url.outputs.url }}"
+          echo "Open that URL in a browser — it should print: hello"
+          echo "Then set GitHub secret VITE_API_URL (and BACKEND_URL) to this URL so the frontend and daily cron jobs use Lambda."
