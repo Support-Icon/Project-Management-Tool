@@ -6,7 +6,7 @@ import {
   Eye, EyeOff, X, Check, Building2, Crown, UserCog
 } from 'lucide-react';
 import toast from 'react-hot-toast';
-import { ROLE_LABELS, roleTone } from '../utils/roles';
+import { ROLE_LABELS, roleTone, canManageUsers, creatableRoles } from '../utils/roles';
 
 const ROLE_ICONS = {
   admin: Shield,
@@ -25,17 +25,18 @@ const roleBadge = (role) => {
   );
 };
 
-function UserModal({ user: editUser, allUsers = [], onClose, onSaved }) {
+function UserModal({ user: editUser, allUsers = [], currentUser, onClose, onSaved }) {
   const [form, setForm] = useState({
     username: editUser?.username || '',
     email: editUser?.email || '',
     password: '',
-    role: editUser?.role || 'member',
+    role: editUser?.role || creatableRoles(currentUser)[0] || 'member',
     teamLead: editUser?.teamLead?._id || editUser?.teamLead || '',
     emailNotifications: editUser?.emailNotifications !== false,
   });
   const [showPass, setShowPass] = useState(false);
   const [loading, setLoading] = useState(false);
+  const allowedRoles = creatableRoles(currentUser);
   const leads = (allUsers || []).filter((u) =>
     ['team_lead', 'manager', 'admin'].includes(u.role) && u._id !== editUser?._id
   );
@@ -142,10 +143,10 @@ function UserModal({ user: editUser, allUsers = [], onClose, onSaved }) {
               onChange={set('role')}
               className="w-full px-4 py-3 rounded-xl border border-slate-200 text-slate-800 text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500 focus:border-transparent transition bg-white"
             >
-              <option value="member">Member</option>
-              <option value="team_lead">Team Lead — team reports + team chat</option>
-              <option value="manager">Manager — all people work + evening report</option>
-              <option value="admin">Admin — full access</option>
+              {allowedRoles.includes('member') && <option value="member">Member</option>}
+              {allowedRoles.includes('team_lead') && <option value="team_lead">Team Lead — team reports + team chat</option>}
+              {allowedRoles.includes('manager') && <option value="manager">Manager — all people work + evening report</option>}
+              {allowedRoles.includes('admin') && <option value="admin">Admin — full access</option>}
             </select>
             <p className="text-[11px] text-slate-400 mt-1.5">
               Managers receive the full company daily report. Team leads receive only their team’s report.
@@ -245,11 +246,11 @@ export default function UsersPage() {
     setModal(null);
   };
 
-  if (currentUser?.role !== 'admin') {
+  if (!canManageUsers(currentUser)) {
     return (
       <div className="p-6 text-center">
         <Shield size={40} className="text-slate-300 mx-auto mb-3" />
-        <p className="text-slate-500">Admin access required</p>
+        <p className="text-slate-500">Admin, manager or team lead access required</p>
       </div>
     );
   }
@@ -352,6 +353,7 @@ export default function UsersPage() {
         <UserModal
           user={modal === 'create' ? null : modal}
           allUsers={users}
+          currentUser={currentUser}
           onClose={() => setModal(null)}
           onSaved={handleSaved}
         />

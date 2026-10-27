@@ -1,8 +1,8 @@
 const express = require('express');
 const bcrypt = require('bcryptjs');
 const User = require('../models/User');
-const { auth, adminOnly } = require('../middleware/auth');
-const { ROLES, canAssignOthers, canSeeAll } = require('../utils/roles');
+const { auth, staffOnly } = require('../middleware/auth');
+const { ROLES, canAssignOthers, canSeeAll, creatableRoles, isAdmin, isTeamLead } = require('../utils/roles');
 
 const router = express.Router();
 
@@ -52,10 +52,14 @@ router.get('/assignable', auth, async (req, res) => {
   }
 });
 
-// Get all users in same company (admin only)
-router.get('/', auth, adminOnly, async (req, res) => {
+// Get all users in same company (admin / manager / team lead)
+router.get('/', auth, staffOnly, async (req, res) => {
   try {
-    const users = await User.find({ company: req.user.company._id })
+    const filter = { company: req.user.company._id };
+    if (isTeamLead(req.user) && !isAdmin(req.user)) {
+      filter.$or = [{ _id: req.user._id }, { teamLead: req.user._id }];
+    }
+    const users = await User.find(filter)
       .select('-password')
       .populate('company', 'name')
       .populate('teamLead', 'username role')
@@ -66,8 +70,8 @@ router.get('/', auth, adminOnly, async (req, res) => {
   }
 });
 
-// Create user (admin only) — admin decides role: admin / manager / team_lead / member
-router.post('/', auth, adminOnly, async (req, res) => {
+// Create user — admin/manager/team lead; role options depend on who is creating
+router.post('/', auth, staffOnly, async (req, res) => {
   try {
     const { username, password, email, role = 'member', teamLead } = req.body;
 
@@ -79,11 +83,18 @@ router.post('/', auth, adminOnly, async (req, res) => {
     }
     const safeRole = normalizeRole(role);
     if (!safeRole) return res.status(400).json({ message: 'Invalid role' });
+    if (!creatableRoles(req.user).includes(safeRole)) {
+      return res.status(403).json({ message: `You cannot create a ${safeRole} account` });
+    }
 
     const existing = await User.findOne({ username: username.trim() });
     if (existing) return res.status(400).json({ message: 'Username already taken' });
 
-    const leadCheck = await resolveTeamLead(teamLead, req.user.company._id, null);
+    let leadId = teamLead;
+    if (isTeamLead(req.user) && safeRole === 'member') {
+      leadId = req.user._id;
+    }
+    const leadCheck = await resolveTeamLead(leadId, req.user.company._id, null);
     if (!leadCheck.ok) return res.status(400).json({ message: leadCheck.message });
 
     const hashedPassword = await bcrypt.hash(password, 10);
@@ -107,8 +118,8 @@ router.post('/', auth, adminOnly, async (req, res) => {
   }
 });
 
-// Update user (admin only)
-router.put('/:id', auth, adminOnly, async (req, res) => {
+// Update user (admin / manager / team lead)
+router.put('/:id', auth, staffOnly, async (req, res) => {
   try {
     const { username, password, email, emailNotifications, role, teamLead } = req.body;
     const updates = {};
@@ -127,7 +138,10 @@ router.put('/:id', auth, adminOnly, async (req, res) => {
     if (role) {
       const safeRole = normalizeRole(role);
       if (!safeRole) return res.status(400).json({ message: 'Invalid role' });
-      if (req.params.id === req.user._id.toString() && safeRole !== 'admin') {
+      if (!creatableRoles(req.user).includes(safeRole) && req.params.id !== req.user._id.toString()) {
+        return res.status(403).json({ message: `You cannot assign the ${safeRole} role` });
+      }
+      if (req.params.id === req.user._id.toString() && isAdmin(req.user) && safeRole !== 'admin') {
         return res.status(400).json({ message: 'You cannot remove your own admin role' });
       }
       updates.role = safeRole;
@@ -157,11 +171,20 @@ router.put('/:id', auth, adminOnly, async (req, res) => {
   }
 });
 
-// Delete user (admin only)
-router.delete('/:id', auth, adminOnly, async (req, res) => {
+// Delete user (admin / manager / team lead)
+router.delete('/:id', auth, staffOnly, async (req, res) => {
   try {
     if (req.params.id === req.user._id.toString()) {
       return res.status(400).json({ message: 'You cannot delete yourself' });
+    }
+
+    const existing = await User.findOne({ _id: req.params.id, company: req.user.company._id });
+    if (!existing) return res.status(404).json({ message: 'User not found' });
+    if (!isAdmin(req.user) && existing.role === 'admin') {
+      return res.status(403).json({ message: 'Only an admin can remove another admin' });
+    }
+    if (isTeamLead(req.user) && !isAdmin(req.user) && String(existing.teamLead || '') !== req.user._id.toString()) {
+      return res.status(403).json({ message: 'You can only remove your own team members' });
     }
 
     const user = await User.findOneAndDelete({

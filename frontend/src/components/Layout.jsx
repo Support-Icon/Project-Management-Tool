@@ -12,7 +12,7 @@ import toast from 'react-hot-toast';
 import ProjectModal from './ProjectModal';
 import AiChatWidget from './AiChatWidget';
 import NotificationBell from './NotificationBell';
-import { canSeeAll, canManageUsers, canViewTeamAnalytics, ROLE_LABELS } from '../utils/roles';
+import { canSeeAll, canManageUsers, canViewTeamAnalytics, ROLE_LABELS, isAdmin as isCompanyAdmin } from '../utils/roles';
 import { useNotifications } from '../context/NotificationContext';
 
 export default function Layout() {
@@ -153,20 +153,23 @@ export default function Layout() {
           )}
 
           {canManage && (
+            <NavLink
+              to="/users"
+              className={({ isActive }) =>
+                `flex items-center gap-3 px-3 py-2.5 rounded-xl text-sm font-medium transition-all ${
+                  isActive
+                    ? 'bg-indigo-600 text-white shadow-lg shadow-indigo-500/20'
+                    : 'text-slate-400 hover:bg-white/10 hover:text-white'
+                }`
+              }
+            >
+              <Users size={17} />
+              Team Members
+            </NavLink>
+          )}
+
+          {isCompanyAdmin(user) && (
             <>
-              <NavLink
-                to="/users"
-                className={({ isActive }) =>
-                  `flex items-center gap-3 px-3 py-2.5 rounded-xl text-sm font-medium transition-all ${
-                    isActive
-                      ? 'bg-indigo-600 text-white shadow-lg shadow-indigo-500/20'
-                      : 'text-slate-400 hover:bg-white/10 hover:text-white'
-                  }`
-                }
-              >
-                <Users size={17} />
-                Team Members
-              </NavLink>
               <NavLink
                 to="/reports"
                 className={({ isActive }) =>
@@ -202,7 +205,7 @@ export default function Layout() {
               <span className="text-xs font-semibold text-slate-500 uppercase tracking-widest">
                 Projects
               </span>
-              {canManage && (
+              {isCompanyAdmin(user) && (
                 <button
                   onClick={() => setShowProjectModal(true)}
                   className="w-5 h-5 rounded-md bg-white/10 hover:bg-indigo-600 flex items-center justify-center text-slate-400 hover:text-white transition-all"

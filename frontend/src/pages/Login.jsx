@@ -29,7 +29,9 @@ export default function Login() {
   const [tab, setTab] = useState('login');
   const [loading, setLoading] = useState(false);
   const [showPass, setShowPass] = useState(false);
-  const [form, setForm] = useState({ username: '', email: '', password: '', companyName: '' });
+  const [form, setForm] = useState({
+    username: '', email: '', password: '', companyName: '', role: 'admin',
+  });
 
   const set = (k) => (e) => setForm((f) => ({ ...f, [k]: e.target.value }));
 
@@ -46,7 +48,7 @@ export default function Login() {
           setLoading(false);
           return;
         }
-        await register(form.username, form.email, form.password, form.companyName);
+        await register(form.username, form.email, form.password, form.companyName, form.role);
         toast.success('Account created! Welcome aboard.');
       }
       navigate('/');
@@ -131,6 +133,23 @@ export default function Login() {
             {tab === 'register' && (
               <div>
                 <label className="block text-xs font-semibold text-slate-300 mb-1.5 uppercase tracking-wide">
+                  Your role
+                </label>
+                <select
+                  value={form.role}
+                  onChange={set('role')}
+                  className="w-full px-4 py-3 rounded-xl border border-slate-200 bg-white/70 text-slate-800 text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500"
+                >
+                  <option value="admin">Admin — full company access</option>
+                  <option value="manager">Manager — all people + reports</option>
+                  <option value="team_lead">Team Lead — your team only</option>
+                </select>
+              </div>
+            )}
+
+            {tab === 'register' && (
+              <div>
+                <label className="block text-xs font-semibold text-slate-300 mb-1.5 uppercase tracking-wide">
                   Email
                 </label>
                 <InputField
@@ -175,9 +194,10 @@ export default function Login() {
 
           {tab === 'register' && (
             <p className="text-xs text-slate-400 text-center mt-4 leading-relaxed">
-              First user for a company becomes the <span className="text-indigo-400 font-medium">Admin</span>.
-              After login, add a <span className="text-indigo-400 font-medium">Manager</span> and
-              {' '}<span className="text-indigo-400 font-medium">Team Lead</span> from Team Members.
+              First account can be <span className="text-indigo-400 font-medium">Admin</span>,
+              {' '}<span className="text-indigo-400 font-medium">Manager</span> or
+              {' '}<span className="text-indigo-400 font-medium">Team Lead</span>.
+              After signup you can add the other roles from Team Members.
             </p>
           )}
         </div>

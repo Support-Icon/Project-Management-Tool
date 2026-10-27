@@ -22,6 +22,16 @@ const canAssignOthers = (user) => isAdmin(user) || isManager(user) || isTeamLead
 /** Roles that may view team-level analytics (scoped for team leads). */
 const canViewTeamAnalytics = (user) => isAdmin(user) || isManager(user) || isTeamLead(user);
 
+/** First-account Admin, Manager or Team Lead can add people. */
+const canManageUsers = (user) => isAdmin(user) || isManager(user) || isTeamLead(user);
+
+const creatableRoles = (actor) => {
+  if (isAdmin(actor)) return [...ROLES];
+  if (isManager(actor)) return ['manager', 'team_lead', 'member'];
+  if (isTeamLead(actor)) return ['member'];
+  return [];
+};
+
 /** IDs of the members reporting to a team lead. */
 const getTeamMemberIds = async (teamLeadId, companyId) =>
   User.find({ company: companyId, teamLead: teamLeadId }).distinct('_id');
@@ -49,6 +59,8 @@ module.exports = {
   canSeeAll,
   canAssignOthers,
   canViewTeamAnalytics,
+  canManageUsers,
+  creatableRoles,
   getTeamMemberIds,
   getScopeUserIds
 };

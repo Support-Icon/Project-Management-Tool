@@ -10,7 +10,7 @@ const router = express.Router();
 // Register — first user in a company becomes admin
 router.post('/register', async (req, res) => {
   try {
-    const { username, email, password, companyName } = req.body;
+    const { username, email, password, companyName, role } = req.body;
 
     if (!username || !email || !password || !companyName) {
       return res.status(400).json({ message: 'Username, email, password and company name are required' });
@@ -24,12 +24,13 @@ router.post('/register', async (req, res) => {
       return res.status(400).json({ message: 'Username already taken' });
     }
 
+    const founderRoles = ['admin', 'manager', 'team_lead'];
+    const founderRole = founderRoles.includes(role) ? role : 'admin';
+
     let company = await Company.findOne({ name: companyName.trim() });
-    let isAdmin = false;
 
     if (!company) {
       company = await Company.create({ name: companyName.trim() });
-      isAdmin = true;
     } else {
       const count = await User.countDocuments({ company: company._id });
       if (count > 0) {
@@ -37,7 +38,6 @@ router.post('/register', async (req, res) => {
           message: 'This company already has an account. Ask your admin to create your account.'
         });
       }
-      isAdmin = true;
     }
 
     const hashedPassword = await bcrypt.hash(password, 10);
@@ -45,7 +45,7 @@ router.post('/register', async (req, res) => {
       username: username.trim(),
       email: email.trim().toLowerCase(),
       password: hashedPassword,
-      role: isAdmin ? 'admin' : 'member',
+      role: founderRole,
       company: company._id
     });
 

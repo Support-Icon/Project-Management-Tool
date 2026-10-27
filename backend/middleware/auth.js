@@ -1,6 +1,6 @@
 const jwt = require('jsonwebtoken');
 const User = require('../models/User');
-const { getScopeUserIds, canViewTeamAnalytics } = require('../utils/roles');
+const { getScopeUserIds, canViewTeamAnalytics, canManageUsers } = require('../utils/roles');
 
 const auth = async (req, res, next) => {
   try {
@@ -38,4 +38,12 @@ const leadersOnly = (req, res, next) => {
   next();
 };
 
-module.exports = { auth, adminOnly, leadersOnly };
+/** Admin, manager or team lead — can add people. */
+const staffOnly = (req, res, next) => {
+  if (!canManageUsers(req.user)) {
+    return res.status(403).json({ message: 'Admin, manager or team lead access required' });
+  }
+  next();
+};
+
+module.exports = { auth, adminOnly, leadersOnly, staffOnly };

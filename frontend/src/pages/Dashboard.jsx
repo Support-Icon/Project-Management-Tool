@@ -99,8 +99,8 @@ export default function Dashboard() {
         <div className="mb-6 bg-indigo-50 border border-indigo-200 rounded-2xl p-5">
           <h3 className="font-bold text-indigo-950">Set up Manager and Team Lead</h3>
           <p className="text-sm text-indigo-800 mt-1">
-            You are the Admin. Next, add a <strong>Manager</strong> (sees everyone’s work + evening report)
-            and a <strong>Team Lead</strong> (sees only their members). Open Team Members and choose the role when you create each person.
+            Next, add the other roles from Team Members: <strong>Admin</strong>, <strong>Manager</strong>,
+            and <strong>Team Lead</strong>. Managers see everyone’s work; team leads see only their members.
           </p>
           <button
             type="button"
