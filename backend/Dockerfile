@@ -1,6 +1,6 @@
 # Lambda container image for the Express API.
 # The Web Adapter binary is copied in by CI (scripts/fetch_lambda_adapter.sh).
-FROM node:20-bookworm-slim
+FROM --platform=linux/amd64 node:20-bookworm-slim
 
 COPY .docker-cache/lambda-adapter /opt/extensions/lambda-adapter
 RUN chmod 755 /opt/extensions/lambda-adapter

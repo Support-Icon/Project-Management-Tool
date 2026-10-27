@@ -108,8 +108,15 @@ jobs:
           IMAGE_TAG: ${{ github.sha }}
         run: |
           IMAGE_URI="${ECR_REGISTRY}/${{ env.ECR_REPO }}:${IMAGE_TAG}"
-          docker build -f backend/Dockerfile -t "${IMAGE_URI}" .
-          docker push "${IMAGE_URI}"
+          # Lambda cannot use Buildx OCI indexes / attestations (media type not supported).
+          docker buildx build \
+            --platform linux/amd64 \
+            --provenance=false \
+            --sbom=false \
+            -f backend/Dockerfile \
+            -t "${IMAGE_URI}" \
+            --push \
+            .
           echo "image_uri=${IMAGE_URI}" >> "$GITHUB_OUTPUT"
 
       - name: Ensure Lambda function exists
