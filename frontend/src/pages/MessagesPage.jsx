@@ -48,6 +48,7 @@ export default function MessagesPage() {
   const [files, setFiles] = useState([]);
   const [sending, setSending] = useState(false);
   const [loadingList, setLoadingList] = useState(true);
+  const [loadingThread, setLoadingThread] = useState(false);
   const [teamModal, setTeamModal] = useState(false);
   const [teamName, setTeamName] = useState('');
   const [teamPicks, setTeamPicks] = useState([]);
@@ -71,6 +72,8 @@ export default function MessagesPage() {
   }, []);
 
   const openConversation = useCallback(async (id) => {
+    setLoadingThread(true);
+    setMessages([]);
     try {
       const res = await api.get(`/api/messages/conversations/${id}/messages?limit=50`);
       const list = res.data.messages || [];
@@ -83,6 +86,8 @@ export default function MessagesPage() {
       setConversations((prev) => prev.map((c) => (c._id === id ? { ...c, unread: 0 } : c)));
     } catch (_) {
       toast.error('Could not open conversation');
+    } finally {
+      setLoadingThread(false);
     }
   }, []);
 
@@ -243,7 +248,10 @@ export default function MessagesPage() {
                 <button
                   key={c._id}
                   type="button"
-                  onClick={() => navigate(`/messages/${c._id}`)}
+                  onClick={() => {
+                    setLoadingThread(true);
+                    navigate(`/messages/${c._id}`);
+                  }}
                   className={`w-full text-left px-4 py-3 border-b border-slate-50 hover:bg-slate-50 ${
                     active?._id === c._id ? 'bg-indigo-50' : ''
                   }`}
@@ -295,7 +303,7 @@ export default function MessagesPage() {
       </aside>
 
       <section className="flex-1 flex flex-col min-w-0">
-        {!active ? (
+        {!active && !loadingThread ? (
           <div className="flex-1 flex items-center justify-center text-slate-400 text-sm">
             Pick a company channel, team chat, or start a direct message.
           </div>
@@ -303,23 +311,40 @@ export default function MessagesPage() {
           <>
             <header className="h-14 bg-white border-b border-slate-200 px-5 flex items-center gap-3">
               <div className="w-8 h-8 rounded-lg bg-indigo-600 text-white flex items-center justify-center">
-                {active.type === 'company' ? <Building2 size={14} /> : active.type === 'team' ? <Users size={14} /> : <MessageSquare size={14} />}
+                {active?.type === 'company' ? <Building2 size={14} /> : active?.type === 'team' ? <Users size={14} /> : <MessageSquare size={14} />}
               </div>
               <div>
                 <p className="font-bold text-slate-800 text-sm">
-                  {active.type === 'company'
-                    ? `# ${active.name || 'company'}`
-                    : conversations.find((c) => c._id === active._id)?.name}
+                  {loadingThread && !active
+                    ? 'Opening chat…'
+                    : active?.type === 'company'
+                      ? `# ${active.name || 'company'}`
+                      : conversations.find((c) => c._id === active?._id)?.name}
                 </p>
                 <p className="text-[11px] text-slate-400">
-                  {active.type === 'company' && 'Everyone in the company'}
-                  {active.type === 'direct' && 'Direct message'}
-                  {active.type === 'team' && 'Team chat'}
+                  {active?.type === 'company' && 'Everyone in the company'}
+                  {active?.type === 'direct' && 'Direct message'}
+                  {active?.type === 'team' && 'Team chat'}
+                  {loadingThread && !active && 'Loading history'}
                 </p>
               </div>
             </header>
             <div className="flex-1 overflow-y-auto p-5 space-y-3">
-              {messages.map((m) => {
+              {loadingThread && (
+                <div className="h-full min-h-[240px] flex flex-col items-center justify-center gap-4">
+                  <div className="w-10 h-10 rounded-full border-4 border-indigo-100 border-t-indigo-600 animate-spin" />
+                  <p className="text-sm text-slate-500">Loading messages…</p>
+                  <div className="w-full max-w-md space-y-3 pt-2">
+                    {[1, 2, 3, 4].map((n) => (
+                      <div
+                        key={n}
+                        className={`h-12 rounded-2xl bg-slate-200/80 animate-pulse ${n % 2 === 0 ? 'ml-12' : 'mr-12'}`}
+                      />
+                    ))}
+                  </div>
+                </div>
+              )}
+              {!loadingThread && messages.map((m) => {
                 const mine = m.sender?._id === user?._id;
                 return (
                   <div key={m._id} className={`flex ${mine ? 'justify-end' : 'justify-start'}`}>

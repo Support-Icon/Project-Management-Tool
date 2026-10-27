@@ -53,7 +53,7 @@ export default function Login() {
       }
       navigate('/');
     } catch (err) {
-      toast.error(err.response?.data?.message || 'Something went wrong');
+      toast.error(err.response?.data?.message || err.message || 'Something went wrong');
     } finally {
       setLoading(false);
     }

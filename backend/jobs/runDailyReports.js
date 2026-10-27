@@ -23,10 +23,16 @@ const buildPersonRows = async ({ companyId, people, today, timezone, projectIds,
   const rangeStart = DateTime.fromISO(rangeDates[0], { zone: timezone }).startOf('day').toJSDate();
   const rangeEnd = DateTime.fromISO(rangeDates[rangeDates.length - 1], { zone: timezone }).endOf('day').toJSDate();
 
+  const inRange = (value) => {
+    if (!value) return false;
+    const ms = new Date(value).getTime();
+    return ms >= rangeStart.getTime() && ms <= rangeEnd.getTime();
+  };
+
   const [updates, tasksTouched] = await Promise.all([
     TaskUpdate.find({
       company: companyId,
-      updateDate: { $gte: rangeDates[0], $lte: rangeDates[rangeDates.length - 1] },
+      updateDate: { $in: rangeDates },
       author: { $in: personIds }
     }).select('author task'),
     Task.find({
@@ -34,13 +40,19 @@ const buildPersonRows = async ({ companyId, people, today, timezone, projectIds,
       assignee: { $in: personIds },
       $or: [
         { completedAt: { $gte: rangeStart, $lte: rangeEnd } },
-        { assignedAt: { $gte: rangeStart, $lte: rangeEnd } },
-        { lastUpdateAt: { $gte: rangeStart, $lte: rangeEnd } }
+        { assignedAt: { $gte: rangeStart, $lte: rangeEnd } }
       ]
     })
       .populate('project', 'title')
-      .select('title column priority assignee deadlineAt dueDate completedAt assignedAt createdAt lastUpdateAt')
+      .select('title column priority assignee deadlineAt dueDate completedAt assignedAt')
   ]);
+
+  const updatedByAuthor = new Map();
+  updates.forEach((update) => {
+    const key = update.author.toString();
+    if (!updatedByAuthor.has(key)) updatedByAuthor.set(key, new Set());
+    updatedByAuthor.get(key).add(update.task.toString());
+  });
 
   const touchedIds = new Set(tasksTouched.map((t) => t._id.toString()));
   const extraIds = [...new Set(updates.map((u) => u.task.toString()))].filter((id) => !touchedIds.has(id));
@@ -51,16 +63,9 @@ const buildPersonRows = async ({ companyId, people, today, timezone, projectIds,
       assignee: { $in: personIds }
     })
       .populate('project', 'title')
-      .select('title column priority assignee deadlineAt dueDate completedAt assignedAt createdAt lastUpdateAt')
+      .select('title column priority assignee deadlineAt dueDate completedAt assignedAt')
     : [];
   const tasks = [...tasksTouched, ...extraTasks];
-
-  const updatedByAuthor = new Map();
-  updates.forEach((update) => {
-    const key = update.author.toString();
-    if (!updatedByAuthor.has(key)) updatedByAuthor.set(key, new Set());
-    updatedByAuthor.get(key).add(update.task.toString());
-  });
 
   const weekly = rangeDates.length > 1;
   const workedLabel = weekly ? 'Worked this week' : 'Worked today';
@@ -69,10 +74,14 @@ const buildPersonRows = async ({ companyId, people, today, timezone, projectIds,
 
   return people.map((person) => {
     const id = person._id.toString();
-    const theirs = tasks.filter((task) => task.assignee?.toString() === id);
     const updatedSet = updatedByAuthor.get(id) || new Set();
+    const theirs = tasks.filter((task) => {
+      if (task.assignee?.toString() !== id) return false;
+      const taskId = task._id.toString();
+      return inRange(task.completedAt) || inRange(task.assignedAt) || updatedSet.has(taskId);
+    });
     const open = theirs.filter((t) => t.column !== 'done');
-    const doneToday = theirs.filter((t) => t.column === 'done').length;
+    const doneToday = theirs.filter((t) => inRange(t.completedAt)).length;
     const missed = open.filter((t) => t.column === 'inprogress' && !updatedSet.has(t._id.toString())).length;
 
     return {
@@ -82,16 +91,20 @@ const buildPersonRows = async ({ companyId, people, today, timezone, projectIds,
       doneToday,
       missedUpdates: missed,
       weekly,
-      tasks: theirs.map((task) => ({
-        title: task.title,
-        project: task.project?.title || '',
-        column: COLUMN_LABEL[task.column] || task.column,
-        priority: task.priority,
-        deadline: task.deadlineAt ? formatIST(task.deadlineAt, timezone) : (task.dueDate ? formatIST(task.dueDate, timezone) : ''),
-        updateStatus: updatedSet.has(task._id.toString())
-          ? workedLabel
-          : (task.column === 'done' ? doneLabel : assignedLabel)
-      }))
+      tasks: theirs.map((task) => {
+        const taskId = task._id.toString();
+        let updateStatus = assignedLabel;
+        if (inRange(task.completedAt)) updateStatus = doneLabel;
+        else if (updatedSet.has(taskId)) updateStatus = workedLabel;
+        return {
+          title: task.title,
+          project: task.project?.title || '',
+          column: COLUMN_LABEL[task.column] || task.column,
+          priority: task.priority,
+          deadline: task.deadlineAt ? formatIST(task.deadlineAt, timezone) : (task.dueDate ? formatIST(task.dueDate, timezone) : ''),
+          updateStatus
+        };
+      })
     };
   });
 };

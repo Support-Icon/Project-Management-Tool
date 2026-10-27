@@ -32,7 +32,7 @@ router.get('/', async (req, res) => {
     if (since && !Number.isNaN(since.getTime())) filter.createdAt = { $gt: since };
 
     const [items, unreadCount, unreadMessages] = await Promise.all([
-      Notification.find(filter).populate('actor', 'username').sort({ createdAt: -1 }).limit(limit),
+      Notification.find({ ...filter, read: false }).populate('actor', 'username').sort({ createdAt: -1 }).limit(limit),
       Notification.countDocuments({ user: req.user._id, read: false }),
       countUnreadMessages(req.user)
     ]);

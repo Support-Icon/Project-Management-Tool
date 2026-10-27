@@ -55,7 +55,7 @@ export default function NotificationBell() {
                 onClick={markAllRead}
                 className="text-xs font-semibold text-indigo-600 hover:text-indigo-800 flex items-center gap-1"
               >
-                <CheckCheck size={13} /> Mark all read
+                <CheckCheck size={13} /> Clear all
               </button>
             )}
           </div>
@@ -67,9 +67,7 @@ export default function NotificationBell() {
                 key={item._id}
                 type="button"
                 onClick={() => handleItem(item)}
-                className={`w-full text-left px-4 py-3 border-b border-slate-50 hover:bg-slate-50 transition ${
-                  item.read ? 'bg-white' : 'bg-indigo-50/60'
-                }`}
+                className="w-full text-left px-4 py-3 border-b border-slate-50 hover:bg-slate-50 transition bg-indigo-50/60"
               >
                 <p className="text-sm font-semibold text-slate-800">{item.title}</p>
                 {item.body && <p className="text-xs text-slate-500 mt-0.5 line-clamp-2">{item.body}</p>}

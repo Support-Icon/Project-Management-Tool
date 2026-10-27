@@ -92,18 +92,19 @@ export const NotificationProvider = ({ children }) => {
   }, [user?._id]);
 
   const markRead = async (id) => {
-    setItems((prev) => prev.map((item) => (item._id === id ? { ...item, read: true } : item)));
+    setItems((prev) => prev.filter((item) => item._id !== id));
     setUnreadCount((n) => Math.max(0, n - 1));
     try {
-      await api.put(`/api/notifications/${id}/read`);
+      await api.delete(`/api/notifications/${id}`);
     } catch (_) {}
   };
 
   const markAllRead = async () => {
-    setItems((prev) => prev.map((item) => ({ ...item, read: true })));
+    const ids = items.map((item) => item._id);
+    setItems([]);
     setUnreadCount(0);
     try {
-      await api.post('/api/notifications/read-all');
+      await Promise.all(ids.map((id) => api.delete(`/api/notifications/${id}`)));
     } catch (_) {}
   };
 
