@@ -96,7 +96,7 @@ Push to `main` (or run **Actions → Deploy backend to AWS (ECR → Lambda)**). 
 **One-time AWS setup**
 
 1. IAM user for GitHub Actions with ECR, Lambda, `iam:GetRole`, and `kms:DescribeKey` on `alias/aws/lambda`. Put the keys in GitHub secrets `AWS_ACCESS_KEY_ID` and `AWS_SECRET_ACCESS_KEY`.
-2. IAM role **`projectflow-backend-lambda-role`**: trusted entity **Lambda**, attach **AWSLambdaBasicExecutionRole**.
+2. IAM role **`projectflow-backend-lambda-role`** — the backend deploy creates this if it is missing. To create it by hand: IAM → Roles → Create role → AWS service → Lambda → attach **AWSLambdaBasicExecutionRole** → role name `projectflow-backend-lambda-role`. The GitHub IAM user needs `iam:CreateRole`, `iam:AttachRolePolicy`, `iam:GetRole`, and `iam:PassRole`.
 3. MongoDB Atlas → **Network Access** → allow `0.0.0.0/0` (Lambda IPs are not static).
 
 **GitHub secrets**

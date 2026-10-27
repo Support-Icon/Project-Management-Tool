@@ -72,7 +72,7 @@ jobs:
             exit 1
           fi
 
-      - name: Verify Lambda execution role
+      - name: Ensure Lambda execution role
         run: |
           set -euo pipefail
           ROLE_NAME="${{ env.LAMBDA_ROLE_NAME }}"
@@ -80,11 +80,21 @@ jobs:
             echo "Lambda execution role found: ${ROLE_NAME}"
             exit 0
           fi
-          echo "Missing IAM role: ${ROLE_NAME}"
-          echo "Create this role once in AWS Console (IAM -> Roles -> Create role)."
-          echo "Trusted entity: AWS service -> Lambda."
-          echo "Attach policy: AWSLambdaBasicExecutionRole"
-          exit 1
+
+          echo "Creating IAM role ${ROLE_NAME} (Lambda + AWSLambdaBasicExecutionRole)"
+          aws iam create-role \
+            --role-name "$ROLE_NAME" \
+            --description "Execution role for ProjectFlow backend Lambda" \
+            --assume-role-policy-document '{"Version":"2012-10-17","Statement":[{"Effect":"Allow","Principal":{"Service":"lambda.amazonaws.com"},"Action":"sts:AssumeRole"}]}'
+
+          aws iam attach-role-policy \
+            --role-name "$ROLE_NAME" \
+            --policy-arn arn:aws:iam::aws:policy/service-role/AWSLambdaBasicExecutionRole
+
+          echo "Waiting for IAM role to propagate"
+          sleep 12
+          aws iam get-role --role-name "$ROLE_NAME" >/dev/null
+          echo "Lambda execution role ready: ${ROLE_NAME}"
 
       - name: Ensure ECR repository exists
         run: |
