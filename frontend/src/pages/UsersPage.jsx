@@ -143,9 +143,9 @@ function UserModal({ user: editUser, allUsers = [], onClose, onSaved }) {
               className="w-full px-4 py-3 rounded-xl border border-slate-200 text-slate-800 text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500 focus:border-transparent transition bg-white"
             >
               <option value="member">Member</option>
-              <option value="team_lead">Team Lead</option>
-              <option value="manager">Manager</option>
-              <option value="admin">Admin</option>
+              <option value="team_lead">Team Lead — team reports + team chat</option>
+              <option value="manager">Manager — all people work + evening report</option>
+              <option value="admin">Admin — full access</option>
             </select>
             <p className="text-[11px] text-slate-400 mt-1.5">
               Managers receive the full company daily report. Team leads receive only their team’s report.

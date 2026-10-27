@@ -175,8 +175,9 @@ export default function Login() {
 
           {tab === 'register' && (
             <p className="text-xs text-slate-400 text-center mt-4 leading-relaxed">
-              First user for a company automatically becomes the <span className="text-indigo-400 font-medium">Admin</span>.
-              Admins can then add more team members.
+              First user for a company becomes the <span className="text-indigo-400 font-medium">Admin</span>.
+              After login, add a <span className="text-indigo-400 font-medium">Manager</span> and
+              {' '}<span className="text-indigo-400 font-medium">Team Lead</span> from Team Members.
             </p>
           )}
         </div>

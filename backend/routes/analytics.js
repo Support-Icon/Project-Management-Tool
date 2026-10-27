@@ -280,4 +280,28 @@ router.get('/daily-updates', leadersOnly, async (req, res) => {
   }
 });
 
+// Today's work only — managers see everyone, team leads see their team
+router.get('/today-work', leadersOnly, async (req, res) => {
+  try {
+    const companyId = req.user.company._id;
+    const { today, timezone, projectIds } = await getContext(companyId, 1);
+    const users = await scopedUsers(req);
+    const { buildPersonRows } = require('../jobs/runDailyReports');
+    const people = await buildPersonRows({
+      companyId,
+      people: users,
+      today,
+      timezone,
+      projectIds
+    });
+    res.json({
+      timezone,
+      date: today,
+      people
+    });
+  } catch (error) {
+    res.status(500).json({ message: error.message });
+  }
+});
+
 module.exports = router;

@@ -215,7 +215,10 @@ router.put('/:id', auth, async (req, res) => {
     if (column === 'done' && task.column !== 'done') updates.completedAt = new Date();
     if (column !== undefined && column !== 'done' && task.column === 'done') updates.completedAt = null;
     if (priority !== undefined) updates.priority = priority;
-    if (dueDate !== undefined) updates.dueDate = dueDate || null;
+    if (dueDate !== undefined) {
+      updates.dueDate = dueDate || null;
+      if (dueDate) updates.deadlineAt = new Date(dueDate);
+    }
     if (startDate !== undefined) updates.startDate = startDate || null;
     if (tags !== undefined) updates.tags = tags;
     if (order !== undefined) updates.order = order;
@@ -255,12 +258,12 @@ router.put('/:id', auth, async (req, res) => {
     const effectiveDuration = updates.duration !== undefined ? updates.duration : task.duration;
     const durationChanged = duration !== undefined
       && (effectiveDuration?.value !== task.duration?.value || effectiveDuration?.unit !== task.duration?.unit);
-    if (effectiveDuration?.value && (durationChanged || assigneeChanged || !task.deadlineAt)) {
+    if (effectiveDuration?.value && dueDate === undefined && (durationChanged || assigneeChanged || !task.deadlineAt)) {
       const timezone = await getCompanyTimezone(req.user.company._id);
       const effectiveStart = updates.startDate !== undefined ? updates.startDate : task.startDate;
       const base = effectiveStart && new Date(effectiveStart) > now ? new Date(effectiveStart) : now;
       updates.deadlineAt = computeDeadline(effectiveDuration, base, timezone);
-      if (dueDate === undefined) updates.dueDate = updates.deadlineAt;
+      updates.dueDate = updates.deadlineAt;
     } else if (updates.duration && !updates.duration.value) {
       updates.deadlineAt = null;
     }

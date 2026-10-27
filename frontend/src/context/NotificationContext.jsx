@@ -4,7 +4,7 @@ import { useAuth } from './AuthContext';
 import { playNotifySound, unlockNotifySound } from '../utils/notifySound';
 
 const NotificationContext = createContext(null);
-const POLL_MS = 8000;
+const POLL_MS = 20000;
 const SEEN_KEY = 'pf-seen-notif';
 
 const desktopNotify = (item) => {

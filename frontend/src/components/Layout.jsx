@@ -12,13 +12,14 @@ import toast from 'react-hot-toast';
 import ProjectModal from './ProjectModal';
 import AiChatWidget from './AiChatWidget';
 import NotificationBell from './NotificationBell';
-import { canSeeAll, canManageUsers, ROLE_LABELS } from '../utils/roles';
+import { canSeeAll, canManageUsers, canViewTeamAnalytics, ROLE_LABELS } from '../utils/roles';
 import { useNotifications } from '../context/NotificationContext';
 
 export default function Layout() {
   const { user, logout, adminMineOnly, toggleAdminMineOnly } = useAuth();
   const isAdmin = canSeeAll(user);
   const canManage = canManageUsers(user);
+  const canLead = canViewTeamAnalytics(user);
   const { unreadMessages } = useNotifications() || {};
   const navigate = useNavigate();
   const [projects, setProjects] = useState([]);
@@ -134,6 +135,22 @@ export default function Layout() {
             <BarChart3 size={17} />
             Analytics
           </NavLink>
+
+          {canLead && (
+            <NavLink
+              to="/team-work"
+              className={({ isActive }) =>
+                `flex items-center gap-3 px-3 py-2.5 rounded-xl text-sm font-medium transition-all ${
+                  isActive
+                    ? 'bg-indigo-600 text-white shadow-lg shadow-indigo-500/20'
+                    : 'text-slate-400 hover:bg-white/10 hover:text-white'
+                }`
+              }
+            >
+              <Users size={17} />
+              Team Work
+            </NavLink>
+          )}
 
           {canManage && (
             <>

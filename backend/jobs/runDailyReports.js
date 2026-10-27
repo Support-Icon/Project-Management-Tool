@@ -16,29 +16,45 @@ const COLUMN_LABEL = {
   done: 'Done'
 };
 
-const buildPersonRows = async ({ companyId, people, today, timezone, projectIds }) => {
+const buildPersonRows = async ({ companyId, people, today, timezone, projectIds, dates = null }) => {
   if (!people.length) return [];
   const personIds = people.map((p) => p._id);
-  const dayStart = DateTime.fromISO(today, { zone: timezone }).startOf('day').toJSDate();
-  const dayEnd = DateTime.fromISO(today, { zone: timezone }).endOf('day').toJSDate();
+  const rangeDates = dates && dates.length ? dates : [today];
+  const rangeStart = DateTime.fromISO(rangeDates[0], { zone: timezone }).startOf('day').toJSDate();
+  const rangeEnd = DateTime.fromISO(rangeDates[rangeDates.length - 1], { zone: timezone }).endOf('day').toJSDate();
 
-  const [tasks, updates] = await Promise.all([
+  const [updates, tasksTouched] = await Promise.all([
+    TaskUpdate.find({
+      company: companyId,
+      updateDate: { $in: rangeDates },
+      author: { $in: personIds }
+    }).select('author task'),
     Task.find({
       project: { $in: projectIds },
       assignee: { $in: personIds },
       $or: [
-        { column: { $ne: 'done' } },
-        { completedAt: { $gte: dayStart, $lte: dayEnd } }
+        { completedAt: { $gte: rangeStart, $lte: rangeEnd } },
+        { assignedAt: { $gte: rangeStart, $lte: rangeEnd } },
+        { createdAt: { $gte: rangeStart, $lte: rangeEnd } },
+        { lastUpdateAt: { $gte: rangeStart, $lte: rangeEnd } }
       ]
     })
       .populate('project', 'title')
-      .select('title column priority assignee deadlineAt dueDate completedAt'),
-    TaskUpdate.find({
-      company: companyId,
-      updateDate: today,
-      author: { $in: personIds }
-    }).select('author task')
+      .select('title column priority assignee deadlineAt dueDate completedAt assignedAt createdAt lastUpdateAt')
   ]);
+
+  const touchedIds = new Set(tasksTouched.map((t) => t._id.toString()));
+  const extraIds = [...new Set(updates.map((u) => u.task.toString()))].filter((id) => !touchedIds.has(id));
+  const extraTasks = extraIds.length
+    ? await Task.find({
+      _id: { $in: extraIds },
+      project: { $in: projectIds },
+      assignee: { $in: personIds }
+    })
+      .populate('project', 'title')
+      .select('title column priority assignee deadlineAt dueDate completedAt assignedAt createdAt lastUpdateAt')
+    : [];
+  const tasks = [...tasksTouched, ...extraTasks];
 
   const updatedByAuthor = new Map();
   updates.forEach((update) => {
@@ -67,9 +83,9 @@ const buildPersonRows = async ({ companyId, people, today, timezone, projectIds 
         column: COLUMN_LABEL[task.column] || task.column,
         priority: task.priority,
         deadline: task.deadlineAt ? formatIST(task.deadlineAt, timezone) : (task.dueDate ? formatIST(task.dueDate, timezone) : ''),
-        updateStatus: task.column === 'inprogress'
-          ? (updatedSet.has(task._id.toString()) ? 'Updated' : 'Update pending')
-          : (task.column === 'done' ? 'Completed today' : '—')
+        updateStatus: updatedSet.has(task._id.toString())
+          ? 'Worked today'
+          : (task.column === 'done' ? 'Completed today' : 'Assigned / touched today')
       }))
     };
   });
@@ -171,4 +187,97 @@ const runDueDailyReports = async ({ forceCompanyId = null } = {}) => {
   return results;
 };
 
-module.exports = { runDueDailyReports, sendCompanyDailyReports, buildPersonRows };
+const sendCompanyWeeklyReports = async ({ company, settings, today, timezone, force = false }) => {
+  if (!force && settings.weeklyReport?.lastSentDate === today) {
+    return { company: company.name, skipped: true, reason: 'Weekly already sent' };
+  }
+
+  const end = DateTime.fromISO(today, { zone: timezone });
+  const dates = Array.from({ length: 7 }, (_, i) => end.minus({ days: 6 - i }).toISODate());
+  const projectIds = await Project.find({ company: company._id }).distinct('_id');
+  const allUsers = await User.find({ company: company._id }).select('username email role teamLead');
+  const recipients = await recipientsForCompany(company._id);
+  if (!recipients.length) {
+    return { company: company.name, sent: 0, reason: 'No managers or team leads with email' };
+  }
+
+  let sent = 0;
+  for (const recipient of recipients) {
+    let people;
+    if (recipient.role === 'team_lead') {
+      const memberIds = await getTeamMemberIds(recipient._id, company._id);
+      people = allUsers.filter((u) => memberIds.some((id) => id.toString() === u._id.toString()));
+    } else {
+      people = allUsers;
+    }
+
+    const rows = await buildPersonRows({
+      companyId: company._id,
+      people,
+      today,
+      timezone,
+      projectIds,
+      dates
+    });
+
+    await sendDailyReportEmail({
+      companyId: company._id,
+      recipient,
+      companyName: company.name,
+      localDate: `${dates[0]} to ${dates[dates.length - 1]}`,
+      people: rows,
+      roleLabel: recipient.role === 'team_lead' ? 'Team Lead' : (recipient.role === 'admin' ? 'Admin' : 'Manager'),
+      weekly: true
+    });
+    sent += 1;
+  }
+
+  settings.weeklyReport = settings.weeklyReport || {};
+  settings.weeklyReport.lastSentDate = today;
+  settings.weeklyReport.lastSentAt = new Date();
+  await settings.save();
+  return { company: company.name, sent, weekly: true };
+};
+
+const runDueWeeklyReports = async ({ forceCompanyId = null } = {}) => {
+  const query = { 'email.enabled': true };
+  if (forceCompanyId) query.company = forceCompanyId;
+  else query['weeklyReport.enabled'] = true;
+
+  const settingsList = await CompanySettings.find(query);
+  const results = [];
+
+  for (const settings of settingsList) {
+    const timezone = settings.digest?.timezone || IST;
+    const now = DateTime.now().setZone(timezone);
+    if (!now.isValid) continue;
+    const today = now.toISODate();
+    if (!forceCompanyId) {
+      if (now.weekday !== 5) continue; // Friday
+      const currentMinutes = now.hour * 60 + now.minute;
+      const [targetHour, targetMinute] = String(settings.weeklyReport?.time || '19:30').split(':').map(Number);
+      const targetMinutes = (targetHour || 19) * 60 + (targetMinute || 30);
+      if (currentMinutes < targetMinutes || settings.weeklyReport?.lastSentDate === today) continue;
+    }
+
+    const company = await Company.findById(settings.company);
+    if (!company) continue;
+    results.push(await sendCompanyWeeklyReports({
+      company,
+      settings,
+      today,
+      timezone,
+      force: Boolean(forceCompanyId)
+    }));
+  }
+
+  return results;
+};
+
+module.exports = {
+  runDueDailyReports,
+  runDueWeeklyReports,
+  sendCompanyDailyReports,
+  sendCompanyWeeklyReports,
+  buildPersonRows
+};

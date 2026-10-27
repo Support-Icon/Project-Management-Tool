@@ -48,6 +48,11 @@ const publicSettings = (settings) => ({
     time: settings?.report?.time || '19:30',
     lastSentAt: settings?.report?.lastSentAt || null
   },
+  weeklyReport: {
+    enabled: settings?.weeklyReport?.enabled ?? true,
+    time: settings?.weeklyReport?.time || '19:30',
+    lastSentAt: settings?.weeklyReport?.lastSentAt || null
+  },
   emailTemplates: publicTemplates(settings)
 });
 
@@ -62,10 +67,11 @@ router.get('/', async (req, res) => {
 
 router.put('/', async (req, res) => {
   try {
-    const { email = {}, digest = {}, report = {}, emailTemplates = {} } = req.body;
+    const { email = {}, digest = {}, report = {}, weeklyReport = {}, emailTemplates = {} } = req.body;
     const timezone = digest.timezone || 'Asia/Kolkata';
     const time = digest.time || '10:00';
     const reportTime = report.time || '19:30';
+    const weeklyTime = weeklyReport.time || '19:30';
     const provider = normalizeProvider(email.provider);
     const brandColor = String(emailTemplates.brandColor || '#4f46e5').trim() || '#4f46e5';
 
@@ -77,6 +83,9 @@ router.put('/', async (req, res) => {
     }
     if (!/^([01]\d|2[0-3]):[0-5]\d$/.test(reportTime)) {
       return res.status(400).json({ message: 'Daily report time must use HH:mm format' });
+    }
+    if (!/^([01]\d|2[0-3]):[0-5]\d$/.test(weeklyTime)) {
+      return res.status(400).json({ message: 'Weekly report time must use HH:mm format' });
     }
 
     const existing = await CompanySettings.findOne({ company: req.user.company._id });
@@ -155,6 +164,8 @@ router.put('/', async (req, res) => {
           'digest.timezone': timezone,
           'report.enabled': report.enabled !== false,
           'report.time': reportTime,
+          'weeklyReport.enabled': weeklyReport.enabled !== false,
+          'weeklyReport.time': weeklyTime,
           'emailTemplates.brandColor': brandColor,
           'emailTemplates.logoUrl': String(emailTemplates.logoUrl || '').trim(),
           'emailTemplates.assignmentSubject': String(emailTemplates.assignmentSubject || ''),
@@ -185,6 +196,20 @@ router.post('/send-daily-report', async (req, res) => {
     res.json({ message: 'Daily report sent to managers and team leads', results });
   } catch (error) {
     res.status(400).json({ message: error.message || 'Failed to send daily report' });
+  }
+});
+
+router.post('/send-weekly-report', async (req, res) => {
+  try {
+    const settings = await CompanySettings.findOne({ company: req.user.company._id });
+    if (!settings?.email?.enabled) {
+      return res.status(400).json({ message: 'Enable email and Save Settings first.' });
+    }
+    const { runDueWeeklyReports } = require('../jobs/runDailyReports');
+    const results = await runDueWeeklyReports({ forceCompanyId: req.user.company._id });
+    res.json({ message: 'Weekly report sent to managers and team leads', results });
+  } catch (error) {
+    res.status(400).json({ message: error.message || 'Failed to send weekly report' });
   }
 });
 
@@ -256,6 +281,10 @@ router.delete('/email', async (req, res) => {
           'report.time': '19:30',
           'report.lastSentDate': '',
           'report.lastSentAt': null,
+          'weeklyReport.enabled': true,
+          'weeklyReport.time': '19:30',
+          'weeklyReport.lastSentDate': '',
+          'weeklyReport.lastSentAt': null,
           updatedAt: new Date()
         }
       },

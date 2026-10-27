@@ -280,7 +280,7 @@ const sendDigestEmail = async ({ companyId, recipient, companyName, localDate, r
   });
 };
 
-const sendDailyReportEmail = async ({ companyId, recipient, companyName, localDate, people, roleLabel }) => {
+const sendDailyReportEmail = async ({ companyId, recipient, companyName, localDate, people, roleLabel, weekly = false }) => {
   if (!recipient?.email || recipient.emailNotifications === false) {
     return { skipped: true, reason: 'Recipient email unavailable or disabled' };
   }
@@ -291,7 +291,8 @@ const sendDailyReportEmail = async ({ companyId, recipient, companyName, localDa
     companyName,
     localDate,
     people,
-    roleLabel
+    roleLabel,
+    weekly
   });
 
   return sendWithCompany(companyId, {

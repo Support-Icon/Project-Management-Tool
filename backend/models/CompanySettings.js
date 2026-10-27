@@ -35,6 +35,12 @@ const companySettingsSchema = new mongoose.Schema({
     lastSentDate: { type: String, default: '' },
     lastSentAt: { type: Date, default: null }
   },
+  weeklyReport: {
+    enabled: { type: Boolean, default: true },
+    time: { type: String, default: '19:30' },
+    lastSentDate: { type: String, default: '' },
+    lastSentAt: { type: Date, default: null }
+  },
   emailTemplates: {
     brandColor: { type: String, default: '#4f46e5' },
     logoUrl: { type: String, default: '' },

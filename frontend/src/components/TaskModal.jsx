@@ -4,7 +4,7 @@ import { useAuth } from '../context/AuthContext';
 import toast from 'react-hot-toast';
 import { X, Check, Flag, Calendar, User, Tag, Link2, Timer } from 'lucide-react';
 import { canAssignOthers } from '../utils/roles';
-import { previewDeadline, formatDuration, formatIST } from '../utils/time';
+import { previewDeadline, formatDuration, formatIST, toDateTimeLocal, fromDateTimeLocal } from '../utils/time';
 
 const priorities = [
   { value: 'low', label: 'Low', color: 'text-emerald-600 bg-emerald-50 border-emerald-200' },
@@ -12,11 +12,6 @@ const priorities = [
   { value: 'high', label: 'High', color: 'text-red-600 bg-red-50 border-red-200' },
 ];
 
-const toDateInput = (value) => {
-  if (!value) return '';
-  const str = typeof value === 'string' ? value : new Date(value).toISOString();
-  return str.slice(0, 10);
-};
 
 export default function TaskModal({ task, projectId, column, columns, projectTasks = [], onClose, onSaved }) {
   const { user } = useAuth();
@@ -28,8 +23,8 @@ export default function TaskModal({ task, projectId, column, columns, projectTas
     column: task?.column || column || 'todo',
     priority: task?.priority || 'medium',
     assigneeId: task?.assignee?._id || user?._id || '',
-    startDate: toDateInput(task?.startDate),
-    dueDate: toDateInput(task?.dueDate),
+    startDate: toDateTimeLocal(task?.startDate),
+    dueDate: toDateTimeLocal(task?.dueDate),
     dependsOn: task?.dependsOn?._id || task?.dependsOn || '',
     durationValue: task?.duration?.value || '',
     durationUnit: task?.duration?.unit || 'hours',
@@ -65,8 +60,8 @@ export default function TaskModal({ task, projectId, column, columns, projectTas
         column: form.column,
         priority: form.priority,
         assigneeId: canAssign ? (form.assigneeId || null) : user._id,
-        startDate: form.startDate || null,
-        dueDate: form.dueDate || null,
+        startDate: fromDateTimeLocal(form.startDate),
+        dueDate: fromDateTimeLocal(form.dueDate),
         duration: form.durationValue
           ? { value: Number(form.durationValue), unit: form.durationUnit || 'hours' }
           : null,
@@ -225,10 +220,10 @@ export default function TaskModal({ task, projectId, column, columns, projectTas
           <div className="grid grid-cols-2 gap-4">
             <div>
               <label className="block text-xs font-semibold text-slate-600 mb-1.5 uppercase tracking-wide flex items-center gap-1">
-                <Calendar size={12} /> Start Date
+                <Calendar size={12} /> Start (date & time IST)
               </label>
               <input
-                type="date"
+                type="datetime-local"
                 value={form.startDate}
                 onChange={set('startDate')}
                 className="w-full px-3 py-2.5 rounded-xl border border-slate-200 text-slate-800 text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500 focus:border-transparent transition"
@@ -236,10 +231,10 @@ export default function TaskModal({ task, projectId, column, columns, projectTas
             </div>
             <div>
               <label className="block text-xs font-semibold text-slate-600 mb-1.5 uppercase tracking-wide flex items-center gap-1">
-                <Calendar size={12} /> Due Date
+                <Calendar size={12} /> Due (date & time IST)
               </label>
               <input
-                type="date"
+                type="datetime-local"
                 value={form.dueDate}
                 onChange={set('dueDate')}
                 className="w-full px-3 py-2.5 rounded-xl border border-slate-200 text-slate-800 text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500 focus:border-transparent transition"

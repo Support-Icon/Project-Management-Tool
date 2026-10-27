@@ -1,6 +1,6 @@
 const express = require('express');
 const { runDueDigests } = require('../jobs/runDigest');
-const { runDueDailyReports } = require('../jobs/runDailyReports');
+const { runDueDailyReports, runDueWeeklyReports } = require('../jobs/runDailyReports');
 
 const router = express.Router();
 
@@ -26,8 +26,8 @@ router.post('/digest', async (req, res) => {
 router.post('/daily-report', async (req, res) => {
   try {
     if (!requireCron(req, res)) return;
-    const results = await runDueDailyReports();
-    res.json({ checkedAt: new Date(), results });
+    const [daily, weekly] = await Promise.all([runDueDailyReports(), runDueWeeklyReports()]);
+    res.json({ checkedAt: new Date(), daily, weekly });
   } catch (error) {
     res.status(500).json({ message: error.message });
   }

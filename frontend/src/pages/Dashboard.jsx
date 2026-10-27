@@ -95,6 +95,23 @@ export default function Dashboard() {
         <p className="text-slate-500 mt-1">Here's what's happening at <span className="font-semibold text-indigo-600">{user?.company?.name}</span> today.</p>
       </div>
 
+      {canManage && userCount <= 1 && (
+        <div className="mb-6 bg-indigo-50 border border-indigo-200 rounded-2xl p-5">
+          <h3 className="font-bold text-indigo-950">Set up Manager and Team Lead</h3>
+          <p className="text-sm text-indigo-800 mt-1">
+            You are the Admin. Next, add a <strong>Manager</strong> (sees everyone’s work + evening report)
+            and a <strong>Team Lead</strong> (sees only their members). Open Team Members and choose the role when you create each person.
+          </p>
+          <button
+            type="button"
+            onClick={() => navigate('/users')}
+            className="mt-3 px-4 py-2 rounded-xl bg-indigo-600 text-white text-sm font-semibold"
+          >
+            Add Manager / Team Lead
+          </button>
+        </div>
+      )}
+
       {pendingUpdates.tasks.length > 0 && (
         <div className="mb-6 bg-amber-50 border border-amber-200 rounded-2xl p-5">
           <div className="flex items-start gap-3">

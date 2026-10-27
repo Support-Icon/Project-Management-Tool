@@ -179,10 +179,10 @@ const renderDigestEmail = (settings, data) => {
   };
 };
 
-const defaultDailyReportBody = ({ username, roleLabel, companyName, localDate, peopleHtml }) => `
-  <h2 style="margin:0 0 12px;color:#0f172a">${escapeHtml(companyName)} daily task report</h2>
+const defaultDailyReportBody = ({ username, roleLabel, companyName, localDate, peopleHtml, weekly }) => `
+  <h2 style="margin:0 0 12px;color:#0f172a">${escapeHtml(companyName)} ${weekly ? 'weekly' : 'daily'} task report</h2>
   <p>Hello <strong>${escapeHtml(username)}</strong>,</p>
-  <p>Person-wise task summary for <strong>${escapeHtml(localDate)}</strong>
+  <p>Person-wise work ${weekly ? 'this week' : 'today only'} for <strong>${escapeHtml(localDate)}</strong>
   ${roleLabel === 'Team Lead' ? ' (your team members only)' : ''}.</p>
   ${peopleHtml}
 `;
@@ -231,13 +231,15 @@ const renderDailyReportEmail = (settings, data) => {
   const peopleHtml = (data.people || []).map(personBlock).join('');
   const roleLabel = data.roleLabel || 'Manager';
 
-  const subject = `${data.companyName} daily task report — ${data.localDate}`;
+  const weekly = Boolean(data.weekly);
+  const subject = `${data.companyName} ${weekly ? 'weekly' : 'daily'} task report — ${data.localDate}`;
   const body = defaultDailyReportBody({
     username: data.recipient.username,
     roleLabel,
     companyName: data.companyName,
     localDate: data.localDate,
-    peopleHtml
+    peopleHtml,
+    weekly
   });
 
   return {

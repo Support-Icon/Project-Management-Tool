@@ -7,8 +7,8 @@ const conversationSchema = new mongoose.Schema({
     required: true,
     index: true
   },
-  // direct = 1:1 DM; company = everyone in the company
-  type: { type: String, enum: ['direct', 'company'], required: true },
+  // direct = 1:1 DM; company = everyone; team = admin/lead group chat
+  type: { type: String, enum: ['direct', 'company', 'team'], required: true },
   name: { type: String, trim: true, default: '' },
   participants: [{ type: mongoose.Schema.Types.ObjectId, ref: 'User' }],
   // Sorted "idA:idB" key so a direct conversation between two people is unique

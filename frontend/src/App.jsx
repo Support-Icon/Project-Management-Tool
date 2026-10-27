@@ -10,6 +10,7 @@ import ReportsPage from './pages/ReportsPage';
 import AnalyticsPage from './pages/AnalyticsPage';
 import SettingsPage from './pages/SettingsPage';
 import MessagesPage from './pages/MessagesPage';
+import TeamWorkPage from './pages/TeamWorkPage';
 import AiChatPage from './pages/AiChatPage';
 import Layout from './components/Layout';
 
@@ -48,6 +49,7 @@ const AppRoutes = () => {
         <Route path="users" element={<UsersPage />} />
         <Route path="reports" element={<ReportsPage />} />
         <Route path="analytics" element={<AnalyticsPage />} />
+        <Route path="team-work" element={<TeamWorkPage />} />
         <Route path="settings" element={<SettingsPage />} />
         <Route path="messages" element={<MessagesPage />} />
         <Route path="messages/:conversationId" element={<MessagesPage />} />

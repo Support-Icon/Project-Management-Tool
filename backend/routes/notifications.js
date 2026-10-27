@@ -8,15 +8,17 @@ const router = express.Router();
 router.use(auth);
 
 const countUnreadMessages = async (user) => {
+  const since = new Date(Date.now() - 7 * 24 * 60 * 60 * 1000);
   const conversations = await Conversation.find({
     company: user.company._id,
     $or: [{ type: 'company' }, { participants: user._id }]
-  }).select('_id');
+  }).select('_id').lean();
   if (!conversations.length) return 0;
   return Message.countDocuments({
     conversation: { $in: conversations.map((c) => c._id) },
     sender: { $ne: user._id },
-    readBy: { $ne: user._id }
+    readBy: { $ne: user._id },
+    createdAt: { $gte: since }
   });
 };
 

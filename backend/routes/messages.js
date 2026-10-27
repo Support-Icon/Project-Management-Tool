@@ -6,6 +6,7 @@ const Attachment = require('../models/Attachment');
 const User = require('../models/User');
 const { auth } = require('../middleware/auth');
 const { notifyNewMessage } = require('../services/notificationService');
+const { canAssignOthers, getTeamMemberIds } = require('../utils/roles');
 
 const router = express.Router();
 
@@ -54,12 +55,15 @@ const loadConversationForUser = async (conversationId, user) => {
   return isParticipant ? conversation : null;
 };
 
+const teamKeyFor = (ids) => ['team', ...[...ids].map(String).sort()].join(':');
+
 const unreadFor = (conversationIds, userId) => Message.aggregate([
   {
     $match: {
       conversation: { $in: conversationIds },
       sender: { $ne: userId },
-      readBy: { $ne: userId }
+      readBy: { $ne: userId },
+      createdAt: { $gte: new Date(Date.now() - 7 * 24 * 60 * 60 * 1000) }
     }
   },
   { $group: { _id: '$conversation', count: { $sum: 1 } } }
@@ -80,6 +84,10 @@ const shapeConversation = (conversation, user, unreadMap, peopleMap) => {
     base.other = otherId ? peopleMap.get(otherId.toString()) || { _id: otherId, username: 'Unknown' } : null;
     base.name = base.other?.username || 'Direct message';
   }
+  if (conversation.type === 'team') {
+    base.memberCount = conversation.participants.length;
+    base.name = conversation.name || 'Team chat';
+  }
   return base;
 };
 
@@ -90,7 +98,7 @@ router.get('/conversations', auth, async (req, res) => {
     const channel = await getCompanyChannel(companyId, req.user._id);
     const directs = await Conversation.find({
       company: companyId,
-      type: 'direct',
+      type: { $in: ['direct', 'team'] },
       participants: req.user._id
     }).sort({ lastMessageAt: -1, createdAt: -1 });
 
@@ -143,6 +151,66 @@ router.post('/conversations/direct', auth, async (req, res) => {
       [other._id.toString(), { _id: other._id, username: other.username, role: other.role }],
       [req.user._id.toString(), { _id: req.user._id, username: req.user.username, role: req.user.role }]
     ]);
+    res.status(201).json(shapeConversation(conversation, req.user, new Map(), peopleMap));
+  } catch (error) {
+    res.status(500).json({ message: error.message });
+  }
+});
+
+// POST /api/messages/conversations/team — admin / manager / team lead create a team chat
+router.post('/conversations/team', auth, async (req, res) => {
+  try {
+    if (!canAssignOthers(req.user)) {
+      return res.status(403).json({ message: 'Only admin, manager or team lead can create a team chat' });
+    }
+    const companyId = req.user.company._id;
+    let participantIds = Array.isArray(req.body.participantIds)
+      ? req.body.participantIds.map(String)
+      : [];
+    const name = String(req.body.name || '').trim();
+
+    if (req.user.role === 'team_lead' && participantIds.length === 0) {
+      const members = await getTeamMemberIds(req.user._id, companyId);
+      participantIds = members.map(String);
+    }
+
+    const unique = [...new Set([req.user._id.toString(), ...participantIds])];
+    if (unique.length < 2) {
+      return res.status(400).json({ message: 'Add at least one teammate to the chat' });
+    }
+
+    const people = await User.find({ _id: { $in: unique }, company: companyId }).select('username role');
+    if (people.length !== unique.length) {
+      return res.status(400).json({ message: 'One or more people are not in your company' });
+    }
+    if (req.user.role === 'team_lead') {
+      const allowed = new Set([req.user._id.toString(), ...(await getTeamMemberIds(req.user._id, companyId)).map(String)]);
+      if (unique.some((id) => !allowed.has(id))) {
+        return res.status(403).json({ message: 'Team leads can only chat with their own members' });
+      }
+    }
+
+    const directKey = teamKeyFor(unique);
+    let conversation = await Conversation.findOne({ company: companyId, type: 'team', directKey });
+    if (!conversation) {
+      try {
+        conversation = await Conversation.create({
+          company: companyId,
+          type: 'team',
+          name: name || (req.user.role === 'team_lead' ? `${req.user.username}'s team` : 'Team chat'),
+          participants: unique,
+          directKey,
+          createdBy: req.user._id
+        });
+      } catch (_) {
+        conversation = await Conversation.findOne({ company: companyId, type: 'team', directKey });
+      }
+    } else if (name) {
+      conversation.name = name;
+      await conversation.save();
+    }
+
+    const peopleMap = new Map(people.map((p) => [p._id.toString(), { _id: p._id, username: p.username, role: p.role }]));
     res.status(201).json(shapeConversation(conversation, req.user, new Map(), peopleMap));
   } catch (error) {
     res.status(500).json({ message: error.message });

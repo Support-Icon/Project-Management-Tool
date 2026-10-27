@@ -27,12 +27,12 @@ export default function TaskCard({ task, index, onEdit, onDelete, onDailyUpdate,
   const isOverdue =
     task.dueDate && new Date(task.dueDate) < new Date() && task.column !== 'done';
 
-  const dueDateStr = task.dueDate
-    ? new Date(task.dueDate).toLocaleDateString('en-US', { month: 'short', day: 'numeric' })
+  const dueDateStr = task.dueDate || task.deadlineAt
+    ? formatIST(task.deadlineAt || task.dueDate).replace(', ', ' · ')
     : null;
 
   const startDateStr = task.startDate
-    ? new Date(task.startDate).toLocaleDateString('en-US', { month: 'short', day: 'numeric' })
+    ? formatIST(task.startDate).replace(', ', ' · ')
     : null;
 
   const waiting = task.waitingOnPredecessor;

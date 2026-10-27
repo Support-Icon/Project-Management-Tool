@@ -34,6 +34,7 @@ export default function SettingsPage() {
   const [saving, setSaving] = useState(false);
   const [testing, setTesting] = useState(false);
   const [sendingReport, setSendingReport] = useState(false);
+  const [sendingWeekly, setSendingWeekly] = useState(false);
   const [deleting, setDeleting] = useState(false);
   const [savingAi, setSavingAi] = useState(false);
   const [showPassword, setShowPassword] = useState(false);
@@ -74,6 +75,10 @@ export default function SettingsPage() {
       enabled: true,
       time: '19:30',
     },
+    weeklyReport: {
+      enabled: true,
+      time: '19:30',
+    },
     emailTemplates: {
       brandColor: '#4f46e5',
       logoUrl: '',
@@ -102,6 +107,7 @@ export default function SettingsPage() {
           },
           digest: { ...current.digest, ...emailRes.data.digest },
           report: { ...current.report, ...emailRes.data.report },
+          weeklyReport: { ...current.weeklyReport, ...emailRes.data.weeklyReport },
           emailTemplates: { ...current.emailTemplates, ...emailRes.data.emailTemplates },
         }));
         setAiForm((current) => ({
@@ -120,6 +126,8 @@ export default function SettingsPage() {
     setForm((current) => ({ ...current, digest: { ...current.digest, [key]: value } }));
   const updateReport = (key, value) =>
     setForm((current) => ({ ...current, report: { ...current.report, [key]: value } }));
+  const updateWeekly = (key, value) =>
+    setForm((current) => ({ ...current, weeklyReport: { ...current.weeklyReport, [key]: value } }));
   const updateTemplate = (key, value) =>
     setForm((current) => ({
       ...current,
@@ -143,6 +151,7 @@ export default function SettingsPage() {
         },
         digest: { ...current.digest, ...res.data.digest },
         report: { ...current.report, ...res.data.report },
+        weeklyReport: { ...current.weeklyReport, ...res.data.weeklyReport },
         emailTemplates: { ...current.emailTemplates, ...res.data.emailTemplates },
       }));
       toast.success('Email settings saved');
@@ -194,6 +203,10 @@ export default function SettingsPage() {
           timezone: 'Asia/Kolkata',
         },
         report: {
+          enabled: true,
+          time: '19:30',
+        },
+        weeklyReport: {
           enabled: true,
           time: '19:30',
         },
@@ -541,8 +554,8 @@ export default function SettingsPage() {
               <div>
                 <h3 className="font-bold text-slate-800">Evening daily report</h3>
                 <p className="text-xs text-slate-500 mt-1">
-                  Managers and admins get a person-wise report of everyone. Team leads get only their team members.
-                  Default is 7:30 PM Indian time.
+                  Today’s work only (not old open tasks). Managers/admins get everyone; team leads get their members.
+                  Default 7:30 PM Indian time.
                 </p>
               </div>
             </div>
@@ -584,6 +597,62 @@ export default function SettingsPage() {
                 className="w-full px-4 py-3 rounded-xl bg-amber-600 text-white font-semibold disabled:opacity-60"
               >
                 {sendingReport ? 'Sending…' : 'Send report now'}
+              </button>
+            </div>
+          </div>
+        </section>
+
+        <section className="bg-white rounded-2xl border border-slate-100 shadow-sm p-6">
+          <div className="flex items-start justify-between gap-4 mb-5">
+            <div className="flex gap-3">
+              <div className="w-10 h-10 rounded-xl bg-violet-50 text-violet-600 flex items-center justify-center">
+                <ClipboardList size={20} />
+              </div>
+              <div>
+                <h3 className="font-bold text-slate-800">Friday weekly report</h3>
+                <p className="text-xs text-slate-500 mt-1">
+                  Sent every Friday at the time below (default 7:30 PM IST). Same audience: managers see all, team leads see their team.
+                </p>
+              </div>
+            </div>
+            <label className="flex items-center gap-2 text-sm font-medium text-slate-600">
+              <input
+                type="checkbox"
+                checked={form.weeklyReport?.enabled !== false}
+                onChange={(e) => updateWeekly('enabled', e.target.checked)}
+                className="w-4 h-4 text-indigo-600 rounded"
+              />
+              Enabled
+            </label>
+          </div>
+          <div className="grid sm:grid-cols-2 gap-4">
+            <label className="text-sm text-slate-600">
+              <span className="block text-xs font-semibold uppercase mb-1.5">Friday send time</span>
+              <input
+                type="time"
+                value={form.weeklyReport?.time || '19:30'}
+                onChange={(e) => updateWeekly('time', e.target.value)}
+                className="w-full px-4 py-3 rounded-xl border border-slate-200 focus:ring-2 focus:ring-indigo-500 outline-none"
+              />
+            </label>
+            <div className="flex items-end">
+              <button
+                type="button"
+                disabled={sendingWeekly}
+                onClick={async () => {
+                  setSendingWeekly(true);
+                  try {
+                    const res = await api.post('/api/settings/send-weekly-report');
+                    toast.success(res.data.message);
+                  } catch (error) {
+                    toast.error(error.response?.data?.message || 'Failed to send weekly report');
+                  } finally {
+                    setSendingWeekly(false);
+                  }
+                }}
+                className="w-full px-4 py-3 rounded-xl bg-violet-600 text-white font-semibold disabled:opacity-60"
+              >
+                {sendingWeekly ? 'Sending…' : 'Send weekly report now'}
               </button>
             </div>
           </div>
