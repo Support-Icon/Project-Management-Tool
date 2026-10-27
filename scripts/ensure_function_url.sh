@@ -1,5 +1,6 @@
 #!/usr/bin/env bash
 # Print the Lambda function URL (create a public URL if missing).
+# Always attach the resource policy AWS requires for AuthType NONE.
 # Only the URL is written to stdout so callers can capture it.
 set -euo pipefail
 
@@ -10,22 +11,34 @@ existing="$(aws lambda get-function-url-config \
   --query FunctionUrl \
   --output text 2>/dev/null || true)"
 
-if [[ -n "$existing" && "$existing" != "None" ]]; then
-  echo "$existing"
-  exit 0
+if [[ -z "$existing" || "$existing" == "None" ]]; then
+  echo "Creating public function URL for ${FUNCTION_NAME}" >&2
+  aws lambda create-function-url-config \
+    --function-name "$FUNCTION_NAME" \
+    --auth-type NONE >/dev/null
 fi
 
-echo "Creating public function URL for ${FUNCTION_NAME}" >&2
-aws lambda create-function-url-config \
-  --function-name "$FUNCTION_NAME" \
-  --auth-type NONE >/dev/null
+put_permission() {
+  local statement_id="$1"
+  shift
+  aws lambda remove-permission \
+    --function-name "$FUNCTION_NAME" \
+    --statement-id "$statement_id" >/dev/null 2>&1 || true
+  aws lambda add-permission \
+    --function-name "$FUNCTION_NAME" \
+    --statement-id "$statement_id" \
+    "$@" >/dev/null
+}
 
-aws lambda add-permission \
-  --function-name "$FUNCTION_NAME" \
-  --statement-id FunctionURLAllowPublicAccess \
+echo "Allowing public Function URL invoke for ${FUNCTION_NAME}" >&2
+put_permission FunctionURLAllowPublicAccess \
   --action lambda:InvokeFunctionUrl \
   --principal "*" \
-  --function-url-auth-type NONE >/dev/null 2>&1 || true
+  --function-url-auth-type NONE
+
+put_permission FunctionURLAllowInvokeFunction \
+  --action lambda:InvokeFunction \
+  --principal "*"
 
 aws lambda get-function-url-config \
   --function-name "$FUNCTION_NAME" \
