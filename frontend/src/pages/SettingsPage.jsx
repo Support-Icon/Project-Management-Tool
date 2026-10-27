@@ -611,7 +611,7 @@ export default function SettingsPage() {
               <div>
                 <h3 className="font-bold text-slate-800">Friday weekly report</h3>
                 <p className="text-xs text-slate-500 mt-1">
-                  Sent every Friday at the time below (default 7:30 PM IST). Same audience: managers see all, team leads see their team.
+                  Last 7 days only (not the whole month). Sent every Friday at the time below (default 7:30 PM IST). Managers see all, team leads see their team.
                 </p>
               </div>
             </div>

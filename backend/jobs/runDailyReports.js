@@ -26,7 +26,7 @@ const buildPersonRows = async ({ companyId, people, today, timezone, projectIds,
   const [updates, tasksTouched] = await Promise.all([
     TaskUpdate.find({
       company: companyId,
-      updateDate: { $in: rangeDates },
+      updateDate: { $gte: rangeDates[0], $lte: rangeDates[rangeDates.length - 1] },
       author: { $in: personIds }
     }).select('author task'),
     Task.find({
@@ -35,7 +35,6 @@ const buildPersonRows = async ({ companyId, people, today, timezone, projectIds,
       $or: [
         { completedAt: { $gte: rangeStart, $lte: rangeEnd } },
         { assignedAt: { $gte: rangeStart, $lte: rangeEnd } },
-        { createdAt: { $gte: rangeStart, $lte: rangeEnd } },
         { lastUpdateAt: { $gte: rangeStart, $lte: rangeEnd } }
       ]
     })
@@ -63,6 +62,11 @@ const buildPersonRows = async ({ companyId, people, today, timezone, projectIds,
     updatedByAuthor.get(key).add(update.task.toString());
   });
 
+  const weekly = rangeDates.length > 1;
+  const workedLabel = weekly ? 'Worked this week' : 'Worked today';
+  const doneLabel = weekly ? 'Completed this week' : 'Completed today';
+  const assignedLabel = weekly ? 'Assigned this week' : 'Assigned today';
+
   return people.map((person) => {
     const id = person._id.toString();
     const theirs = tasks.filter((task) => task.assignee?.toString() === id);
@@ -77,6 +81,7 @@ const buildPersonRows = async ({ companyId, people, today, timezone, projectIds,
       openCount: open.length,
       doneToday,
       missedUpdates: missed,
+      weekly,
       tasks: theirs.map((task) => ({
         title: task.title,
         project: task.project?.title || '',
@@ -84,8 +89,8 @@ const buildPersonRows = async ({ companyId, people, today, timezone, projectIds,
         priority: task.priority,
         deadline: task.deadlineAt ? formatIST(task.deadlineAt, timezone) : (task.dueDate ? formatIST(task.dueDate, timezone) : ''),
         updateStatus: updatedSet.has(task._id.toString())
-          ? 'Worked today'
-          : (task.column === 'done' ? 'Completed today' : 'Assigned / touched today')
+          ? workedLabel
+          : (task.column === 'done' ? doneLabel : assignedLabel)
       }))
     };
   });
@@ -224,7 +229,7 @@ const sendCompanyWeeklyReports = async ({ company, settings, today, timezone, fo
       companyId: company._id,
       recipient,
       companyName: company.name,
-      localDate: `${dates[0]} to ${dates[dates.length - 1]}`,
+      localDate: `last 7 days (${dates[0]} to ${dates[dates.length - 1]})`,
       people: rows,
       roleLabel: recipient.role === 'team_lead' ? 'Team Lead' : (recipient.role === 'admin' ? 'Admin' : 'Manager'),
       weekly: true

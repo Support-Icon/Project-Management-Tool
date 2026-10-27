@@ -212,6 +212,7 @@ router.put('/:id', auth, async (req, res) => {
     if (title !== undefined) updates.title = title.trim();
     if (description !== undefined) updates.description = description.trim();
     if (column !== undefined) updates.column = column;
+    if (column !== undefined && column !== task.column) updates.lastUpdateAt = new Date();
     if (column === 'done' && task.column !== 'done') updates.completedAt = new Date();
     if (column !== undefined && column !== 'done' && task.column === 'done') updates.completedAt = null;
     if (priority !== undefined) updates.priority = priority;

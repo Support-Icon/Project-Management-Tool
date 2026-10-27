@@ -4,7 +4,10 @@ import { useAuth } from '../context/AuthContext';
 import toast from 'react-hot-toast';
 import { X, Check, Flag, Calendar, User, Tag, Link2, Timer } from 'lucide-react';
 import { canAssignOthers } from '../utils/roles';
-import { previewDeadline, formatDuration, formatIST, toDateTimeLocal, fromDateTimeLocal } from '../utils/time';
+import {
+  previewDeadline, formatDuration, formatIST,
+  toDateOnly, toTimeOnly, fromDateOnly, fromDateOnlyEnd, fromTimeOnly,
+} from '../utils/time';
 
 const priorities = [
   { value: 'low', label: 'Low', color: 'text-emerald-600 bg-emerald-50 border-emerald-200' },
@@ -23,8 +26,10 @@ export default function TaskModal({ task, projectId, column, columns, projectTas
     column: task?.column || column || 'todo',
     priority: task?.priority || 'medium',
     assigneeId: task?.assignee?._id || user?._id || '',
-    startDate: toDateTimeLocal(task?.startDate),
-    dueDate: toDateTimeLocal(task?.dueDate),
+    startDate: toDateOnly(task?.startDate),
+    dueDate: toDateOnly(task?.dueDate),
+    startTime: toTimeOnly(task?.startDate),
+    dueTime: toTimeOnly(task?.dueDate || task?.deadlineAt),
     dependsOn: task?.dependsOn?._id || task?.dependsOn || '',
     durationValue: task?.duration?.value || '',
     durationUnit: task?.duration?.unit || 'hours',
@@ -48,8 +53,13 @@ export default function TaskModal({ task, projectId, column, columns, projectTas
       toast.error('Task title is required');
       return;
     }
-    if (form.startDate && form.dueDate && form.startDate > form.dueDate) {
+    const isDays = form.durationUnit === 'days';
+    if (isDays && form.startDate && form.dueDate && form.startDate > form.dueDate) {
       toast.error('Start date must be on or before due date');
+      return;
+    }
+    if (!isDays && form.startTime && form.dueTime && form.startTime > form.dueTime) {
+      toast.error('Start time must be before due time');
       return;
     }
     setLoading(true);
@@ -60,8 +70,8 @@ export default function TaskModal({ task, projectId, column, columns, projectTas
         column: form.column,
         priority: form.priority,
         assigneeId: canAssign ? (form.assigneeId || null) : user._id,
-        startDate: fromDateTimeLocal(form.startDate),
-        dueDate: fromDateTimeLocal(form.dueDate),
+        startDate: isDays ? fromDateOnly(form.startDate) : fromTimeOnly(form.startTime),
+        dueDate: isDays ? fromDateOnlyEnd(form.dueDate) : fromTimeOnly(form.dueTime),
         duration: form.durationValue
           ? { value: Number(form.durationValue), unit: form.durationUnit || 'hours' }
           : null,
@@ -184,6 +194,33 @@ export default function TaskModal({ task, projectId, column, columns, projectTas
             </div>
           )}
 
+          {form.durationUnit === 'days' && (
+            <div className="grid grid-cols-2 gap-4">
+              <div>
+                <label className="block text-xs font-semibold text-slate-600 mb-1.5 uppercase tracking-wide flex items-center gap-1">
+                  <Calendar size={12} /> Start date
+                </label>
+                <input
+                  type="date"
+                  value={form.startDate}
+                  onChange={set('startDate')}
+                  className="w-full px-3 py-2.5 rounded-xl border border-slate-200 text-slate-800 text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500 focus:border-transparent transition"
+                />
+              </div>
+              <div>
+                <label className="block text-xs font-semibold text-slate-600 mb-1.5 uppercase tracking-wide flex items-center gap-1">
+                  <Calendar size={12} /> Due date
+                </label>
+                <input
+                  type="date"
+                  value={form.dueDate}
+                  onChange={set('dueDate')}
+                  className="w-full px-3 py-2.5 rounded-xl border border-slate-200 text-slate-800 text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500 focus:border-transparent transition"
+                />
+              </div>
+            </div>
+          )}
+
           <div>
             <label className="block text-xs font-semibold text-slate-600 mb-1.5 uppercase tracking-wide flex items-center gap-1">
               <Timer size={12} /> Complete within (Indian time)
@@ -200,7 +237,14 @@ export default function TaskModal({ task, projectId, column, columns, projectTas
               />
               <select
                 value={form.durationUnit}
-                onChange={set('durationUnit')}
+                onChange={(e) => setForm((f) => ({
+                  ...f,
+                  durationUnit: e.target.value,
+                  startDate: e.target.value === 'days' ? f.startDate : '',
+                  dueDate: e.target.value === 'days' ? f.dueDate : '',
+                  startTime: e.target.value === 'days' ? '' : f.startTime,
+                  dueTime: e.target.value === 'days' ? '' : f.dueTime,
+                }))}
                 className="w-full px-3 py-2.5 rounded-xl border border-slate-200 text-slate-800 text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500 bg-white"
               >
                 <option value="minutes">Minutes</option>
@@ -211,36 +255,40 @@ export default function TaskModal({ task, projectId, column, columns, projectTas
             <p className="text-[11px] text-slate-400 mt-1.5">
               {form.durationValue
                 ? `Deadline ≈ ${previewDeadline(form.durationValue, form.durationUnit)}`
-                : 'Examples: 2 hours, 1 day. Deadline is calculated in IST when assigned.'}
+                : form.durationUnit === 'days'
+                  ? 'Pick start and due dates above. Deadline uses Indian calendar days.'
+                  : 'Pick start and due times below. Deadline uses Indian time.'}
               {task?.deadlineAt && !form.durationValue && ` Current: ${formatIST(task.deadlineAt)}`}
               {task?.duration?.value && !form.durationValue && ` (${formatDuration(task.duration)})`}
             </p>
           </div>
 
-          <div className="grid grid-cols-2 gap-4">
-            <div>
-              <label className="block text-xs font-semibold text-slate-600 mb-1.5 uppercase tracking-wide flex items-center gap-1">
-                <Calendar size={12} /> Start (date & time IST)
-              </label>
-              <input
-                type="datetime-local"
-                value={form.startDate}
-                onChange={set('startDate')}
-                className="w-full px-3 py-2.5 rounded-xl border border-slate-200 text-slate-800 text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500 focus:border-transparent transition"
-              />
+          {form.durationUnit !== 'days' && (
+            <div className="grid grid-cols-2 gap-4">
+              <div>
+                <label className="block text-xs font-semibold text-slate-600 mb-1.5 uppercase tracking-wide flex items-center gap-1">
+                  <Timer size={12} /> Start time (IST)
+                </label>
+                <input
+                  type="time"
+                  value={form.startTime}
+                  onChange={set('startTime')}
+                  className="w-full px-3 py-2.5 rounded-xl border border-slate-200 text-slate-800 text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500 focus:border-transparent transition"
+                />
+              </div>
+              <div>
+                <label className="block text-xs font-semibold text-slate-600 mb-1.5 uppercase tracking-wide flex items-center gap-1">
+                  <Timer size={12} /> Due time (IST)
+                </label>
+                <input
+                  type="time"
+                  value={form.dueTime}
+                  onChange={set('dueTime')}
+                  className="w-full px-3 py-2.5 rounded-xl border border-slate-200 text-slate-800 text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500 focus:border-transparent transition"
+                />
+              </div>
             </div>
-            <div>
-              <label className="block text-xs font-semibold text-slate-600 mb-1.5 uppercase tracking-wide flex items-center gap-1">
-                <Calendar size={12} /> Due (date & time IST)
-              </label>
-              <input
-                type="datetime-local"
-                value={form.dueDate}
-                onChange={set('dueDate')}
-                className="w-full px-3 py-2.5 rounded-xl border border-slate-200 text-slate-800 text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500 focus:border-transparent transition"
-              />
-            </div>
-          </div>
+          )}
 
           <div>
             <label className="block text-xs font-semibold text-slate-600 mb-1.5 uppercase tracking-wide flex items-center gap-1">

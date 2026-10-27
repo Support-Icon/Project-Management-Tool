@@ -7,9 +7,9 @@ export default function AiChatWidget() {
   const [open, setOpen] = useState(false);
   const navigate = useNavigate();
   const location = useLocation();
-  const onChatPage = location.pathname === '/ai-chat';
+  const hide = location.pathname === '/ai-chat' || location.pathname.startsWith('/messages');
 
-  if (onChatPage) return null;
+  if (hide) return null;
 
   return (
     <>

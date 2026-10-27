@@ -187,7 +187,7 @@ const defaultDailyReportBody = ({ username, roleLabel, companyName, localDate, p
   ${peopleHtml}
 `;
 
-const personBlock = (person) => {
+const personBlock = (person, weekly = false) => {
   const taskRows = (person.tasks || []).map((task) => `
     <tr>
       <td style="padding:8px;border:1px solid #e2e8f0">${escapeHtml(task.title)}</td>
@@ -200,13 +200,13 @@ const personBlock = (person) => {
 
   const empty = `
     <tr>
-      <td colspan="6" style="padding:10px;border:1px solid #e2e8f0;color:#64748b">No assigned tasks today</td>
+      <td colspan="6" style="padding:10px;border:1px solid #e2e8f0;color:#64748b">${weekly ? 'No work this week' : 'No work today'}</td>
     </tr>`;
 
   return `
     <div style="margin:20px 0 8px;padding:10px 12px;background:#f8fafc;border-radius:10px;border:1px solid #e2e8f0">
       <strong>${escapeHtml(person.username)}</strong>
-      <span style="color:#64748b;font-size:12px"> · ${escapeHtml(person.role)} · ${person.openCount} in progress · ${person.doneToday} completed today · ${person.missedUpdates} missed updates</span>
+      <span style="color:#64748b;font-size:12px"> · ${escapeHtml(person.role)} · ${person.tasks?.length || 0} tasks · ${person.doneToday} completed · ${person.missedUpdates} missed updates</span>
     </div>
     <table style="width:100%;border-collapse:collapse;margin-bottom:8px">
       <thead>
@@ -215,7 +215,7 @@ const personBlock = (person) => {
           <th style="padding:8px;border:1px solid #e2e8f0;text-align:left;background:#f8fafc">Project</th>
           <th style="padding:8px;border:1px solid #e2e8f0;text-align:left;background:#f8fafc">Status</th>
           <th style="padding:8px;border:1px solid #e2e8f0;text-align:left;background:#f8fafc">Priority</th>
-          <th style="padding:8px;border:1px solid #e2e8f0;text-align:left;background:#f8fafc">Today</th>
+          <th style="padding:8px;border:1px solid #e2e8f0;text-align:left;background:#f8fafc">${weekly ? 'This week' : 'Today'}</th>
           <th style="padding:8px;border:1px solid #e2e8f0;text-align:left;background:#f8fafc">Deadline (IST)</th>
         </tr>
       </thead>
@@ -228,10 +228,9 @@ const renderDailyReportEmail = (settings, data) => {
   const brandColor = tpl.brandColor || '#4f46e5';
   const logoUrl = tpl.logoUrl || '';
   const footerText = tpl.footerText || 'Sent by ProjectFlow';
-  const peopleHtml = (data.people || []).map(personBlock).join('');
-  const roleLabel = data.roleLabel || 'Manager';
-
   const weekly = Boolean(data.weekly);
+  const peopleHtml = (data.people || []).map((person) => personBlock(person, weekly)).join('');
+  const roleLabel = data.roleLabel || 'Manager';
   const subject = `${data.companyName} ${weekly ? 'weekly' : 'daily'} task report — ${data.localDate}`;
   const body = defaultDailyReportBody({
     username: data.recipient.username,

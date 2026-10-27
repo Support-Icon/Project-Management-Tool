@@ -64,6 +64,53 @@ export const fromDateTimeLocal = (value) => {
   return Number.isNaN(date.getTime()) ? null : date.toISOString();
 };
 
+const istParts = (value = new Date()) => {
+  const parts = new Intl.DateTimeFormat('en-GB', {
+    timeZone: IST,
+    year: 'numeric',
+    month: '2-digit',
+    day: '2-digit',
+    hour: '2-digit',
+    minute: '2-digit',
+    hour12: false,
+  }).formatToParts(new Date(value));
+  const get = (type) => parts.find((p) => p.type === type)?.value || '';
+  return { year: get('year'), month: get('month'), day: get('day'), hour: get('hour'), minute: get('minute') };
+};
+
+/** YYYY-MM-DD in IST */
+export const toDateOnly = (value) => {
+  if (!value) return '';
+  const { year, month, day } = istParts(value);
+  return `${year}-${month}-${day}`;
+};
+
+/** HH:mm in IST */
+export const toTimeOnly = (value) => {
+  if (!value) return '';
+  const { hour, minute } = istParts(value);
+  return `${hour}:${minute}`;
+};
+
+export const fromDateOnly = (value) => {
+  if (!value) return null;
+  const date = new Date(`${value}T00:00:00+05:30`);
+  return Number.isNaN(date.getTime()) ? null : date.toISOString();
+};
+
+export const fromDateOnlyEnd = (value) => {
+  if (!value) return null;
+  const date = new Date(`${value}T23:59:00+05:30`);
+  return Number.isNaN(date.getTime()) ? null : date.toISOString();
+};
+
+export const fromTimeOnly = (value) => {
+  if (!value) return null;
+  const { year, month, day } = istParts();
+  const date = new Date(`${year}-${month}-${day}T${value}:00+05:30`);
+  return Number.isNaN(date.getTime()) ? null : date.toISOString();
+};
+
 export const previewDeadline = (value, unit) => {
   const n = Number(value);
   if (!n || n <= 0) return '';
