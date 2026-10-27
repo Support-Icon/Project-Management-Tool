@@ -40,6 +40,13 @@ put_permission FunctionURLAllowInvokeFunction \
   --action lambda:InvokeFunction \
   --principal "*"
 
+echo "Enabling Function URL CORS for browser clients" >&2
+aws lambda update-function-url-config \
+  --function-name "$FUNCTION_NAME" \
+  --auth-type NONE \
+  --cors '{"AllowOrigins":["*"],"AllowMethods":["*"],"AllowHeaders":["authorization","content-type","x-cron-secret","accept","origin"],"ExposeHeaders":["*"],"MaxAge":86400}' \
+  >/dev/null
+
 aws lambda get-function-url-config \
   --function-name "$FUNCTION_NAME" \
   --query FunctionUrl \

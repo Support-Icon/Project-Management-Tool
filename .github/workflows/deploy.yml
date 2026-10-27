@@ -30,30 +30,30 @@ jobs:
         run: npm ci
 
       - name: Verify API URL secret
+        id: api
+        env:
+          SECRET_URL: ${{ secrets.VITE_API_URL }}
         run: |
-          URL="${{ secrets.VITE_API_URL }}"
-          if [ -z "$URL" ] || [ "$URL" = "/" ]; then
-            echo "::error::Set GitHub secret VITE_API_URL to your Lambda function URL (e.g. https://xxxx.lambda-url.us-east-1.on.aws). Do NOT use / or the frontend domain."
-            exit 1
+          DEFAULT_URL="https://76ypmheos3q5tjfmgj2zknsfd40pcrmy.lambda-url.us-east-1.on.aws"
+          URL="$(echo "${SECRET_URL:-}" | tr -d '\r' | sed 's:/*$::')"
+          if [ -z "$URL" ] || [ "$URL" = "/" ] || echo "$URL" | grep -qiE 'onrender\.com|projectflow\.supporticon\.com|github\.io'; then
+            URL="$DEFAULT_URL"
           fi
           case "$URL" in
             http://*|https://*) ;;
             *)
-              echo "::error::VITE_API_URL must start with https:// (Render API), got: $URL"
+              echo "::error::VITE_API_URL must start with https://, got: $URL"
               exit 1
               ;;
           esac
-          if echo "$URL" | grep -qiE 'projectflow\.supporticon\.com|github\.io'; then
-            echo "::error::VITE_API_URL must be the Render API host, not the frontend domain."
-            exit 1
-          fi
-          echo "VITE_API_URL looks valid (host only check)."
+          echo "api_url=${URL}" >> "$GITHUB_OUTPUT"
+          echo "VITE_API_URL=${URL}"
 
       - name: Build React app
         working-directory: ./frontend
         run: npm run build
         env:
-          VITE_API_URL: ${{ secrets.VITE_API_URL }}
+          VITE_API_URL: ${{ steps.api.outputs.api_url }}
           # Custom domain = "/". Only set secret VITE_BASE_URL=/RepoName/ for project pages without a domain.
           VITE_BASE_URL: ${{ secrets.VITE_BASE_URL || '/' }}
 
