@@ -21,7 +21,7 @@ export default function AiChatWidget() {
           className="ask-ai-btn fixed bottom-20 right-4 md:bottom-5 md:right-5 z-40"
           title="Ask AI"
         >
-          Ask AI
+          <span>Ask<br />AI</span>
         </button>
       )}
 

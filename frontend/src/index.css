@@ -70,42 +70,22 @@
 }
 
 .ask-ai-btn {
-  position: relative;
-  isolation: isolate;
-  padding: 0.85rem 1.2rem;
+  width: 64px;
+  height: 64px;
   border-radius: 999px;
   background: #0B0B0D;
   color: #8DC63F;
   font-weight: 800;
-  letter-spacing: 0.06em;
+  letter-spacing: 0.04em;
   text-transform: uppercase;
-  font-size: 0.78rem;
-  box-shadow: 0 10px 28px rgba(141, 198, 63, 0.28);
-}
-.ask-ai-btn::before {
-  content: '';
-  position: absolute;
-  inset: -2px;
-  border-radius: inherit;
-  z-index: -1;
-  background: linear-gradient(120deg, #E31C3D, #F5C518, #8DC63F, #1E88E5, #E31C3D);
-  background-size: 260% 100%;
-  animation: askAiBorder 3.2s linear infinite;
-}
-.ask-ai-btn::after {
-  content: '';
-  position: absolute;
-  inset: 0;
-  border-radius: inherit;
-  background: linear-gradient(110deg, transparent 20%, rgba(255,255,255,0.18) 45%, transparent 70%);
-  background-size: 220% 100%;
-  animation: askAiShine 2.4s ease-in-out infinite;
-  pointer-events: none;
-}
-@keyframes askAiBorder {
-  to { background-position: 260% 0; }
-}
-@keyframes askAiShine {
-  0% { background-position: 140% 0; }
-  100% { background-position: -40% 0; }
+  font-size: 0.62rem;
+  line-height: 1.15;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  text-align: center;
+  box-shadow:
+    0 8px 18px rgba(11, 11, 13, 0.35),
+    0 0 0 4px rgba(141, 198, 63, 0.18),
+    0 12px 28px rgba(141, 198, 63, 0.28);
 }

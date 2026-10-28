@@ -63,7 +63,7 @@ export default function Login() {
 
       <div className="w-full max-w-md relative z-10 animate-slide-up">
         <div className="text-center mb-8">
-          <BrandLogo className="h-16 w-auto max-w-[340px] mx-auto mb-4" />
+          <BrandLogo className="h-[4.5rem] w-auto max-w-[380px] mx-auto mb-4" />
           <p className="text-brand-blue text-sm font-medium">Work, chat, and delivery — in one place</p>
         </div>
 

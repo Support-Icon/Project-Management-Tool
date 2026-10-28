@@ -123,7 +123,7 @@ export default function Layout() {
       >
         <div className="p-4 border-b border-white/10 flex items-start justify-between gap-2">
           <div>
-            <BrandLogo className="h-9 w-auto max-w-[200px]" />
+            <BrandLogo className="h-11 w-auto max-w-[210px]" />
             <div className="flex items-center gap-1 text-brand-blue text-xs mt-2 px-0.5">
               <Building2 size={10} />
               <span className="truncate max-w-[200px]">{user?.company?.name}</span>

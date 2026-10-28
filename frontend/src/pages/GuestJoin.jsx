@@ -42,7 +42,7 @@ export default function GuestJoin() {
   return (
     <div className="min-h-screen bg-brand-ink flex items-center justify-center p-4">
       <div className="w-full max-w-md bg-white/10 border border-white/15 rounded-3xl p-6 text-white">
-        <BrandLogo className="h-12 w-auto mx-auto mb-4" />
+        <BrandLogo className="h-14 w-auto max-w-[300px] mx-auto mb-4" />
         {error && <p className="text-center text-sm text-rose-300">{error}</p>}
         {!error && !info && (
           <div className="py-8 flex flex-col items-center gap-3">

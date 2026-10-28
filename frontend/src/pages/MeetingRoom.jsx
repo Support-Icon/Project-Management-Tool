@@ -825,7 +825,7 @@ export default function MeetingRoom() {
     return (
       <div className="min-h-screen bg-brand-ink text-white flex items-center justify-center p-4">
         <div className="max-w-xl w-full bg-white text-slate-800 rounded-2xl p-6">
-          <BrandLogo className="h-10 mb-4" />
+          <BrandLogo className="h-12 w-auto max-w-[280px] mb-4" />
           <p className="text-xs font-semibold text-brand-blue uppercase">Meeting ended</p>
           <h1 className="text-xl font-bold mt-1">{meeting.title}</h1>
           <p className="mt-4 text-sm whitespace-pre-wrap">{cleanSummaryText(meeting.summary)}</p>
@@ -848,7 +848,7 @@ export default function MeetingRoom() {
   if (phase !== 'live') {
     return (
       <div className="min-h-screen bg-brand-ink flex flex-col items-center justify-center gap-3 text-white">
-        <BrandLogo className="h-12" />
+        <BrandLogo className="h-14 w-auto max-w-[300px]" />
         <div className="w-10 h-10 rounded-full border-4 border-brand-green/30 border-t-brand-green animate-spin" />
         <p className="text-sm text-slate-300">{t('connecting')}</p>
       </div>
@@ -858,7 +858,7 @@ export default function MeetingRoom() {
   return (
     <div className="h-screen flex flex-col bg-brand-ink text-white overflow-hidden">
       <header className="px-3 sm:px-4 py-2 flex items-center gap-2 sm:gap-3 border-b border-white/10">
-        <BrandLogo className="h-8 w-auto max-w-[140px] flex-shrink-0" />
+        <BrandLogo className="h-9 w-auto max-w-[210px] flex-shrink-0" />
         <div className="min-w-0 flex-1">
           <p className="font-semibold truncate text-sm sm:text-base">{meeting?.title || t('connecting')}</p>
           <p className="text-[11px] text-slate-400">{(meeting?.liveParticipants || []).length} {t('inCall')}</p>
