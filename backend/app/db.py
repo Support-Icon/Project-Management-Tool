@@ -6,21 +6,34 @@ client: AsyncIOMotorClient | None = None
 db: AsyncIOMotorDatabase | None = None
 
 
+def _pick_database(mongo_client: AsyncIOMotorClient) -> AsyncIOMotorDatabase:
+    try:
+        found = mongo_client.get_default_database()
+    except Exception:
+        found = None
+    if found is None or found.name in ("", "test"):
+        return mongo_client["projectflow"]
+    return found
+
+
 async def connect() -> None:
     global client, db
     if not settings.mongodb_uri:
         raise RuntimeError("MONGODB_URI is not set")
-    client = AsyncIOMotorClient(settings.mongodb_uri)
-    db = client.get_default_database()
-    if db is None or db.name in ("", "test"):
-        db = client["projectflow"]
+    client = AsyncIOMotorClient(
+        settings.mongodb_uri,
+        serverSelectionTimeoutMS=8000,
+        tz_aware=True,
+    )
+    db = _pick_database(client)
 
 
 async def close() -> None:
-    global client
+    global client, db
     if client is not None:
         client.close()
-        client = None
+    client = None
+    db = None
 
 
 def get_db() -> AsyncIOMotorDatabase:

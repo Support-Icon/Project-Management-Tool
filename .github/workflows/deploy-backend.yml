@@ -162,6 +162,7 @@ jobs:
           PORT: "8080"
           AWS_LWA_PORT: "8080"
           AWS_LWA_READINESS_CHECK_PATH: "/"
+          AWS_LWA_ASYNC_INIT: "true"
           MONGODB_URI: ${{ secrets.MONGODB_URI }}
           JWT_SECRET: ${{ secrets.JWT_SECRET }}
           ENCRYPTION_KEY: ${{ secrets.ENCRYPTION_KEY }}

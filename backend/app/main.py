@@ -14,8 +14,7 @@ app = FastAPI(title="ProjectFlow API", version="2.0.0")
 origins = allowed_origins()
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=origins or ["*"],
-    allow_origin_regex=None if origins else r"https?://.*",
+    allow_origins=origins,
     allow_credentials=True,
     allow_methods=["*"],
     allow_headers=["*"],
@@ -30,9 +29,24 @@ async def http_error(_request: Request, exc: HTTPException):
     return JSONResponse(status_code=exc.status_code, content={"message": str(detail)})
 
 
+@app.exception_handler(RuntimeError)
+async def runtime_error(_request: Request, exc: RuntimeError):
+    return JSONResponse(status_code=503, content={"message": str(exc)})
+
+
+@app.exception_handler(Exception)
+async def unhandled_error(_request: Request, exc: Exception):
+    print(f"unhandled error: {exc}", flush=True)
+    return JSONResponse(status_code=500, content={"message": "Server error. Try again."})
+
+
 @app.on_event("startup")
 async def startup():
-    await connect()
+    try:
+        await connect()
+    except Exception as exc:
+        # Keep the HTTP server up so Lambda health checks (and CORS) still work.
+        print(f"MongoDB connect failed: {exc}", flush=True)
 
 
 @app.on_event("shutdown")

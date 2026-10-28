@@ -23,6 +23,7 @@ def main() -> int:
         "PORT",
         "AWS_LWA_PORT",
         "AWS_LWA_READINESS_CHECK_PATH",
+        "AWS_LWA_ASYNC_INIT",
         "MONGODB_URI",
         "JWT_SECRET",
         "ENCRYPTION_KEY",

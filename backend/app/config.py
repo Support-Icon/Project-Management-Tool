@@ -32,6 +32,13 @@ def normalize_origin(url: str) -> str:
 
 
 def allowed_origins() -> list[str]:
-    raw = settings.allowed_origins or settings.frontend_url or ""
-    items = [normalize_origin(part) for part in raw.split(",")]
+    defaults = [
+        "https://projectflow.supporticon.com",
+        "https://support-icon.github.io",
+        "http://localhost:5173",
+        "http://127.0.0.1:5173",
+    ]
+    raw = ",".join(part for part in (settings.allowed_origins, settings.frontend_url) if part)
+    extra = [normalize_origin(part) for part in raw.split(",") if part.strip()]
+    items = defaults + extra
     return [item for item in dict.fromkeys(items) if item]
