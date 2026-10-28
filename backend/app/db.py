@@ -11,8 +11,8 @@ def _pick_database(mongo_client: AsyncIOMotorClient) -> AsyncIOMotorDatabase:
         found = mongo_client.get_default_database()
     except Exception:
         found = None
-    if found is None or found.name in ("", "test"):
-        return mongo_client["projectflow"]
+    if found is None or not found.name:
+        return mongo_client["test"]
     return found
 
 
