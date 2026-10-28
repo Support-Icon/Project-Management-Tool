@@ -1,5 +1,5 @@
 import React, { useEffect, useState } from 'react';
-import { CalendarDays, Clock } from 'lucide-react';
+import { CalendarDays, Clock, Coffee } from 'lucide-react';
 import api from '../api/axios';
 import { formatIST } from '../utils/time';
 import { Navigate } from 'react-router-dom';
@@ -42,13 +42,13 @@ export default function AttendancePage() {
   if (!canViewTeamAnalytics(user)) return <Navigate to="/" replace />;
 
   return (
-    <div className="p-6 max-w-5xl mx-auto">
+    <div className="p-4 sm:p-6 max-w-5xl mx-auto">
       <div className="flex flex-wrap items-center justify-between gap-3 mb-6">
         <div>
           <h1 className="text-xl font-bold text-slate-800 flex items-center gap-2">
-            <CalendarDays size={22} className="text-indigo-600" /> Attendance
+            <CalendarDays size={22} className="text-brand-green" /> Attendance
           </h1>
-          <p className="text-sm text-slate-500 mt-1">Start / end day and working, leave, or off status.</p>
+          <p className="text-sm text-slate-500 mt-1">Start / end day, breaks, and leave.</p>
         </div>
         <label className="text-sm text-slate-600">
           Date
@@ -61,8 +61,31 @@ export default function AttendancePage() {
         </label>
       </div>
 
-      <div className="bg-white rounded-2xl border border-slate-100 shadow-sm overflow-hidden">
-        <table className="w-full text-sm">
+      <div className="sm:hidden space-y-3">
+        {loading && <p className="text-center text-slate-400 py-8">Loading attendance…</p>}
+        {!loading && people.map((p) => (
+          <div key={p.userId} className="bg-white rounded-2xl border border-black/5 p-4 shadow-sm">
+            <div className="flex items-center justify-between gap-2">
+              <div>
+                <p className="font-semibold text-slate-800">{p.username}</p>
+                <p className="text-xs text-slate-400">{ROLE_LABELS[p.role] || p.role}</p>
+              </div>
+              <span className={`px-2 py-1 rounded-lg text-xs font-semibold capitalize ${tone[p.status] || tone.working}`}>
+                {p.onBreak ? 'break' : p.status}
+              </span>
+            </div>
+            <div className="mt-3 grid grid-cols-2 gap-2 text-xs text-slate-600">
+              <p>Start {p.startAt ? formatIST(p.startAt) : '—'}</p>
+              <p>End {p.endAt ? formatIST(p.endAt) : '—'}</p>
+              <p className="flex items-center gap-1"><Clock size={12} /> {p.hours == null ? '—' : `${p.hours}h`}</p>
+              <p className="flex items-center gap-1"><Coffee size={12} /> {p.breakHours ? `${p.breakHours}h break` : '—'}</p>
+            </div>
+          </div>
+        ))}
+      </div>
+
+      <div className="hidden sm:block bg-white rounded-2xl border border-slate-100 shadow-sm overflow-x-auto">
+        <table className="w-full text-sm min-w-[640px]">
           <thead className="bg-slate-50 text-slate-500 text-xs uppercase tracking-wide">
             <tr>
               <th className="text-left px-4 py-3 font-semibold">Person</th>
@@ -70,21 +93,22 @@ export default function AttendancePage() {
               <th className="text-left px-4 py-3 font-semibold">Status</th>
               <th className="text-left px-4 py-3 font-semibold">Start</th>
               <th className="text-left px-4 py-3 font-semibold">End</th>
+              <th className="text-left px-4 py-3 font-semibold">Break</th>
               <th className="text-left px-4 py-3 font-semibold">Hours</th>
             </tr>
           </thead>
           <tbody>
             {loading && (
               <tr>
-                <td colSpan={6} className="px-4 py-10 text-center text-slate-400">
-                  <div className="w-8 h-8 mx-auto mb-2 rounded-full border-4 border-indigo-100 border-t-indigo-600 animate-spin" />
+                <td colSpan={7} className="px-4 py-10 text-center text-slate-400">
+                  <div className="w-8 h-8 mx-auto mb-2 rounded-full border-4 border-brand-green/20 border-t-brand-green animate-spin" />
                   Loading attendance…
                 </td>
               </tr>
             )}
             {!loading && people.length === 0 && (
               <tr>
-                <td colSpan={6} className="px-4 py-8 text-center text-slate-400">No people found.</td>
+                <td colSpan={7} className="px-4 py-8 text-center text-slate-400">No people found.</td>
               </tr>
             )}
             {!loading && people.map((p) => (
@@ -93,7 +117,7 @@ export default function AttendancePage() {
                 <td className="px-4 py-3 text-slate-500">{ROLE_LABELS[p.role] || p.role}</td>
                 <td className="px-4 py-3">
                   <span className={`px-2 py-1 rounded-lg text-xs font-semibold capitalize ${tone[p.status] || tone.working}`}>
-                    {p.status}
+                    {p.onBreak ? 'on break' : p.status}
                   </span>
                 </td>
                 <td className="px-4 py-3 text-slate-600">
@@ -101,6 +125,9 @@ export default function AttendancePage() {
                 </td>
                 <td className="px-4 py-3 text-slate-600">
                   {p.endAt ? formatIST(p.endAt) : '—'}
+                </td>
+                <td className="px-4 py-3 text-slate-600">
+                  {p.breakHours ? `${p.breakHours}h` : '—'}
                 </td>
                 <td className="px-4 py-3 text-slate-600">
                   <span className="inline-flex items-center gap-1">

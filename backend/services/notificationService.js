@@ -70,4 +70,55 @@ const notifyNewMessage = async ({ companyId, recipients, sender, conversation, p
   return createMany(items);
 };
 
-module.exports = { createNotification, createMany, notifyTaskAssigned, notifyNewMessage };
+const notifyLeaveRequested = async ({ companyId, request, requester, reviewerIds }) => {
+  const items = (reviewerIds || []).filter(Boolean).map((id) => ({
+    user: id,
+    company: companyId,
+    type: 'leave',
+    title: `Leave request from ${requester?.username || 'a teammate'}`,
+    body: `${request.startDate} → ${request.endDate}${request.reason ? ` · ${request.reason}` : ''}`,
+    link: '/leaves',
+    actor: requester?._id || null,
+    meta: { leaveId: request._id }
+  }));
+  return createMany(items);
+};
+
+const notifyLeaveDecision = async ({ companyId, request, memberId, approved, reviewer }) => {
+  return createNotification({
+    user: memberId,
+    company: companyId,
+    type: 'leave',
+    title: approved ? 'Leave approved' : 'Leave declined',
+    body: `${request.startDate} → ${request.endDate}${reviewer?.username ? ` · ${reviewer.username}` : ''}`,
+    link: '/leaves',
+    actor: reviewer?._id || null,
+    meta: { leaveId: request._id }
+  });
+};
+
+const notifyMeetingInvite = async ({ companyId, meeting, host, inviteeIds }) => {
+  const items = (inviteeIds || [])
+    .filter((id) => id && id.toString() !== host._id.toString())
+    .map((id) => ({
+      user: id,
+      company: companyId,
+      type: 'meeting',
+      title: `${host.username} started a meeting`,
+      body: meeting.title || 'Team meeting',
+      link: `/meet/${meeting._id}`,
+      actor: host._id,
+      meta: { meetingId: meeting._id }
+    }));
+  return createMany(items);
+};
+
+module.exports = {
+  createNotification,
+  createMany,
+  notifyTaskAssigned,
+  notifyNewMessage,
+  notifyLeaveRequested,
+  notifyLeaveDecision,
+  notifyMeetingInvite
+};

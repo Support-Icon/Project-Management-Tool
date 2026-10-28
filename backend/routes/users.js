@@ -57,7 +57,7 @@ router.get('/assignable', auth, async (req, res) => {
 router.get('/', auth, staffOnly, async (req, res) => {
   try {
     const filter = { company: req.user.company._id };
-    if (isTeamLead(req.user) && !isAdmin(req.user)) {
+    if (isTeamLead(req.user) && !canSeeAll(req.user)) {
       filter.$or = [{ _id: req.user._id }, { teamLead: req.user._id }];
     }
     const users = await User.find(filter)
@@ -181,10 +181,10 @@ router.delete('/:id', auth, staffOnly, async (req, res) => {
 
     const existing = await User.findOne({ _id: req.params.id, company: req.user.company._id });
     if (!existing) return res.status(404).json({ message: 'User not found' });
-    if (!isAdmin(req.user) && existing.role === 'admin') {
-      return res.status(403).json({ message: 'Only an admin can remove another admin' });
+    if (!canSeeAll(req.user) && existing.role === 'admin') {
+      return res.status(403).json({ message: 'Only an admin or manager can remove an admin' });
     }
-    if (isTeamLead(req.user) && !isAdmin(req.user) && String(existing.teamLead || '') !== req.user._id.toString()) {
+    if (isTeamLead(req.user) && !canSeeAll(req.user) && String(existing.teamLead || '') !== req.user._id.toString()) {
       return res.status(403).json({ message: 'You can only remove your own team members' });
     }
 

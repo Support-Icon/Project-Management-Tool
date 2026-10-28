@@ -139,7 +139,7 @@ export default function AnalyticsPage() {
   const recentUpdates = useMemo(() => updates.slice(0, 25), [updates]);
 
   return (
-    <div className="p-6 max-w-7xl mx-auto animate-fade-in">
+    <div className="p-4 sm:p-6 max-w-7xl mx-auto animate-fade-in">
       <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 mb-6">
         <div>
           <h2 className="text-2xl font-bold text-slate-800">

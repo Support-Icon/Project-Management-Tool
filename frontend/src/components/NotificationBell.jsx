@@ -34,7 +34,7 @@ export default function NotificationBell() {
       <button
         type="button"
         onClick={handleOpen}
-        className="relative p-2 rounded-lg text-slate-500 hover:text-indigo-600 hover:bg-indigo-50 transition"
+        className="relative p-2 rounded-lg text-slate-500 hover:text-brand-greenDark hover:bg-brand-green/10 transition"
         title="Notifications"
       >
         <Bell size={18} />
@@ -46,14 +46,14 @@ export default function NotificationBell() {
       </button>
 
       {open && (
-        <div className="absolute right-0 mt-2 w-80 sm:w-96 bg-white rounded-2xl shadow-xl border border-slate-100 z-50 overflow-hidden">
+        <div className="absolute right-0 mt-2 w-[min(22rem,calc(100vw-1.5rem))] bg-white rounded-2xl shadow-xl border border-slate-100 z-50 overflow-hidden">
           <div className="flex items-center justify-between px-4 py-3 border-b border-slate-100">
             <p className="text-sm font-bold text-slate-800">Notifications</p>
             {unreadCount > 0 && (
               <button
                 type="button"
                 onClick={markAllRead}
-                className="text-xs font-semibold text-indigo-600 hover:text-indigo-800 flex items-center gap-1"
+                className="text-xs font-semibold text-brand-blue hover:text-brand-greenDark flex items-center gap-1"
               >
                 <CheckCheck size={13} /> Clear all
               </button>
@@ -67,7 +67,7 @@ export default function NotificationBell() {
                 key={item._id}
                 type="button"
                 onClick={() => handleItem(item)}
-                className="w-full text-left px-4 py-3 border-b border-slate-50 hover:bg-slate-50 transition bg-indigo-50/60"
+                className={`w-full text-left px-4 py-3 border-b border-slate-50 hover:bg-slate-50 transition ${item.read ? '' : 'bg-brand-green/10'}`}
               >
                 <p className="text-sm font-semibold text-slate-800">{item.title}</p>
                 {item.body && <p className="text-xs text-slate-500 mt-0.5 line-clamp-2">{item.body}</p>}

@@ -1,7 +1,7 @@
 import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { useNavigate, useParams } from 'react-router-dom';
 import {
-  Building2, FileText, MessageSquare, Paperclip,
+  ArrowLeft, Building2, FileText, MessageSquare, Paperclip,
   Search, Send, Users, X, Plus
 } from 'lucide-react';
 import toast from 'react-hot-toast';
@@ -89,7 +89,13 @@ export default function MessagesPage() {
   }, [loadConversations, user?._id]);
 
   useEffect(() => {
-    if (conversationId) openConversation(conversationId);
+    if (conversationId) {
+      openConversation(conversationId);
+      return;
+    }
+    setActive(null);
+    setMessages([]);
+    activeIdRef.current = null;
   }, [conversationId, openConversation]);
 
   useEffect(() => {
@@ -202,7 +208,7 @@ export default function MessagesPage() {
 
   return (
     <div className="h-full flex bg-[#e8eee6]">
-      <aside className="w-[20rem] flex-shrink-0 bg-white/90 backdrop-blur border-r border-black/5 flex flex-col">
+      <aside className={`${active ? 'hidden' : 'flex'} md:flex w-full md:w-[20rem] flex-shrink-0 bg-white/90 backdrop-blur border-r border-black/5 flex-col`}>
         <div className="p-4 border-b border-black/5">
           <div className="flex items-center justify-between gap-2">
             <h2 className="font-bold text-brand-ink flex items-center gap-2">
@@ -295,7 +301,7 @@ export default function MessagesPage() {
         </div>
       </aside>
 
-      <section className="flex-1 flex flex-col min-w-0 chat-canvas">
+      <section className={`${active || loadingThread ? 'flex' : 'hidden'} md:flex flex-1 flex-col min-w-0 chat-canvas`}>
         {!active && !loadingThread ? (
           <div className="flex-1 flex flex-col items-center justify-center text-center px-6">
             <img
@@ -310,7 +316,17 @@ export default function MessagesPage() {
           </div>
         ) : (
           <>
-            <header className="h-16 bg-white/90 backdrop-blur border-b border-black/5 px-5 flex items-center gap-3">
+            <header className="h-16 bg-white/90 backdrop-blur border-b border-black/5 px-3 sm:px-5 flex items-center gap-3">
+              <button
+                type="button"
+                className="md:hidden p-1 text-slate-500"
+                onClick={() => {
+                  setActive(null);
+                  navigate('/messages');
+                }}
+              >
+                <ArrowLeft size={20} />
+              </button>
               <div className="w-10 h-10 rounded-2xl bg-brand-ink text-brand-green flex items-center justify-center">
                 {active?.type === 'company' ? <Building2 size={16} /> : active?.type === 'team' ? <Users size={16} /> : <MessageSquare size={16} />}
               </div>

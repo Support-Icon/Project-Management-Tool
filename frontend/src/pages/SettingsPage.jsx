@@ -3,6 +3,7 @@ import { Mail, Clock, ShieldCheck, Send, Save, Eye, EyeOff, Info, Trash2, Bot, C
 import toast from 'react-hot-toast';
 import api from '../api/axios';
 import { useAuth } from '../context/AuthContext';
+import { canSeeAll } from '../utils/roles';
 
 const timezones = [
   'Asia/Kolkata',
@@ -268,7 +269,7 @@ export default function SettingsPage() {
     }
   };
 
-  if (user?.role !== 'admin') return null;
+  if (!canSeeAll(user)) return null;
   if (loading) {
     return <div className="p-8 text-center text-slate-500">Loading settings…</div>;
   }
@@ -276,7 +277,7 @@ export default function SettingsPage() {
   const provider = form.email.provider;
 
   return (
-    <div className="p-6 max-w-4xl mx-auto animate-fade-in">
+    <div className="p-4 sm:p-6 max-w-4xl mx-auto animate-fade-in">
       <div className="mb-6">
         <h2 className="text-2xl font-bold text-slate-800">Email & Schedule Settings</h2>
         <p className="text-sm text-slate-500 mt-1">

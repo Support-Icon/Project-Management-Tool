@@ -29,6 +29,8 @@ app.use('/api/ai', require('./routes/ai'));
 app.use('/api/notifications', require('./routes/notifications'));
 app.use('/api/messages', require('./routes/messages'));
 app.use('/api/attendance', require('./routes/attendance'));
+app.use('/api/leaves', require('./routes/leaves'));
+app.use('/api/meetings', require('./routes/meetings'));
 app.use('/api/internal', require('./routes/internal'));
 
 app.get('/health', (req, res) => res.json({ status: 'ok', timestamp: new Date() }));

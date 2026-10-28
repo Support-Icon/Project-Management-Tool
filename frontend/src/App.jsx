@@ -13,6 +13,9 @@ import MessagesPage from './pages/MessagesPage';
 import TeamWorkPage from './pages/TeamWorkPage';
 import AiChatPage from './pages/AiChatPage';
 import AttendancePage from './pages/AttendancePage';
+import LeavesPage from './pages/LeavesPage';
+import MeetingsPage from './pages/MeetingsPage';
+import MeetingRoom from './pages/MeetingRoom';
 import Layout from './components/Layout';
 
 const Spinner = () => (
@@ -52,6 +55,9 @@ const AppRoutes = () => {
         <Route path="analytics" element={<AnalyticsPage />} />
         <Route path="team-work" element={<TeamWorkPage />} />
         <Route path="attendance" element={<AttendancePage />} />
+        <Route path="leaves" element={<LeavesPage />} />
+        <Route path="meet" element={<MeetingsPage />} />
+        <Route path="meet/:meetingId" element={<MeetingRoom />} />
         <Route path="settings" element={<SettingsPage />} />
         <Route path="messages" element={<MessagesPage />} />
         <Route path="messages/:conversationId" element={<MessagesPage />} />

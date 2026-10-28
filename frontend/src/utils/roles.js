@@ -14,8 +14,7 @@ export const canViewTeamAnalytics = (user) => canAssignOthers(user);
 export const canManageUsers = (user) => isAdmin(user) || isManager(user) || isTeamLead(user);
 
 export const creatableRoles = (user) => {
-  if (isAdmin(user)) return ['member', 'team_lead', 'manager', 'admin'];
-  if (isManager(user)) return ['member', 'team_lead', 'manager'];
+  if (isAdmin(user) || isManager(user)) return ['member', 'team_lead', 'manager', 'admin'];
   if (isTeamLead(user)) return ['member'];
   return [];
 };

@@ -1,5 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import { useAuth } from '../context/AuthContext';
+import { canSeeAll } from '../utils/roles';
 import api from '../api/axios';
 import toast from 'react-hot-toast';
 import {
@@ -121,17 +122,17 @@ export default function ReportsPage() {
     }
   };
 
-  if (user?.role !== 'admin') {
+  if (!canSeeAll(user)) {
     return (
       <div className="p-6 text-center">
         <Shield size={40} className="text-slate-300 mx-auto mb-3" />
-        <p className="text-slate-500">Admin access required</p>
+        <p className="text-slate-500">Admin or manager access required</p>
       </div>
     );
   }
 
   return (
-    <div className="p-6 max-w-3xl mx-auto animate-fade-in">
+    <div className="p-4 sm:p-6 max-w-3xl mx-auto animate-fade-in">
       <div className="mb-8">
         <div className="flex items-center gap-3 mb-2">
           <div className="w-10 h-10 rounded-xl bg-indigo-100 flex items-center justify-center">

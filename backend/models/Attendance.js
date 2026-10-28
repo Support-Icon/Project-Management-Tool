@@ -2,13 +2,19 @@ const mongoose = require('mongoose');
 
 const STATUSES = ['working', 'leave', 'off'];
 
+const breakSchema = new mongoose.Schema({
+  startAt: { type: Date, required: true },
+  endAt: { type: Date, default: null }
+}, { _id: false });
+
 const attendanceSchema = new mongoose.Schema({
   company: { type: mongoose.Schema.Types.ObjectId, ref: 'Company', required: true, index: true },
   user: { type: mongoose.Schema.Types.ObjectId, ref: 'User', required: true, index: true },
   date: { type: String, required: true },
   status: { type: String, enum: STATUSES, default: 'working' },
   startAt: { type: Date, default: null },
-  endAt: { type: Date, default: null }
+  endAt: { type: Date, default: null },
+  breaks: { type: [breakSchema], default: [] }
 });
 
 attendanceSchema.index({ company: 1, user: 1, date: 1 }, { unique: true });

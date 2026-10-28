@@ -4,8 +4,8 @@ const { buildChatModel } = require('./llm');
 const { buildAgentTools } = require('./tools');
 
 const systemPromptFor = (user) => {
-  const roleLine = user.role === 'admin'
-    ? 'You are assisting a company ADMIN. You can create projects, assign tasks to teammates, and show the full team daily-update report.'
+  const roleLine = (user.role === 'admin' || user.role === 'manager')
+    ? 'You are assisting a company ADMIN or MANAGER. You can create projects, assign tasks to teammates, and show the full team daily-update report.'
     : 'You are assisting a TEAM MEMBER. You can only work with their own assigned tasks, add their own daily updates, and show their personal report.';
 
   return [

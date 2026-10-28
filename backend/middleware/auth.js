@@ -1,6 +1,6 @@
 const jwt = require('jsonwebtoken');
 const User = require('../models/User');
-const { getScopeUserIds, canViewTeamAnalytics, canManageUsers } = require('../utils/roles');
+const { getScopeUserIds, canViewTeamAnalytics, canManageUsers, canSeeAll } = require('../utils/roles');
 
 const auth = async (req, res, next) => {
   try {
@@ -23,9 +23,10 @@ const auth = async (req, res, next) => {
   }
 };
 
+/** Admin or manager — same company-wide access. */
 const adminOnly = (req, res, next) => {
-  if (req.user.role !== 'admin') {
-    return res.status(403).json({ message: 'Admin access required' });
+  if (!canSeeAll(req.user)) {
+    return res.status(403).json({ message: 'Admin or manager access required' });
   }
   next();
 };

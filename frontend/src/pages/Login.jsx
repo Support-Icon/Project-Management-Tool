@@ -137,7 +137,7 @@ export default function Login() {
                   className="w-full px-4 py-3 rounded-xl border border-white/15 bg-white text-slate-800 text-sm focus:outline-none focus:ring-2 focus:ring-brand-green"
                 >
                   <option value="admin">Admin — full company access</option>
-                  <option value="manager">Manager — all people + reports</option>
+                  <option value="manager">Manager — same access as admin</option>
                   <option value="team_lead">Team Lead — your team only</option>
                 </select>
               </div>

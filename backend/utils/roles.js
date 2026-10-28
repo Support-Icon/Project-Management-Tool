@@ -26,8 +26,7 @@ const canViewTeamAnalytics = (user) => isAdmin(user) || isManager(user) || isTea
 const canManageUsers = (user) => isAdmin(user) || isManager(user) || isTeamLead(user);
 
 const creatableRoles = (actor) => {
-  if (isAdmin(actor)) return [...ROLES];
-  if (isManager(actor)) return ['manager', 'team_lead', 'member'];
+  if (isAdmin(actor) || isManager(actor)) return [...ROLES];
   if (isTeamLead(actor)) return ['member'];
   return [];
 };
