@@ -2,7 +2,7 @@ import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { Navigate, useNavigate, useParams } from 'react-router-dom';
 import {
   Mic, MicOff, Video, VideoOff, PhoneOff, StickyNote, Send, MonitorUp, MonitorOff,
-  Pin, PinOff, Maximize, Minimize, Hand, Smile, Link2, Languages, Captions
+  Pin, PinOff, Maximize, Minimize, Hand, Smile, Link2, Languages, Type
 } from 'lucide-react';
 import toast from 'react-hot-toast';
 import api from '../api/axios';
@@ -885,7 +885,7 @@ export default function MeetingRoom() {
           className={`p-2 rounded-xl ${captionsOn ? 'bg-brand-green text-brand-ink' : 'bg-white/10'}`}
           title={t('subtitles')}
         >
-          <Captions size={16} />
+          <Type size={16} />
         </button>
         <button type="button" onClick={toggleFs} className="p-2 rounded-xl bg-white/10" title={t('fullscreen')}>
           {isFs ? <Minimize size={16} /> : <Maximize size={16} />}
