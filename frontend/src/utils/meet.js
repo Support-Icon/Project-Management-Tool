@@ -10,6 +10,18 @@ export const MEET_LANGS = [
   { id: 'ar', label: 'العربية' },
 ];
 
+export const SPEECH_LANG = {
+  en: 'en-IN',
+  ta: 'ta-IN',
+  hi: 'hi-IN',
+  te: 'te-IN',
+  kn: 'kn-IN',
+  ml: 'ml-IN',
+  es: 'es-ES',
+  fr: 'fr-FR',
+  ar: 'ar-SA'
+};
+
 const STR = {
   en: {
     connecting: 'Connecting…',
@@ -32,6 +44,11 @@ const STR = {
     language: 'Language',
     guest: 'Guest',
     speaking: 'Speaking',
+    subtitles: 'Subtitles',
+    joined: 'joined',
+    left: 'left',
+    connectingPeer: 'Joining…',
+    summaryLang: 'Summary language',
   },
   ta: {
     connecting: 'இணைக்கிறது…',
@@ -54,6 +71,11 @@ const STR = {
     language: 'மொழி',
     guest: 'விருந்தினர்',
     speaking: 'பேசுகிறார்',
+    subtitles: 'வசன வரிகள்',
+    joined: 'இணைந்தார்',
+    left: 'வெளியேறினார்',
+    connectingPeer: 'இணைகிறது…',
+    summaryLang: 'சுருக்கம் மொழி',
   },
   hi: {
     connecting: 'कनेक्ट हो रहा है…',
@@ -76,6 +98,11 @@ const STR = {
     language: 'भाषा',
     guest: 'अतिथि',
     speaking: 'बोल रहे हैं',
+    subtitles: 'उपशीर्षक',
+    joined: 'शामिल हुए',
+    left: 'चले गए',
+    connectingPeer: 'जुड़ रहे हैं…',
+    summaryLang: 'सारांश भाषा',
   },
 };
 

@@ -1,21 +1,21 @@
-# Lambda container image for the Express API.
+# Lambda container image for the FastAPI backend.
 # The Web Adapter binary is copied in by CI (scripts/fetch_lambda_adapter.sh).
-FROM --platform=linux/amd64 node:20-bookworm-slim
+FROM --platform=linux/amd64 python:3.12-slim-bookworm
 
 COPY .docker-cache/lambda-adapter /opt/extensions/lambda-adapter
 RUN chmod 755 /opt/extensions/lambda-adapter
 
 WORKDIR /var/task
 
-COPY backend/package.json backend/package-lock.json ./
-RUN npm ci --omit=dev
+COPY backend/requirements.txt ./
+RUN pip install --no-cache-dir -r requirements.txt
 
-COPY backend/ ./
+COPY backend/app ./app
 
-ENV NODE_ENV=production
+ENV PYTHONUNBUFFERED=1
 ENV PORT=8080
 ENV AWS_LWA_PORT=8080
 ENV AWS_LWA_READINESS_CHECK_PATH=/
 
 EXPOSE 8080
-CMD ["node", "server.js"]
+CMD ["uvicorn", "app.main:app", "--host", "0.0.0.0", "--port", "8080"]

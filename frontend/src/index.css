@@ -41,6 +41,22 @@
   }
 }
 
+.meet-tile {
+  transition: opacity 0.45s ease, transform 0.45s ease;
+}
+.meet-tile-in {
+  animation: meetTileIn 0.45s ease;
+}
+.meet-tile-out {
+  opacity: 0;
+  transform: scale(0.92);
+  pointer-events: none;
+}
+@keyframes meetTileIn {
+  from { opacity: 0; transform: scale(0.92); }
+  to { opacity: 1; transform: scale(1); }
+}
+
 .chat-canvas {
   background-color: #e8eee6;
   background-image:

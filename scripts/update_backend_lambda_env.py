@@ -19,6 +19,7 @@ def main() -> int:
 
     keys = (
         "NODE_ENV",
+        "PYTHONUNBUFFERED",
         "PORT",
         "AWS_LWA_PORT",
         "AWS_LWA_READINESS_CHECK_PATH",

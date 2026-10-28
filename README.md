@@ -45,7 +45,9 @@ cd project_management_tool
 
 # Install backend dependencies
 cd backend
-npm install
+python -m venv .venv
+.venv\Scripts\activate
+pip install -r requirements.txt
 
 # Install frontend dependencies
 cd ../frontend
@@ -75,7 +77,8 @@ CRON_SECRET=a-long-random-secret
 ```bash
 # Terminal 1 — Backend
 cd backend
-npm run dev
+.venv\Scripts\activate
+uvicorn app.main:app --reload --port 5000
 
 # Terminal 2 — Frontend
 cd frontend

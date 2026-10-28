@@ -2,15 +2,16 @@ import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { Navigate, useNavigate, useParams } from 'react-router-dom';
 import {
   Mic, MicOff, Video, VideoOff, PhoneOff, StickyNote, Send, MonitorUp, MonitorOff,
-  Pin, PinOff, Maximize, Minimize, Hand, Smile, Link2, Languages
+  Pin, PinOff, Maximize, Minimize, Hand, Smile, Link2, Languages, Captions
 } from 'lucide-react';
 import toast from 'react-hot-toast';
 import api from '../api/axios';
 import { useAuth } from '../context/AuthContext';
 import { canSeeAll } from '../utils/roles';
 import BrandLogo from '../components/BrandLogo';
+import UserAvatar from '../components/UserAvatar';
 import {
-  MEET_LANGS, REACTIONS, meetT, meetingInviteText, cleanSummaryText
+  MEET_LANGS, SPEECH_LANG, REACTIONS, meetT, meetingInviteText, cleanSummaryText
 } from '../utils/meet';
 
 const ICE = {
@@ -71,7 +72,8 @@ const readGuest = () => {
 };
 
 const VideoTile = ({
-  stream, name, mine, muted, camOff, mirrored, pinned, speaking, handRaised, reaction, onPin, t, isScreen, compact
+  stream, name, mine, muted, camOff, mirrored, pinned, speaking, handRaised, reaction, onPin, t,
+  isScreen, compact, connecting, leaving, avatar
 }) => {
   const ref = useRef(null);
   useEffect(() => {
@@ -83,9 +85,11 @@ const VideoTile = ({
     el.play?.().catch(() => {});
   }, [stream]);
   return (
-    <div className={`relative rounded-2xl overflow-hidden bg-black w-full h-full group ${
+    <div className={`meet-tile relative rounded-2xl overflow-hidden bg-black w-full h-full group ${
       compact && !isScreen ? 'aspect-square' : ''
-    } ${speaking && !isScreen ? 'ring-2 ring-brand-green' : ''}`}>
+    } ${speaking && !isScreen ? 'ring-2 ring-brand-green' : ''} ${
+      leaving ? 'meet-tile-out' : 'meet-tile-in'
+    }`}>
       <video
         ref={ref}
         autoPlay
@@ -95,11 +99,15 @@ const VideoTile = ({
           mirrored && !isScreen ? '-scale-x-100' : ''
         } ${camOff ? 'opacity-0' : ''}`}
       />
-      {camOff && (
-        <div className="absolute inset-0 flex items-center justify-center bg-[#1a1a1e]">
-          <span className="w-14 h-14 rounded-full bg-brand-green text-brand-ink font-bold text-xl flex items-center justify-center">
-            {(name || '?')[0].toUpperCase()}
-          </span>
+      {(camOff || connecting || !stream) && (
+        <div className="absolute inset-0 flex flex-col items-center justify-center bg-[#1a1a1e] gap-3">
+          <UserAvatar name={name} avatar={avatar} size={compact ? 40 : 64} className="rounded-full" />
+          {connecting && (
+            <>
+              <div className="w-8 h-8 rounded-full border-4 border-brand-green/30 border-t-brand-green animate-spin" />
+              <p className="text-xs text-slate-300">{t('connectingPeer')}</p>
+            </>
+          )}
         </div>
       )}
       {reaction && (
@@ -157,6 +165,9 @@ export default function MeetingRoom() {
   const [handRaised, setHandRaised] = useState(false);
   const [isFs, setIsFs] = useState(false);
   const [lang, setLang] = useState('en');
+  const [leavingIds, setLeavingIds] = useState(() => new Set());
+  const [captionsOn, setCaptionsOn] = useState(true);
+  const [shownCaptions, setShownCaptions] = useState([]);
 
   const streamRef = useRef(null);
   const displayStreamRef = useRef(null);
@@ -170,6 +181,10 @@ export default function MeetingRoom() {
   const alive = useRef(true);
   const seenNotes = useRef(0);
   const notesOpenRef = useRef(false);
+  const langReady = useRef(false);
+  const seenLive = useRef(new Set());
+  const livePrimed = useRef(false);
+  const captionCache = useRef(new Map());
   const t = (key) => meetT(lang, key);
 
   const attachLocal = (stream) => {
@@ -184,7 +199,19 @@ export default function MeetingRoom() {
       pcs.current.delete(peerId);
     }
     pendingIce.current.delete(peerId);
-    setRemotes((prev) => prev.filter((r) => r.userId !== peerId));
+    setLeavingIds((prev) => {
+      const next = new Set(prev);
+      next.add(peerId);
+      return next;
+    });
+    setTimeout(() => {
+      setRemotes((prev) => prev.filter((r) => r.userId !== peerId));
+      setLeavingIds((prev) => {
+        const next = new Set(prev);
+        next.delete(peerId);
+        return next;
+      });
+    }, 480);
   };
 
   const flushIce = async (peerId, pc) => {
@@ -226,6 +253,12 @@ export default function MeetingRoom() {
     };
     pc.ontrack = (event) => {
       const stream = event.streams[0];
+      setLeavingIds((prev) => {
+        if (!prev.has(peerId)) return prev;
+        const next = new Set(prev);
+        next.delete(peerId);
+        return next;
+      });
       setRemotes((prev) => {
         const rest = prev.filter((r) => r.userId !== peerId);
         return [...rest, { userId: peerId, stream, username: names.current.get(peerId) || 'Guest' }];
@@ -297,7 +330,10 @@ export default function MeetingRoom() {
 
   const applyMeeting = (data, { countNotes = true } = {}) => {
     setMeeting(data);
-    if (data.language) setLang(data.language);
+    if (data.language && !langReady.current) {
+      setLang(data.language);
+      langReady.current = true;
+    }
     if (data.notes) setNotes(data.notes);
     const count = data.notesCount ?? (data.notes || []).length;
     if (countNotes && count > seenNotes.current) {
@@ -402,6 +438,7 @@ export default function MeetingRoom() {
     try { ctx = new AudioContext(); } catch { return undefined; }
     const meters = [];
     remotes.forEach((peer) => {
+      if (!peer.stream) return;
       try {
         const src = ctx.createMediaStreamSource(peer.stream);
         const analyser = ctx.createAnalyser();
@@ -432,6 +469,112 @@ export default function MeetingRoom() {
     };
   }, [remotes]);
 
+  useEffect(() => {
+    const live = meeting?.liveParticipants || [];
+    const ids = new Set(live.map((p) => String(p.user?._id || p.user)).filter(Boolean));
+    if (!livePrimed.current) {
+      seenLive.current = ids;
+      livePrimed.current = phase === 'live';
+      return;
+    }
+    live.forEach((p) => {
+      const id = String(p.user?._id || p.user);
+      if (!id || id === String(myId) || seenLive.current.has(id)) return;
+      toast(`${p.username || 'Someone'} ${meetT(lang, 'joined')}`, { duration: 1800 });
+    });
+    seenLive.current.forEach((id) => {
+      if (ids.has(id) || id === String(myId)) return;
+      toast(`${names.current.get(id) || 'Someone'} ${meetT(lang, 'left')}`, { duration: 1800 });
+    });
+    seenLive.current = ids;
+  }, [meeting?.liveParticipants, phase, myId, lang]);
+
+  useEffect(() => {
+    if (phase !== 'live' || !captionsOn || muted) return undefined;
+    const SpeechRec = window.SpeechRecognition || window.webkitSpeechRecognition;
+    if (!SpeechRec) {
+      toast.error('Live subtitles need Chrome or Edge', { id: 'no-speech' });
+      return undefined;
+    }
+    const rec = new SpeechRec();
+    rec.continuous = true;
+    rec.interimResults = true;
+    rec.lang = SPEECH_LANG[lang] || 'en-IN';
+    let stop = false;
+    let lastSent = 0;
+    rec.onresult = (event) => {
+      let interim = '';
+      let finalText = '';
+      for (let i = event.resultIndex; i < event.results.length; i += 1) {
+        const row = event.results[i];
+        if (row.isFinal) finalText += row[0].transcript;
+        else interim += row[0].transcript;
+      }
+      const text = (finalText || interim).trim();
+      if (!text) return;
+      const now = Date.now();
+      if (!finalText && now - lastSent < 700) return;
+      lastSent = now;
+      api.post(`/api/meetings/${meetingId}/captions`, {
+        text,
+        lang,
+        final: Boolean(finalText)
+      }).catch(() => {});
+    };
+    rec.onend = () => {
+      if (!stop) {
+        try { rec.start(); } catch (_) {}
+      }
+    };
+    try { rec.start(); } catch (_) {}
+    return () => {
+      stop = true;
+      try { rec.stop(); } catch (_) {}
+    };
+  }, [phase, captionsOn, muted, lang, meetingId]);
+
+  useEffect(() => {
+    if (!captionsOn) {
+      setShownCaptions([]);
+      return undefined;
+    }
+    let cancelled = false;
+    const run = async () => {
+      const rows = meeting?.captions || [];
+      const next = [];
+      for (const row of rows.slice(-4)) {
+        const key = `${row.lang}|${lang}|${row.text}`;
+        let text = captionCache.current.get(key);
+        if (!text) {
+          if (!row.final || !row.lang || row.lang === lang) {
+            text = row.text;
+            captionCache.current.set(key, text);
+          } else {
+            try {
+              const res = await api.post(`/api/meetings/${meetingId}/translate`, {
+                text: row.text,
+                language: lang
+              });
+              text = res.data.text || row.text;
+            } catch (_) {
+              text = row.text;
+            }
+            captionCache.current.set(key, text);
+          }
+        }
+        next.push({
+          id: `${row.user}-${row.at}`,
+          name: row.username,
+          text,
+          mine: String(row.user) === String(myId)
+        });
+      }
+      if (!cancelled) setShownCaptions(next);
+    };
+    run();
+    return () => { cancelled = true; };
+  }, [meeting?.captions, lang, captionsOn, meetingId, myId]);
+
   const tiles = useMemo(() => {
     const live = meeting?.liveParticipants || [];
     const reactionFor = (id) => {
@@ -448,6 +591,9 @@ export default function MeetingRoom() {
       camOff,
       mirrored: true,
       isScreen: false,
+      connecting: false,
+      leaving: false,
+      avatar: user?.avatar || '',
       handRaised,
       reaction: reactionFor(myId),
       speaking: false
@@ -461,25 +607,59 @@ export default function MeetingRoom() {
       camOff: false,
       mirrored: false,
       isScreen: true,
+      connecting: false,
+      leaving: false,
+      avatar: '',
       handRaised: false,
       reaction: '',
       speaking: false
     } : null;
-    const others = remotes.map((p) => ({
-      id: p.userId,
-      name: p.username || names.current.get(p.userId) || 'Guest',
-      stream: p.stream,
-      mine: false,
-      muted: false,
-      camOff: false,
-      mirrored: false,
-      isScreen: streamIsScreen(p.stream) || Boolean(live.find((lp) => String(lp.user) === String(p.userId))?.isSharing),
-      handRaised: handFor(p.userId),
-      reaction: reactionFor(p.userId),
-      speaking: speakerId === p.userId
-    }));
+    const remoteMap = new Map(remotes.map((p) => [p.userId, p]));
+    const liveIds = new Set();
+    const others = [];
+    live.forEach((p) => {
+      const id = String(p.user?._id || p.user);
+      if (!id || id === String(myId)) return;
+      liveIds.add(id);
+      const remote = remoteMap.get(id);
+      others.push({
+        id,
+        name: p.username || names.current.get(id) || 'Guest',
+        stream: remote?.stream || null,
+        mine: false,
+        muted: false,
+        camOff: !remote?.stream,
+        mirrored: false,
+        isScreen: streamIsScreen(remote?.stream) || Boolean(p.isSharing),
+        connecting: !remote?.stream,
+        leaving: leavingIds.has(id),
+        avatar: p.avatar || '',
+        handRaised: handFor(id),
+        reaction: reactionFor(id),
+        speaking: speakerId === id
+      });
+    });
+    remotes.forEach((p) => {
+      if (liveIds.has(p.userId) || p.userId === String(myId)) return;
+      others.push({
+        id: p.userId,
+        name: p.username || names.current.get(p.userId) || 'Guest',
+        stream: p.stream,
+        mine: false,
+        muted: false,
+        camOff: false,
+        mirrored: false,
+        isScreen: streamIsScreen(p.stream),
+        connecting: false,
+        leaving: true,
+        avatar: '',
+        handRaised: false,
+        reaction: '',
+        speaking: false
+      });
+    });
     return [...(localScreen ? [localScreen] : []), localCam, ...others];
-  }, [remotes, meeting, myId, user, guest, muted, camOff, sharing, handRaised, speakerId, localStream, displayStream]);
+  }, [remotes, meeting, myId, user, guest, muted, camOff, sharing, handRaised, speakerId, localStream, displayStream, leavingIds]);
 
   const screenTile = tiles.find((tile) => tile.isScreen);
   const stageId = pinnedId || screenTile?.id || speakerId || (tiles.find((tile) => !tile.mine)?.id) || tiles[0]?.id;
@@ -699,6 +879,14 @@ export default function MeetingRoom() {
             <Link2 size={16} />
           </button>
         )}
+        <button
+          type="button"
+          onClick={() => setCaptionsOn((v) => !v)}
+          className={`p-2 rounded-xl ${captionsOn ? 'bg-brand-green text-brand-ink' : 'bg-white/10'}`}
+          title={t('subtitles')}
+        >
+          <Captions size={16} />
+        </button>
         <button type="button" onClick={toggleFs} className="p-2 rounded-xl bg-white/10" title={t('fullscreen')}>
           {isFs ? <Minimize size={16} /> : <Maximize size={16} />}
         </button>
@@ -714,7 +902,7 @@ export default function MeetingRoom() {
 
       <div className="flex-1 min-h-0 flex">
         <div className="flex-1 min-w-0 flex flex-col p-2 sm:p-3 gap-2">
-          <div className="flex-1 min-h-0 flex items-center justify-center bg-black/40 rounded-2xl overflow-hidden">
+          <div className="relative flex-1 min-h-0 flex items-center justify-center bg-black/40 rounded-2xl overflow-hidden">
             {stage && (
               <div className={stage.isScreen
                 ? 'w-full h-full'
@@ -727,6 +915,19 @@ export default function MeetingRoom() {
                   onPin={() => setPinnedId((id) => (id === stage.id ? null : stage.id))}
                   t={t}
                 />
+              </div>
+            )}
+            {captionsOn && shownCaptions.length > 0 && (
+              <div className="absolute bottom-3 left-1/2 -translate-x-1/2 w-[min(36rem,92%)] space-y-1 pointer-events-none">
+                {shownCaptions.map((line) => (
+                  <p
+                    key={line.id}
+                    className="px-3 py-1.5 rounded-xl bg-black/75 text-center text-sm text-white shadow-lg"
+                  >
+                    <span className="text-brand-green font-semibold">{line.name}: </span>
+                    {line.text}
+                  </p>
+                ))}
               </div>
             )}
           </div>

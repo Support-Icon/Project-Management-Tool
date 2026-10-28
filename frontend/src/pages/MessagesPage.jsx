@@ -11,6 +11,7 @@ import { useNotifications } from '../context/NotificationContext';
 import { formatIST } from '../utils/time';
 import { ROLE_LABELS, canAssignOthers } from '../utils/roles';
 import MediaViewer from '../components/MediaViewer';
+import UserAvatar from '../components/UserAvatar';
 
 const FileChip = ({ file, onRemove }) => (
   <span className="inline-flex items-center gap-1.5 px-2 py-1 rounded-lg bg-slate-100 text-xs text-slate-600">
@@ -256,11 +257,15 @@ export default function MessagesPage() {
                   }`}
                 >
                   <div className="flex items-center gap-3">
-                    <div className={`w-11 h-11 rounded-2xl flex items-center justify-center text-white text-sm font-bold shadow-sm ${
-                      c.type === 'company' ? 'bg-brand-ink text-brand-green' : c.type === 'team' ? 'bg-brand-yellow text-brand-ink' : 'bg-brand-blue'
-                    }`}>
-                      {iconFor(c)}
-                    </div>
+                    {c.type === 'direct' ? (
+                      <UserAvatar user={c.other} size={44} className="rounded-2xl shadow-sm" />
+                    ) : (
+                      <div className={`w-11 h-11 rounded-2xl flex items-center justify-center text-sm font-bold shadow-sm ${
+                        c.type === 'company' ? 'bg-brand-ink text-brand-green' : 'bg-brand-yellow text-brand-ink'
+                      }`}>
+                        {iconFor(c)}
+                      </div>
+                    )}
                     <div className="flex-1 min-w-0">
                       <p className="text-sm font-semibold text-brand-ink truncate">
                         {c.type === 'company' ? `# ${c.name || 'company'}` : c.name}
@@ -287,9 +292,7 @@ export default function MessagesPage() {
                   onClick={() => startDirect(p._id)}
                   className="w-full text-left px-4 py-2.5 hover:bg-black/[0.03] flex items-center gap-3"
                 >
-                  <div className="w-11 h-11 rounded-2xl bg-brand-blue/15 text-brand-blue flex items-center justify-center text-sm font-bold">
-                    {p.username[0].toUpperCase()}
-                  </div>
+                  <UserAvatar user={p} size={44} className="rounded-2xl" />
                   <div>
                     <p className="text-sm font-medium text-slate-700">{p.username}</p>
                     <p className="text-[11px] text-slate-400">{ROLE_LABELS[p.role] || p.role}</p>
@@ -364,7 +367,10 @@ export default function MessagesPage() {
               {!loadingThread && messages.map((m) => {
                 const mine = m.sender?._id === user?._id;
                 return (
-                  <div key={m._id} className={`flex ${mine ? 'justify-end' : 'justify-start'}`}>
+                  <div key={m._id} className={`flex items-end gap-2 ${mine ? 'justify-end' : 'justify-start'}`}>
+                    {!mine && (
+                      <UserAvatar user={m.sender} size={28} className="rounded-full mb-0.5" />
+                    )}
                     <div className={`max-w-[75%] rounded-2xl px-3.5 py-2.5 shadow-sm ${
                       mine
                         ? 'bg-brand-green text-brand-ink rounded-br-md'
@@ -383,6 +389,9 @@ export default function MessagesPage() {
                         {formatIST(m.createdAt)}
                       </p>
                     </div>
+                    {mine && (
+                      <UserAvatar user={m.sender || user} size={28} className="rounded-full mb-0.5" />
+                    )}
                   </div>
                 );
               })}
@@ -475,6 +484,7 @@ export default function MessagesPage() {
                       e.target.checked ? [...prev, p._id] : prev.filter((id) => id !== p._id)
                     ))}
                   />
+                  <UserAvatar user={p} size={24} className="rounded-lg" />
                   {p.username}
                   <span className="text-[11px] text-slate-400">{ROLE_LABELS[p.role]}</span>
                 </label>
