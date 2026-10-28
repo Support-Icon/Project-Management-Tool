@@ -167,8 +167,10 @@ export default function MeetingRoom() {
   const [isFs, setIsFs] = useState(false);
   const [lang, setLang] = useState('en');
   const [leavingIds, setLeavingIds] = useState(() => new Set());
-  const [captionsOn, setCaptionsOn] = useState(true);
+  const [captionsOn, setCaptionsOn] = useState(false);
+  const [captionLang, setCaptionLang] = useState('en');
   const [shownCaptions, setShownCaptions] = useState([]);
+  const [liveCaption, setLiveCaption] = useState(null);
 
   const streamRef = useRef(null);
   const displayStreamRef = useRef(null);
@@ -186,6 +188,7 @@ export default function MeetingRoom() {
   const seenLive = useRef(new Set());
   const livePrimed = useRef(false);
   const captionCache = useRef(new Map());
+  const captionsOnRef = useRef(false);
   const t = (key) => meetT(lang, key);
 
   const attachLocal = (stream) => {
@@ -333,6 +336,7 @@ export default function MeetingRoom() {
     setMeeting(data);
     if (data.language && !langReady.current) {
       setLang(data.language);
+      setCaptionLang(data.language);
       langReady.current = true;
     }
     if (data.notes) setNotes(data.notes);
@@ -417,7 +421,7 @@ export default function MeetingRoom() {
             await handleSignal(row);
           }
         } catch (_) {}
-        if (alive.current) pollTimer = setTimeout(tick, 1200);
+        if (alive.current) pollTimer = setTimeout(tick, captionsOnRef.current ? 450 : 1200);
       };
       tick();
     };
@@ -491,7 +495,14 @@ export default function MeetingRoom() {
   }, [meeting?.liveParticipants, phase, myId, lang]);
 
   useEffect(() => {
-    if (phase !== 'live' || !captionsOn || muted) return undefined;
+    captionsOnRef.current = captionsOn;
+  }, [captionsOn]);
+
+  useEffect(() => {
+    if (phase !== 'live' || !captionsOn || muted) {
+      setLiveCaption(null);
+      return undefined;
+    }
     const SpeechRec = window.SpeechRecognition || window.webkitSpeechRecognition;
     if (!SpeechRec) {
       toast.error('Live subtitles need Chrome or Edge', { id: 'no-speech' });
@@ -500,6 +511,7 @@ export default function MeetingRoom() {
     const rec = new SpeechRec();
     rec.continuous = true;
     rec.interimResults = true;
+    rec.maxAlternatives = 1;
     rec.lang = SPEECH_LANG[lang] || 'en-IN';
     let stop = false;
     let lastSent = 0;
@@ -513,13 +525,19 @@ export default function MeetingRoom() {
       }
       const text = (finalText || interim).trim();
       if (!text) return;
+      const myName = user?.username || guest?.name || 'You';
+      setLiveCaption({ name: myName, text, mine: true });
       const now = Date.now();
-      if (!finalText && now - lastSent < 700) return;
+      if (!finalText && now - lastSent < 180) return;
       lastSent = now;
       api.post(`/api/meetings/${meetingId}/captions`, {
         text,
         lang,
         final: Boolean(finalText)
+      }).then((res) => {
+        if (res.data?.captions) {
+          setMeeting((m) => (m ? { ...m, captions: res.data.captions } : m));
+        }
       }).catch(() => {});
     };
     rec.onend = () => {
@@ -527,12 +545,18 @@ export default function MeetingRoom() {
         try { rec.start(); } catch (_) {}
       }
     };
+    rec.onerror = () => {
+      if (!stop) {
+        try { rec.start(); } catch (_) {}
+      }
+    };
     try { rec.start(); } catch (_) {}
     return () => {
       stop = true;
+      setLiveCaption(null);
       try { rec.stop(); } catch (_) {}
     };
-  }, [phase, captionsOn, muted, lang, meetingId]);
+  }, [phase, captionsOn, muted, lang, meetingId, user?.username, guest?.name]);
 
   useEffect(() => {
     if (!captionsOn) {
@@ -540,41 +564,52 @@ export default function MeetingRoom() {
       return undefined;
     }
     let cancelled = false;
-    const run = async () => {
-      const rows = meeting?.captions || [];
-      const next = [];
-      for (const row of rows.slice(-4)) {
-        const key = `${row.lang}|${lang}|${row.text}`;
-        let text = captionCache.current.get(key);
-        if (!text) {
-          if (!row.final || !row.lang || row.lang === lang) {
-            text = row.text;
-            captionCache.current.set(key, text);
-          } else {
-            try {
-              const res = await api.post(`/api/meetings/${meetingId}/translate`, {
-                text: row.text,
-                language: lang
-              });
-              text = res.data.text || row.text;
-            } catch (_) {
-              text = row.text;
-            }
-            captionCache.current.set(key, text);
-          }
-        }
-        next.push({
-          id: `${row.user}-${row.at}`,
-          name: row.username,
-          text,
-          mine: String(row.user) === String(myId)
+    const rows = (meeting?.captions || []).slice(-4);
+    const next = rows.map((row) => {
+      const key = `${row.lang}|${captionLang}|${row.text}`;
+      const cached = captionCache.current.get(key);
+      return {
+        id: `${row.user}-${row.at}`,
+        name: row.username,
+        text: cached || row.text,
+        mine: String(row.user) === String(myId),
+        key,
+      };
+    });
+    setShownCaptions(next);
+    rows.forEach(async (row) => {
+      if (!row.final || !row.lang || row.lang === captionLang) return;
+      const key = `${row.lang}|${captionLang}|${row.text}`;
+      if (captionCache.current.has(key)) return;
+      try {
+        const res = await api.post(`/api/meetings/${meetingId}/translate`, {
+          text: row.text,
+          language: captionLang
         });
+        const text = res.data.text || row.text;
+        captionCache.current.set(key, text);
+        if (!cancelled) {
+          setShownCaptions((cur) => cur.map((line) => (line.key === key ? { ...line, text } : line)));
+        }
+      } catch (_) {
+        captionCache.current.set(key, row.text);
       }
-      if (!cancelled) setShownCaptions(next);
-    };
-    run();
+    });
     return () => { cancelled = true; };
-  }, [meeting?.captions, lang, captionsOn, meetingId, myId]);
+  }, [meeting?.captions, captionLang, captionsOn, meetingId, myId]);
+
+  const captionLines = useMemo(() => {
+    const lines = shownCaptions.filter((line) => !liveCaption?.text || !line.mine);
+    if (liveCaption?.text) {
+      lines.push({
+        id: 'live-local',
+        name: liveCaption.name,
+        text: liveCaption.text,
+        mine: true,
+      });
+    }
+    return lines.slice(-4);
+  }, [shownCaptions, liveCaption]);
 
   const tiles = useMemo(() => {
     const live = meeting?.liveParticipants || [];
@@ -857,7 +892,7 @@ export default function MeetingRoom() {
 
   return (
     <div className="h-screen flex flex-col bg-brand-ink text-white overflow-hidden">
-      <header className="px-3 sm:px-4 py-2 flex items-center gap-2 sm:gap-3 border-b border-white/10">
+      <header className="px-3 sm:px-4 py-2 flex flex-wrap items-center gap-2 sm:gap-3 border-b border-white/10">
         <BrandLogo className="h-9 w-auto max-w-[210px] flex-shrink-0" />
         <div className="min-w-0 flex-1">
           <p className="font-semibold truncate text-sm sm:text-base">{meeting?.title || t('connecting')}</p>
@@ -880,11 +915,25 @@ export default function MeetingRoom() {
             <Link2 size={16} />
           </button>
         )}
+        {captionsOn && (
+          <label className="flex items-center gap-1 text-xs text-slate-300" title={t('captionLang')}>
+            <span className="font-bold text-[10px] px-1.5 py-0.5 rounded bg-white/15">CC</span>
+            <select
+              value={captionLang}
+              onChange={(e) => setCaptionLang(e.target.value)}
+              className="bg-white/10 border border-white/10 rounded-lg px-2 py-1 text-xs outline-none max-w-[8.5rem]"
+            >
+              {MEET_LANGS.map((item) => (
+                <option key={`cap-${item.id}`} value={item.id} className="text-slate-800">{item.label}</option>
+              ))}
+            </select>
+          </label>
+        )}
         <button
           type="button"
           onClick={() => setCaptionsOn((v) => !v)}
           className={`p-2 rounded-xl ${captionsOn ? 'bg-brand-green text-brand-ink' : 'bg-white/10'}`}
-          title={t('subtitles')}
+          title={captionsOn ? t('captionsOn') : t('captionsOff')}
         >
           <Type size={16} />
         </button>
@@ -918,9 +967,9 @@ export default function MeetingRoom() {
                 />
               </div>
             )}
-            {captionsOn && shownCaptions.length > 0 && (
+            {captionsOn && captionLines.length > 0 && (
               <div className="absolute bottom-3 left-1/2 -translate-x-1/2 w-[min(36rem,92%)] space-y-1 pointer-events-none">
-                {shownCaptions.map((line) => (
+                {captionLines.map((line) => (
                   <p
                     key={line.id}
                     className="px-3 py-1.5 rounded-xl bg-black/75 text-center text-sm text-white shadow-lg"

@@ -51,7 +51,7 @@ def recent_captions(meeting):
         ts = at.timestamp() * 1000 if hasattr(at, "timestamp") else 0
         if ts >= cutoff:
             rows.append(c)
-    return rows[-8:]
+    return rows[-6:]
 
 
 def clean_summary(text: str) -> str:

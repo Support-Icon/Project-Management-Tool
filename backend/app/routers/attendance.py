@@ -1,10 +1,11 @@
 from datetime import datetime, timezone
 
 from fastapi import APIRouter, Body, Depends, Query
+from fastapi.responses import PlainTextResponse
 
 from ..db import get_db
 from ..deps import company_id, current_user, fail
-from ..duration import IST, today_in_zone
+from ..duration import IST, format_ist, today_in_zone
 from ..roles import can_see_all, is_team_lead, team_member_ids
 from ..serialize import dump, oid
 
@@ -187,8 +188,7 @@ async def set_status(body: dict = Body(default={}), user=Depends(current_user)):
     return serialize(row, leave)
 
 
-@router.get("/")
-async def list_attendance(date: str | None = Query(default=None), user=Depends(current_user)):
+async def attendance_payload(date: str | None, user):
     if not can_see_all(user) and not is_team_lead(user):
         fail(403, "Attendance view is for admin, manager, or team lead")
     day = date or today_in_zone(IST)
@@ -234,3 +234,39 @@ async def list_attendance(date: str | None = Query(default=None), user=Depends(c
             for person in people
         ]),
     }
+
+
+def _csv_cell(value):
+    text = "" if value is None else str(value)
+    if any(ch in text for ch in ',\"\n'):
+        return '"' + text.replace('"', '""') + '"'
+    return text
+
+
+@router.get("/")
+async def list_attendance(date: str | None = Query(default=None), user=Depends(current_user)):
+    return await attendance_payload(date, user)
+
+
+@router.get("/export")
+async def export_attendance(date: str | None = Query(default=None), user=Depends(current_user)):
+    payload = await attendance_payload(date, user)
+    lines = ["Person,Role,Status,Start,End,Break hours,Work hours"]
+    for person in payload["people"]:
+        status = "break" if person.get("onBreak") else (person.get("status") or "working")
+        lines.append(",".join([
+            _csv_cell(person.get("username")),
+            _csv_cell(person.get("role")),
+            _csv_cell(status),
+            _csv_cell(format_ist(person.get("startAt")) if person.get("startAt") else ""),
+            _csv_cell(format_ist(person.get("endAt")) if person.get("endAt") else ""),
+            _csv_cell(person.get("breakHours") if person.get("breakHours") else "0"),
+            _csv_cell("" if person.get("hours") is None else person.get("hours")),
+        ]))
+    day = payload["date"]
+    body = "\n".join(lines) + "\n"
+    return PlainTextResponse(
+        body,
+        media_type="text/csv",
+        headers={"Content-Disposition": f'attachment; filename="attendance-{day}.csv"'},
+    )

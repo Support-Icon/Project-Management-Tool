@@ -1,5 +1,6 @@
 import React, { useEffect, useState } from 'react';
-import { CalendarDays, Clock, Coffee } from 'lucide-react';
+import { CalendarDays, Clock, Coffee, Download } from 'lucide-react';
+import toast from 'react-hot-toast';
 import api from '../api/axios';
 import { formatIST } from '../utils/time';
 import { Navigate } from 'react-router-dom';
@@ -24,6 +25,7 @@ export default function AttendancePage() {
   }).format(new Date()));
   const [people, setPeople] = useState([]);
   const [loading, setLoading] = useState(true);
+  const [downloading, setDownloading] = useState(false);
 
   useEffect(() => {
     let cancelled = false;
@@ -41,6 +43,22 @@ export default function AttendancePage() {
     return () => { cancelled = true; };
   }, [date]);
 
+  const downloadReport = async () => {
+    setDownloading(true);
+    try {
+      const res = await api.get(`/api/attendance/export?date=${date}`, { responseType: 'blob' });
+      const blob = new Blob([res.data], { type: 'text/csv;charset=utf-8;' });
+      const link = document.createElement('a');
+      link.href = URL.createObjectURL(blob);
+      link.download = `attendance-${date}.csv`;
+      link.click();
+      URL.revokeObjectURL(link.href);
+      toast.success('Attendance report downloaded');
+    } catch (err) {
+      toast.error(err.response?.data?.message || 'Could not download attendance');
+    } finally { setDownloading(false); }
+  };
+
   if (!canViewTeamAnalytics(user)) return <Navigate to="/" replace />;
   if (loading) return <PageLoader label="Loading attendance…" />;
 
@@ -53,15 +71,25 @@ export default function AttendancePage() {
           </h1>
           <p className="text-sm text-slate-500 mt-1">Start / end day, breaks, and leave.</p>
         </div>
-        <label className="text-sm text-slate-600">
-          Date
-          <input
-            type="date"
-            value={date}
-            onChange={(e) => setDate(e.target.value)}
-            className="ml-2 px-3 py-2 rounded-xl border border-slate-200 text-sm"
-          />
-        </label>
+        <div className="flex flex-wrap items-center gap-2">
+          <label className="text-sm text-slate-600">
+            Date
+            <input
+              type="date"
+              value={date}
+              onChange={(e) => setDate(e.target.value)}
+              className="ml-2 px-3 py-2 rounded-xl border border-slate-200 text-sm"
+            />
+          </label>
+          <button
+            type="button"
+            onClick={downloadReport}
+            disabled={downloading}
+            className="inline-flex items-center gap-1.5 px-3 py-2 rounded-xl bg-brand-ink text-white text-sm font-semibold disabled:opacity-60"
+          >
+            <Download size={15} /> {downloading ? 'Downloading…' : 'Download'}
+          </button>
+        </div>
       </div>
 
       <div className="sm:hidden space-y-3">
