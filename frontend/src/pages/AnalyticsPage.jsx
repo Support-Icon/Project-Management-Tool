@@ -11,12 +11,14 @@ import toast from 'react-hot-toast';
 import api from '../api/axios';
 import { useAuth } from '../context/AuthContext';
 import { canViewTeamAnalytics } from '../utils/roles';
+import PageLoader from '../components/PageLoader';
+import PersonName from '../components/PersonName';
 
 const STATUS_COLORS = {
-  todo: '#6366f1',
-  inprogress: '#f59e0b',
-  review: '#8b5cf6',
-  done: '#10b981',
+  todo: '#1E88E5',
+  inprogress: '#F5C518',
+  review: '#E31C3D',
+  done: '#8DC63F',
 };
 
 const Charts = ({ charts }) => {
@@ -40,8 +42,8 @@ const Charts = ({ charts }) => {
             <ComposedChart data={charts.trend}>
               <defs>
                 <linearGradient id="upd" x1="0" y1="0" x2="0" y2="1">
-                  <stop offset="5%" stopColor="#4f46e5" stopOpacity={0.35} />
-                  <stop offset="95%" stopColor="#4f46e5" stopOpacity={0} />
+                  <stop offset="5%" stopColor="#0B0B0D" stopOpacity={0.35} />
+                  <stop offset="95%" stopColor="#0B0B0D" stopOpacity={0} />
                 </linearGradient>
               </defs>
               <CartesianGrid strokeDasharray="3 3" stroke="#e2e8f0" />
@@ -49,8 +51,8 @@ const Charts = ({ charts }) => {
               <YAxis allowDecimals={false} tick={{ fontSize: 11 }} />
               <Tooltip />
               <Legend />
-              <Area type="monotone" dataKey="updates" name="Updates" stroke="#4f46e5" fill="url(#upd)" />
-              <Line type="monotone" dataKey="completed" name="Completed" stroke="#10b981" strokeWidth={2} />
+              <Area type="monotone" dataKey="updates" name="Updates" stroke="#0B0B0D" fill="url(#upd)" />
+              <Line type="monotone" dataKey="completed" name="Completed" stroke="#8DC63F" strokeWidth={2} />
               <Line type="monotone" dataKey="created" name="Created" stroke="#f59e0b" strokeWidth={2} />
             </ComposedChart>
           </ResponsiveContainer>
@@ -82,7 +84,7 @@ const Charts = ({ charts }) => {
               <XAxis dataKey="date" tick={{ fontSize: 11 }} />
               <YAxis allowDecimals={false} tick={{ fontSize: 11 }} />
               <Tooltip />
-              <Bar dataKey="updates" name="Updates" fill="#6366f1" radius={[6, 6, 0, 0]} />
+              <Bar dataKey="updates" name="Updates" fill="#1E88E5" radius={[6, 6, 0, 0]} />
             </BarChart>
           </ResponsiveContainer>
         </div>
@@ -138,6 +140,8 @@ export default function AnalyticsPage() {
 
   const recentUpdates = useMemo(() => updates.slice(0, 25), [updates]);
 
+  if (loading && !(overview || personal)) return <PageLoader label="Loading analytics…" />;
+
   return (
     <div className="p-4 sm:p-6 max-w-7xl mx-auto animate-fade-in">
       <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 mb-6">
@@ -158,7 +162,7 @@ export default function AnalyticsPage() {
                 type="button"
                 onClick={() => setTab('team')}
                 className={`px-3 py-2 text-sm font-semibold flex items-center gap-1.5 ${
-                  tab === 'team' ? 'bg-indigo-600 text-white' : 'text-slate-600'
+                  tab === 'team' ? 'bg-brand-ink text-white' : 'text-slate-600'
                 }`}
               >
                 <Users size={15} /> Team
@@ -167,7 +171,7 @@ export default function AnalyticsPage() {
                 type="button"
                 onClick={() => setTab('personal')}
                 className={`px-3 py-2 text-sm font-semibold flex items-center gap-1.5 ${
-                  tab === 'personal' ? 'bg-indigo-600 text-white' : 'text-slate-600'
+                  tab === 'personal' ? 'bg-brand-ink text-white' : 'text-slate-600'
                 }`}
               >
                 <UserRound size={15} /> Personal
@@ -186,7 +190,7 @@ export default function AnalyticsPage() {
           </select>
           <button
             onClick={load}
-            className="p-2.5 rounded-xl bg-white border border-slate-200 text-slate-500 hover:text-indigo-600"
+            className="p-2.5 rounded-xl bg-white border border-slate-200 text-slate-500 hover:text-brand-blue"
             title="Refresh analytics"
           >
             <RefreshCw size={17} className={loading ? 'animate-spin' : ''} />
@@ -194,15 +198,13 @@ export default function AnalyticsPage() {
         </div>
       </div>
 
-      {loading && !(overview || personal) ? (
-        <div className="py-20 text-center text-slate-500">Loading analytics…</div>
-      ) : tab === 'team' && overview ? (
+      {tab === 'team' && overview ? (
         <>
           <div className="grid grid-cols-2 lg:grid-cols-5 gap-4 mb-6">
-            <Stat icon={ClipboardList} label="In Progress tasks" value={overview.summary.openTasks} tone="bg-indigo-50 text-indigo-600" />
+            <Stat icon={ClipboardList} label="In Progress tasks" value={overview.summary.openTasks} tone="bg-brand-green/10 text-brand-blue" />
             <Stat icon={Activity} label="Daily updated correctly" value={overview.summary.updatesToday} tone="bg-emerald-50 text-emerald-600" />
             <Stat icon={AlertCircle} label="Missed update reports" value={overview.summary.missingToday} tone="bg-amber-50 text-amber-600" />
-            <Stat icon={CheckCircle2} label="Completed in period" value={overview.summary.completedInPeriod} tone="bg-purple-50 text-purple-600" />
+            <Stat icon={CheckCircle2} label="Completed in period" value={overview.summary.completedInPeriod} tone="bg-brand-yellow/15 text-brand-blue" />
             <Stat icon={Users} label="Active people" value={overview.summary.activePeople} tone="bg-sky-50 text-sky-600" />
           </div>
 
@@ -232,8 +234,8 @@ export default function AnalyticsPage() {
                   {overview.people.map((person) => (
                     <tr key={person._id} className="border-t border-slate-50 text-sm">
                       <td className="px-5 py-4">
-                        <p className="font-semibold text-slate-800">{person.username}</p>
-                        <p className="text-xs text-slate-400">{person.email || 'No email'}</p>
+                        <PersonName user={person} size={28} nameClassName="font-semibold text-slate-800" />
+                        <p className="text-xs text-slate-400 mt-1">{person.email || 'No email'}</p>
                       </td>
                       <td className="px-4 py-4 font-semibold">{person.assignedOpen}</td>
                       <td className="px-4 py-4 text-emerald-600 font-semibold">{person.updatesToday}</td>
@@ -262,7 +264,7 @@ export default function AnalyticsPage() {
 
           <section className="bg-white rounded-2xl border border-slate-100 shadow-sm">
             <div className="px-5 py-4 border-b border-slate-100 flex items-center gap-2">
-              <TrendingUp size={18} className="text-indigo-600" />
+              <TrendingUp size={18} className="text-brand-blue" />
               <div>
                 <h3 className="font-bold text-slate-800">Recent Daily Updates</h3>
                 <p className="text-xs text-slate-500">Timezone: {overview.timezone}</p>
@@ -274,9 +276,9 @@ export default function AnalyticsPage() {
               ) : recentUpdates.map((update) => (
                 <article key={update._id} className="p-5">
                   <div className="flex flex-wrap items-center gap-x-2 gap-y-1 mb-2">
-                    <span className="font-semibold text-slate-800">{update.author?.username}</span>
+                    <PersonName user={update.author} size={22} nameClassName="font-semibold text-slate-800" />
                     <span className="text-xs text-slate-400">· {update.updateDate}</span>
-                    <span className="text-xs px-2 py-0.5 rounded-full bg-indigo-50 text-indigo-600 font-semibold">
+                    <span className="text-xs px-2 py-0.5 rounded-full bg-brand-green/10 text-brand-blue font-semibold">
                       {update.progressPercent}%
                     </span>
                   </div>
@@ -297,10 +299,10 @@ export default function AnalyticsPage() {
       ) : personal ? (
         <>
           <div className="grid grid-cols-2 lg:grid-cols-4 gap-4 mb-6">
-            <Stat icon={ClipboardList} label="My In Progress tasks" value={personal.summary.openTasks} tone="bg-indigo-50 text-indigo-600" />
+            <Stat icon={ClipboardList} label="My In Progress tasks" value={personal.summary.openTasks} tone="bg-brand-green/10 text-brand-blue" />
             <Stat icon={Activity} label="Daily updated correctly" value={personal.summary.updatesToday} tone="bg-emerald-50 text-emerald-600" />
             <Stat icon={AlertCircle} label="Missed update reports" value={personal.summary.missingToday} tone="bg-amber-50 text-amber-600" />
-            <Stat icon={CheckCircle2} label="Completed in period" value={personal.summary.completedInPeriod} tone="bg-purple-50 text-purple-600" />
+            <Stat icon={CheckCircle2} label="Completed in period" value={personal.summary.completedInPeriod} tone="bg-brand-yellow/15 text-brand-blue" />
           </div>
 
           <Charts charts={personal.charts} />
@@ -350,13 +352,13 @@ export default function AnalyticsPage() {
               <h3 className="font-bold text-slate-800">My recent updates</h3>
             </div>
             <div className="divide-y divide-slate-50">
-              {personal.recentUpdates.length === 0 ? (
+              {(personal.recentUpdates || personal.updates || []).length === 0 ? (
                 <p className="p-8 text-center text-sm text-slate-400">No updates in this period.</p>
-              ) : personal.recentUpdates.map((update) => (
+              ) : (personal.recentUpdates || personal.updates || []).map((update) => (
                 <article key={update._id} className="p-5">
                   <div className="flex flex-wrap items-center gap-x-2 gap-y-1 mb-2">
                     <span className="text-xs text-slate-400">{update.updateDate}</span>
-                    <span className="text-xs px-2 py-0.5 rounded-full bg-indigo-50 text-indigo-600 font-semibold">
+                    <span className="text-xs px-2 py-0.5 rounded-full bg-brand-green/10 text-brand-blue font-semibold">
                       {update.progressPercent}%
                     </span>
                   </div>

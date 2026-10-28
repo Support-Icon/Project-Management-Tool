@@ -42,7 +42,7 @@ async def assignable(user=Depends(current_user)):
     from ..roles import can_assign_others
     db = get_db()
     if not can_assign_others(user):
-        return [{"_id": dump(user["_id"]), "username": user["username"], "role": user["role"]}]
+        return [{"_id": dump(user["_id"]), "username": user["username"], "role": user["role"], "avatar": user.get("avatar") or ""}]
     filt = {"company": company_id(user)}
     if not can_see_all(user) and isinstance(user.get("scopeUserIds"), list):
         filt["_id"] = {"$in": user["scopeUserIds"]}
@@ -58,7 +58,7 @@ async def list_users(user=Depends(staff_user)):
         filt["$or"] = [{"_id": user["_id"]}, {"teamLead": user["_id"]}]
     docs = await db.users.find(filt, {"password": 0}).sort("createdAt", 1).to_list(500)
     await attach(db.companies, docs, "company", ["name"])
-    await attach(db.users, docs, "teamLead", ["username", "role"])
+    await attach(db.users, docs, "teamLead", ["username", "role", "avatar"])
     return dump(docs)
 
 
@@ -99,7 +99,7 @@ async def create_user(body: dict = Body(default={}), user=Depends(staff_user)):
     created = await db.users.find_one({"_id": result.inserted_id}, {"password": 0})
     docs = [created]
     await attach(db.companies, docs, "company", ["name"])
-    await attach(db.users, docs, "teamLead", ["username", "role"])
+    await attach(db.users, docs, "teamLead", ["username", "role", "avatar"])
     return dump(docs[0])
 
 
@@ -168,7 +168,7 @@ async def update_user(user_id: str, body: dict = Body(default={}), user=Depends(
         await db.users.update_many({"teamLead": result["_id"]}, {"$set": {"teamLead": None}})
     docs = [result]
     await attach(db.companies, docs, "company", ["name"])
-    await attach(db.users, docs, "teamLead", ["username", "role"])
+    await attach(db.users, docs, "teamLead", ["username", "role", "avatar"])
     return dump(docs[0])
 
 

@@ -31,8 +31,8 @@ export default function ProjectModal({ onClose, onCreated }) {
       <div className="bg-white rounded-2xl shadow-2xl w-full max-w-md animate-slide-up">
         <div className="flex items-center justify-between p-6 border-b border-slate-100">
           <div className="flex items-center gap-3">
-            <div className="w-9 h-9 rounded-xl bg-indigo-100 flex items-center justify-center">
-              <FolderKanban size={18} className="text-indigo-600" />
+            <div className="w-9 h-9 rounded-xl bg-brand-green/15 flex items-center justify-center">
+              <FolderKanban size={18} className="text-brand-blue" />
             </div>
             <h3 className="text-lg font-bold text-slate-800">New Project</h3>
           </div>
@@ -53,7 +53,7 @@ export default function ProjectModal({ onClose, onCreated }) {
               placeholder="e.g. Website Redesign"
               required
               autoFocus
-              className="w-full px-4 py-3 rounded-xl border border-slate-200 text-slate-800 text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500 focus:border-transparent transition"
+              className="w-full px-4 py-3 rounded-xl border border-slate-200 text-slate-800 text-sm focus:outline-none focus:ring-2 focus:ring-brand-green focus:border-transparent transition"
             />
           </div>
 
@@ -66,7 +66,7 @@ export default function ProjectModal({ onClose, onCreated }) {
               onChange={(e) => setForm((f) => ({ ...f, description: e.target.value }))}
               placeholder="Brief description of the project…"
               rows={3}
-              className="w-full px-4 py-3 rounded-xl border border-slate-200 text-slate-800 text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500 focus:border-transparent transition resize-none"
+              className="w-full px-4 py-3 rounded-xl border border-slate-200 text-slate-800 text-sm focus:outline-none focus:ring-2 focus:ring-brand-green focus:border-transparent transition resize-none"
             />
           </div>
 
@@ -85,7 +85,7 @@ export default function ProjectModal({ onClose, onCreated }) {
             <button
               type="submit"
               disabled={loading}
-              className="flex-1 px-4 py-2.5 rounded-xl bg-indigo-600 hover:bg-indigo-700 text-white text-sm font-semibold transition disabled:opacity-60 flex items-center justify-center gap-2"
+              className="flex-1 px-4 py-2.5 rounded-xl bg-brand-ink hover:bg-black text-white text-sm font-semibold transition disabled:opacity-60 flex items-center justify-center gap-2"
             >
               {loading ? (
                 <div className="w-4 h-4 border-2 border-white/30 border-t-white rounded-full animate-spin" />

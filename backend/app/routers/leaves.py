@@ -50,8 +50,8 @@ async def list_leaves(mine: str | None = Query(default=None), status: str | None
     if status:
         filt["status"] = status
     docs = await db.leaverequests.find(filt).sort("createdAt", -1).to_list(200)
-    await attach(db.users, docs, "user", ["username", "role", "teamLead"])
-    await attach(db.users, docs, "reviewedBy", ["username", "role"])
+    await attach(db.users, docs, "user", ["username", "role", "teamLead", "avatar"])
+    await attach(db.users, docs, "reviewedBy", ["username", "role", "avatar"])
     return dump(docs)
 
 
@@ -116,7 +116,7 @@ async def request_leave(body: dict = Body(default={}), user=Depends(current_user
     reviewer_ids = [i for i in dict.fromkeys(reviewer_ids) if i != str(user["_id"])]
     await notify_leave_requested(db, company_id=company_id(user), request=doc, requester=user, reviewer_ids=reviewer_ids)
     docs = [await db.leaverequests.find_one({"_id": result.inserted_id})]
-    await attach(db.users, docs, "user", ["username", "role"])
+    await attach(db.users, docs, "user", ["username", "role", "avatar"])
     return dump(docs[0])
 
 
@@ -171,6 +171,6 @@ async def review_leave(leave_id: str, body: dict = Body(default={}), user=Depend
             )
     await notify_leave_decision(db, company_id=company_id(user), request=updated, member_id=row["user"], approved=decision == "approved", reviewer=user)
     docs = [updated]
-    await attach(db.users, docs, "user", ["username", "role"])
-    await attach(db.users, docs, "reviewedBy", ["username", "role"])
+    await attach(db.users, docs, "user", ["username", "role", "avatar"])
+    await attach(db.users, docs, "reviewedBy", ["username", "role", "avatar"])
     return dump(docs[0])

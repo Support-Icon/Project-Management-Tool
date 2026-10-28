@@ -6,7 +6,7 @@ import { withMineOnly } from '../utils/apiQuery';
 import {
   LayoutDashboard, Users, FolderKanban, LogOut,
   Menu, X, Building2, FileSpreadsheet, UserCheck,
-  BarChart3, Settings, Bot, MessageSquare, CalendarDays, Video, Palmtree
+  BarChart3, Settings, MessageSquare, CalendarDays, Video, Palmtree
 } from 'lucide-react';
 import toast from 'react-hot-toast';
 import ProjectModal from './ProjectModal';
@@ -27,6 +27,7 @@ export default function Layout() {
   const navigate = useNavigate();
   const location = useLocation();
   const [projects, setProjects] = useState([]);
+  const [projectsReady, setProjectsReady] = useState(false);
   const [showProjectModal, setShowProjectModal] = useState(false);
   const [sidebarOpen, setSidebarOpen] = useState(() =>
     typeof window !== 'undefined' ? window.innerWidth >= 768 : true
@@ -40,7 +41,11 @@ export default function Layout() {
     try {
       const res = await api.get(`/api/projects${withMineOnly(isAdmin, adminMineOnly)}`);
       setProjects(res.data);
-    } catch (_) {}
+    } catch (_) {
+      setProjects([]);
+    } finally {
+      setProjectsReady(true);
+    }
   };
 
   useEffect(() => { fetchProjects(); }, [isAdmin, adminMineOnly]);
@@ -84,7 +89,7 @@ export default function Layout() {
   if (inMeetRoom) {
     return (
       <>
-        <Outlet context={{ projects, setProjects, refetchProjects: fetchProjects }} />
+        <Outlet context={{ projects, setProjects, refetchProjects: fetchProjects, projectsReady }} />
         {showProjectModal && (
           <ProjectModal
             onClose={() => setShowProjectModal(false)}
@@ -140,8 +145,7 @@ export default function Layout() {
           </NavLink>
           {projectsNav}
           <NavLink to="/ai-chat" className={navClass} onClick={closeMobileNav}>
-            <Bot size={17} />
-            AI Chat
+            Ask AI
           </NavLink>
           <NavLink to="/messages" className={navClass} onClick={closeMobileNav}>
             <MessageSquare size={17} />
@@ -265,7 +269,7 @@ export default function Layout() {
         )}
 
         <main className={`flex-1 min-h-0 ${inMeetRoom ? 'overflow-hidden' : fillPage ? 'overflow-hidden pb-16 md:pb-0' : 'overflow-auto pb-16 md:pb-0'}`}>
-          <Outlet context={{ projects, setProjects, refetchProjects: fetchProjects }} />
+          <Outlet context={{ projects, setProjects, refetchProjects: fetchProjects, projectsReady }} />
         </main>
       </div>
 

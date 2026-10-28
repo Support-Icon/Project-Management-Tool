@@ -5,6 +5,7 @@ import toast from 'react-hot-toast';
 import api from '../api/axios';
 import { MEET_LANGS, cleanSummaryText, meetT } from '../utils/meet';
 import { formatIST } from '../utils/time';
+import PageLoader from '../components/PageLoader';
 
 export default function MeetingSummary() {
   const { meetingId } = useParams();
@@ -59,13 +60,7 @@ export default function MeetingSummary() {
     );
   }
 
-  if (!meeting) {
-    return (
-      <div className="p-10 flex justify-center">
-        <div className="w-10 h-10 rounded-full border-4 border-brand-green/30 border-t-brand-green animate-spin" />
-      </div>
-    );
-  }
+  if (!meeting) return <PageLoader label="Loading summary…" />;
 
   if (meeting.status === 'live') {
     return <Navigate to={`/meet/${meetingId}`} replace />;

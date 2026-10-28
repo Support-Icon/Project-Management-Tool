@@ -4,6 +4,8 @@ import toast from 'react-hot-toast';
 import api from '../api/axios';
 import { useAuth } from '../context/AuthContext';
 import { canViewTeamAnalytics, ROLE_LABELS } from '../utils/roles';
+import PageLoader from '../components/PageLoader';
+import PersonName from '../components/PersonName';
 
 export default function TeamWorkPage() {
   const { user } = useAuth();
@@ -29,6 +31,8 @@ export default function TeamWorkPage() {
     return <div className="p-8 text-center text-slate-500">Manager or team lead access required.</div>;
   }
 
+  if (loading && !data) return <PageLoader label="Loading today’s work…" />;
+
   return (
     <div className="p-4 sm:p-6 max-w-6xl mx-auto animate-fade-in">
       <div className="flex items-center justify-between mb-6">
@@ -44,21 +48,15 @@ export default function TeamWorkPage() {
         </button>
       </div>
 
-      {loading && !data ? (
-        <p className="py-16 text-center text-slate-400">Loading today’s work…</p>
-      ) : (
-        <div className="space-y-4">
+      <div className="space-y-4">
           {(data?.people || []).map((person) => (
             <section key={person.username} className="bg-white rounded-2xl border border-slate-100 shadow-sm overflow-hidden">
               <div className="px-5 py-4 border-b border-slate-100 flex flex-wrap items-center gap-3">
-                <div className="w-9 h-9 rounded-xl bg-indigo-600 text-white flex items-center justify-center font-bold">
-                  {person.username[0]?.toUpperCase()}
-                </div>
+                <PersonName user={person} size={36} nameClassName="font-bold text-slate-800" />
                 <div className="flex-1 min-w-0">
-                  <p className="font-bold text-slate-800">{person.username}</p>
                   <p className="text-xs text-slate-400">{ROLE_LABELS[person.role] || person.role}</p>
                 </div>
-                <span className="text-xs font-semibold px-2.5 py-1 rounded-full bg-indigo-50 text-indigo-700 flex items-center gap-1">
+                <span className="text-xs font-semibold px-2.5 py-1 rounded-full bg-brand-green/10 text-brand-ink flex items-center gap-1">
                   <ClipboardList size={12} /> {person.tasks?.length || 0} today
                 </span>
                 <span className="text-xs font-semibold px-2.5 py-1 rounded-full bg-emerald-50 text-emerald-700 flex items-center gap-1">
@@ -77,7 +75,7 @@ export default function TeamWorkPage() {
                       <p className="text-sm font-semibold text-slate-800 flex-1">{task.title}</p>
                       <span className="text-xs text-slate-400">{task.project}</span>
                       <span className="text-[11px] font-semibold px-2 py-0.5 rounded-full bg-slate-100 text-slate-600">{task.column}</span>
-                      <span className="text-[11px] font-semibold px-2 py-0.5 rounded-full bg-indigo-50 text-indigo-600">{task.updateStatus}</span>
+                      <span className="text-[11px] font-semibold px-2 py-0.5 rounded-full bg-brand-green/10 text-brand-blue">{task.updateStatus}</span>
                     </div>
                   ))}
                 </div>
@@ -91,7 +89,6 @@ export default function TeamWorkPage() {
             </div>
           )}
         </div>
-      )}
     </div>
   );
 }

@@ -120,7 +120,7 @@ export default function TaskModal({ task, projectId, column, columns, projectTas
               placeholder="What needs to be done?"
               required
               autoFocus
-              className="w-full px-4 py-3 rounded-xl border border-slate-200 text-slate-800 text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500 focus:border-transparent transition"
+              className="w-full px-4 py-3 rounded-xl border border-slate-200 text-slate-800 text-sm focus:outline-none focus:ring-2 focus:ring-brand-green focus:border-transparent transition"
             />
           </div>
 
@@ -133,7 +133,7 @@ export default function TaskModal({ task, projectId, column, columns, projectTas
               onChange={set('description')}
               placeholder="Add more details…"
               rows={3}
-              className="w-full px-4 py-3 rounded-xl border border-slate-200 text-slate-800 text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500 focus:border-transparent transition resize-none"
+              className="w-full px-4 py-3 rounded-xl border border-slate-200 text-slate-800 text-sm focus:outline-none focus:ring-2 focus:ring-brand-green focus:border-transparent transition resize-none"
             />
           </div>
 
@@ -167,7 +167,7 @@ export default function TaskModal({ task, projectId, column, columns, projectTas
               <select
                 value={form.column}
                 onChange={set('column')}
-                className="w-full px-3 py-2.5 rounded-xl border border-slate-200 text-slate-800 text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500 focus:border-transparent transition bg-white"
+                className="w-full px-3 py-2.5 rounded-xl border border-slate-200 text-slate-800 text-sm focus:outline-none focus:ring-2 focus:ring-brand-green focus:border-transparent transition bg-white"
               >
                 {(columns || []).map((c) => (
                   <option key={c.id} value={c.id}>{c.title}</option>
@@ -184,7 +184,7 @@ export default function TaskModal({ task, projectId, column, columns, projectTas
               <select
                 value={form.assigneeId}
                 onChange={set('assigneeId')}
-                className="w-full px-3 py-2.5 rounded-xl border border-slate-200 text-slate-800 text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500 focus:border-transparent transition bg-white"
+                className="w-full px-3 py-2.5 rounded-xl border border-slate-200 text-slate-800 text-sm focus:outline-none focus:ring-2 focus:ring-brand-green focus:border-transparent transition bg-white"
               >
                 <option value="">Unassigned</option>
                 {members.map((m) => (
@@ -204,7 +204,7 @@ export default function TaskModal({ task, projectId, column, columns, projectTas
                   type="date"
                   value={form.startDate}
                   onChange={set('startDate')}
-                  className="w-full px-3 py-2.5 rounded-xl border border-slate-200 text-slate-800 text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500 focus:border-transparent transition"
+                  className="w-full px-3 py-2.5 rounded-xl border border-slate-200 text-slate-800 text-sm focus:outline-none focus:ring-2 focus:ring-brand-green focus:border-transparent transition"
                 />
               </div>
               <div>
@@ -215,7 +215,7 @@ export default function TaskModal({ task, projectId, column, columns, projectTas
                   type="date"
                   value={form.dueDate}
                   onChange={set('dueDate')}
-                  className="w-full px-3 py-2.5 rounded-xl border border-slate-200 text-slate-800 text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500 focus:border-transparent transition"
+                  className="w-full px-3 py-2.5 rounded-xl border border-slate-200 text-slate-800 text-sm focus:outline-none focus:ring-2 focus:ring-brand-green focus:border-transparent transition"
                 />
               </div>
             </div>
@@ -233,7 +233,7 @@ export default function TaskModal({ task, projectId, column, columns, projectTas
                 value={form.durationValue}
                 onChange={set('durationValue')}
                 placeholder="e.g. 2"
-                className="w-full px-3 py-2.5 rounded-xl border border-slate-200 text-slate-800 text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500 focus:border-transparent transition"
+                className="w-full px-3 py-2.5 rounded-xl border border-slate-200 text-slate-800 text-sm focus:outline-none focus:ring-2 focus:ring-brand-green focus:border-transparent transition"
               />
               <select
                 value={form.durationUnit}
@@ -245,7 +245,7 @@ export default function TaskModal({ task, projectId, column, columns, projectTas
                   startTime: e.target.value === 'days' ? '' : f.startTime,
                   dueTime: e.target.value === 'days' ? '' : f.dueTime,
                 }))}
-                className="w-full px-3 py-2.5 rounded-xl border border-slate-200 text-slate-800 text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500 bg-white"
+                className="w-full px-3 py-2.5 rounded-xl border border-slate-200 text-slate-800 text-sm focus:outline-none focus:ring-2 focus:ring-brand-green bg-white"
               >
                 <option value="minutes">Minutes</option>
                 <option value="hours">Hours</option>
@@ -273,7 +273,7 @@ export default function TaskModal({ task, projectId, column, columns, projectTas
                   type="time"
                   value={form.startTime}
                   onChange={set('startTime')}
-                  className="w-full px-3 py-2.5 rounded-xl border border-slate-200 text-slate-800 text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500 focus:border-transparent transition"
+                  className="w-full px-3 py-2.5 rounded-xl border border-slate-200 text-slate-800 text-sm focus:outline-none focus:ring-2 focus:ring-brand-green focus:border-transparent transition"
                 />
               </div>
               <div>
@@ -284,7 +284,7 @@ export default function TaskModal({ task, projectId, column, columns, projectTas
                   type="time"
                   value={form.dueTime}
                   onChange={set('dueTime')}
-                  className="w-full px-3 py-2.5 rounded-xl border border-slate-200 text-slate-800 text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500 focus:border-transparent transition"
+                  className="w-full px-3 py-2.5 rounded-xl border border-slate-200 text-slate-800 text-sm focus:outline-none focus:ring-2 focus:ring-brand-green focus:border-transparent transition"
                 />
               </div>
             </div>
@@ -297,7 +297,7 @@ export default function TaskModal({ task, projectId, column, columns, projectTas
             <select
               value={form.dependsOn}
               onChange={set('dependsOn')}
-              className="w-full px-3 py-2.5 rounded-xl border border-slate-200 text-slate-800 text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500 focus:border-transparent transition bg-white"
+              className="w-full px-3 py-2.5 rounded-xl border border-slate-200 text-slate-800 text-sm focus:outline-none focus:ring-2 focus:ring-brand-green focus:border-transparent transition bg-white"
             >
               <option value="">None — can start anytime</option>
               {dependencyOptions.map((t) => (
@@ -312,7 +312,7 @@ export default function TaskModal({ task, projectId, column, columns, projectTas
           </div>
 
           {!canAssign && (
-            <p className="text-xs text-indigo-600 bg-indigo-50 px-3 py-2 rounded-lg">
+            <p className="text-xs text-brand-blue bg-brand-green/10 px-3 py-2 rounded-lg">
               This task will be assigned to you automatically.
             </p>
           )}
@@ -326,7 +326,7 @@ export default function TaskModal({ task, projectId, column, columns, projectTas
               value={form.tags}
               onChange={set('tags')}
               placeholder="bug, frontend, urgent (comma separated)"
-              className="w-full px-4 py-3 rounded-xl border border-slate-200 text-slate-800 text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500 focus:border-transparent transition"
+              className="w-full px-4 py-3 rounded-xl border border-slate-200 text-slate-800 text-sm focus:outline-none focus:ring-2 focus:ring-brand-green focus:border-transparent transition"
             />
           </div>
 
@@ -341,7 +341,7 @@ export default function TaskModal({ task, projectId, column, columns, projectTas
             <button
               type="submit"
               disabled={loading}
-              className="flex-1 px-4 py-2.5 rounded-xl bg-indigo-600 hover:bg-indigo-700 text-white text-sm font-semibold transition disabled:opacity-60 flex items-center justify-center gap-2"
+              className="flex-1 px-4 py-2.5 rounded-xl bg-brand-ink hover:bg-black text-white text-sm font-semibold transition disabled:opacity-60 flex items-center justify-center gap-2"
             >
               {loading ? (
                 <div className="w-4 h-4 border-2 border-white/30 border-t-white rounded-full animate-spin" />

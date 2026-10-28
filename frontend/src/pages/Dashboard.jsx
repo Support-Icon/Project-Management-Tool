@@ -10,6 +10,8 @@ import {
 } from 'lucide-react';
 import toast from 'react-hot-toast';
 import ProjectModal from '../components/ProjectModal';
+import PageLoader from '../components/PageLoader';
+import PersonName from '../components/PersonName';
 
 const StatCard = ({ icon: Icon, label, value, color, bg }) => (
   <div className="bg-white rounded-2xl p-5 shadow-sm border border-slate-100 flex items-center gap-4 hover:shadow-md transition-shadow">
@@ -28,12 +30,13 @@ export default function Dashboard() {
   const isAdmin = canSeeAll(user);
   const canManage = canManageUsers(user);
   const navigate = useNavigate();
-  const { projects, setProjects, refetchProjects } = useOutletContext();
+  const { projects, setProjects, projectsReady } = useOutletContext();
   const [taskStats, setTaskStats] = useState({ total: 0, done: 0 });
   const [userCount, setUserCount] = useState(0);
   const [showModal, setShowModal] = useState(false);
   const [menuOpen, setMenuOpen] = useState(null);
   const [pendingUpdates, setPendingUpdates] = useState({ date: '', tasks: [] });
+  const [ready, setReady] = useState(false);
 
   useEffect(() => {
     const fetchStats = async () => {
@@ -47,6 +50,7 @@ export default function Dashboard() {
         setTaskStats({ total: statsRes.data.total || 0, done: statsRes.data.done || 0 });
         if (canManage) setUserCount(usersRes.data.length);
       } catch (_) {}
+      finally { setReady(true); }
     };
     fetchStats();
   }, [user, isAdmin, adminMineOnly, canManage]);
@@ -75,27 +79,31 @@ export default function Dashboard() {
     ? Math.round((taskStats.done / taskStats.total) * 100)
     : 0;
 
+  if (!ready || !projectsReady) return <PageLoader label="Loading dashboard…" />;
+
   return (
     <div className="p-4 sm:p-6 max-w-6xl mx-auto animate-fade-in">
       {/* Header */}
       <div className="mb-8">
         <h2 className="text-2xl font-bold text-slate-800">
-          {greeting()}, {user?.username} 👋
+          <span className="inline-flex items-center gap-3">
+            {greeting()}, <PersonName user={user} size={32} nameClassName="font-bold" /> 👋
+          </span>
         </h2>
-        <p className="text-slate-500 mt-1">Here's what's happening at <span className="font-semibold text-indigo-600">{user?.company?.name}</span> today.</p>
+        <p className="text-slate-500 mt-1">Here's what's happening at <span className="font-semibold text-brand-blue">{user?.company?.name}</span> today.</p>
       </div>
 
       {canManage && userCount <= 1 && (
-        <div className="mb-6 bg-indigo-50 border border-indigo-200 rounded-2xl p-5">
-          <h3 className="font-bold text-indigo-950">Set up Manager and Team Lead</h3>
-          <p className="text-sm text-indigo-800 mt-1">
+        <div className="mb-6 bg-brand-green/10 border border-brand-green/30 rounded-2xl p-5">
+          <h3 className="font-bold text-brand-ink">Set up Manager and Team Lead</h3>
+          <p className="text-sm text-brand-ink mt-1">
             Next, add the other roles from Team Members: <strong>Admin</strong>, <strong>Manager</strong>,
             and <strong>Team Lead</strong>. Managers see everyone’s work; team leads see only their members.
           </p>
           <button
             type="button"
             onClick={() => navigate('/users')}
-            className="mt-3 px-4 py-2 rounded-xl bg-indigo-600 text-white text-sm font-semibold"
+            className="mt-3 px-4 py-2 rounded-xl bg-brand-ink text-white text-sm font-semibold"
           >
             Add Manager / Team Lead
           </button>
@@ -133,8 +141,8 @@ export default function Dashboard() {
 
       {/* Stats */}
       <div className="grid grid-cols-2 lg:grid-cols-4 gap-4 mb-8">
-        <StatCard icon={FolderKanban} label="Total Projects" value={projects.length} color="text-indigo-600" bg="bg-indigo-50" />
-        <StatCard icon={CheckSquare} label="Total Tasks" value={taskStats.total} color="text-violet-600" bg="bg-violet-50" />
+        <StatCard icon={FolderKanban} label="Total Projects" value={projects.length} color="text-brand-blue" bg="bg-brand-green/10" />
+        <StatCard icon={CheckSquare} label="Total Tasks" value={taskStats.total} color="text-brand-blue" bg="bg-brand-blue/10" />
         <StatCard icon={TrendingUp} label="Completed" value={taskStats.done} color="text-emerald-600" bg="bg-emerald-50" />
         {canManage && (
           <StatCard icon={Users} label="Team Members" value={userCount} color="text-amber-600" bg="bg-amber-50" />
@@ -146,11 +154,11 @@ export default function Dashboard() {
         <div className="bg-white rounded-2xl p-5 shadow-sm border border-slate-100 mb-8">
           <div className="flex items-center justify-between mb-3">
             <p className="text-sm font-semibold text-slate-700">Overall Progress</p>
-            <span className="text-sm font-bold text-indigo-600">{completionPct}%</span>
+            <span className="text-sm font-bold text-brand-blue">{completionPct}%</span>
           </div>
           <div className="h-2.5 bg-slate-100 rounded-full overflow-hidden">
             <div
-              className="h-full bg-gradient-to-r from-indigo-500 to-purple-600 rounded-full transition-all duration-500"
+              className="h-full bg-gradient-to-r from-brand-ink to-brand-blue rounded-full transition-all duration-500"
               style={{ width: `${completionPct}%` }}
             />
           </div>
@@ -167,7 +175,7 @@ export default function Dashboard() {
         {canManage && (
           <button
             onClick={() => setShowModal(true)}
-            className="flex items-center gap-2 bg-indigo-600 hover:bg-indigo-700 text-white text-sm font-semibold px-4 py-2 rounded-xl transition-all shadow-sm hover:shadow-md"
+            className="flex items-center gap-2 bg-brand-ink hover:bg-black text-white text-sm font-semibold px-4 py-2 rounded-xl transition-all shadow-sm hover:shadow-md"
           >
             <Plus size={16} />
             New Project
@@ -189,7 +197,7 @@ export default function Dashboard() {
           {canManage && (
             <button
               onClick={() => setShowModal(true)}
-              className="inline-flex items-center gap-2 bg-indigo-600 hover:bg-indigo-700 text-white text-sm font-semibold px-5 py-2.5 rounded-xl transition-all"
+              className="inline-flex items-center gap-2 bg-brand-ink hover:bg-black text-white text-sm font-semibold px-5 py-2.5 rounded-xl transition-all"
             >
               <Plus size={16} /> Create Project
             </button>
@@ -201,10 +209,10 @@ export default function Dashboard() {
             <div
               key={p._id}
               onClick={() => navigate(`/kanban/${p._id}`)}
-              className="bg-white rounded-2xl p-5 shadow-sm border border-slate-100 hover:shadow-md hover:border-indigo-200 cursor-pointer transition-all group relative"
+              className="bg-white rounded-2xl p-5 shadow-sm border border-slate-100 hover:shadow-md hover:border-brand-green cursor-pointer transition-all group relative"
             >
               <div className="flex items-start justify-between mb-3">
-                <div className="w-10 h-10 rounded-xl bg-gradient-to-br from-indigo-500 to-purple-600 flex items-center justify-center flex-shrink-0 shadow-sm">
+                <div className="w-10 h-10 rounded-xl bg-gradient-to-br from-brand-ink to-brand-blue flex items-center justify-center flex-shrink-0 shadow-sm">
                   <FolderKanban size={18} className="text-white" />
                 </div>
                 {canManage && (
@@ -237,7 +245,7 @@ export default function Dashboard() {
                   <Calendar size={12} />
                   {new Date(p.createdAt).toLocaleDateString('en-US', { month: 'short', day: 'numeric' })}
                 </div>
-                <span className="flex items-center gap-1 text-xs font-medium text-indigo-600 group-hover:gap-2 transition-all">
+                <span className="flex items-center gap-1 text-xs font-medium text-brand-blue group-hover:gap-2 transition-all">
                   Open <ArrowRight size={12} />
                 </span>
               </div>

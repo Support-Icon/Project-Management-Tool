@@ -37,7 +37,7 @@ async def list_notifications(since: str | None = Query(default=None), limit: int
         except ValueError:
             pass
     items = await db.notifications.find({**filt, "read": False}).sort("createdAt", -1).to_list(limit)
-    await attach(db.users, items, "actor", ["username"])
+    await attach(db.users, items, "actor", ["username", "avatar"])
     unread_count = await db.notifications.count_documents({"user": user["_id"], "read": False})
     return dump({
         "items": items,

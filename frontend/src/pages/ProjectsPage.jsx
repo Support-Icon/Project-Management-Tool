@@ -6,17 +6,19 @@ import api from '../api/axios';
 import { useAuth } from '../context/AuthContext';
 import { canViewTeamAnalytics, canManageUsers, canSeeAll } from '../utils/roles';
 import ProjectModal from '../components/ProjectModal';
+import PageLoader from '../components/PageLoader';
 
 export default function ProjectsPage() {
   const { user } = useAuth();
   const navigate = useNavigate();
-  const { projects, setProjects } = useOutletContext();
+  const { projects, setProjects, projectsReady } = useOutletContext();
   const canLead = canViewTeamAnalytics(user);
   const canManage = canManageUsers(user);
   const [showModal, setShowModal] = useState(false);
   const [menuOpen, setMenuOpen] = useState(null);
 
   if (!canLead) return <Navigate to="/" replace />;
+  if (!projectsReady) return <PageLoader label="Loading projects…" />;
 
   const handleDelete = async (e, id) => {
     e.stopPropagation();

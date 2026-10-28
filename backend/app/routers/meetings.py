@@ -131,11 +131,11 @@ async def guest_info(token: str):
     meeting = await get_db().meetings.find_one({"guestToken": token})
     if not meeting:
         fail(404, "Meeting link is invalid")
-    host = await get_db().users.find_one({"_id": meeting.get("host")}, {"username": 1})
+    host = await get_db().users.find_one({"_id": meeting.get("host")}, {"username": 1, "avatar": 1})
     return dump({
         "title": meeting.get("title"),
         "status": meeting.get("status"),
-        "host": {"username": (host or {}).get("username")},
+        "host": {"username": (host or {}).get("username"), "avatar": (host or {}).get("avatar") or ""},
         "language": meeting.get("language") or "en",
         "endedAt": meeting.get("endedAt"),
     })
@@ -188,7 +188,12 @@ async def list_meetings(user=Depends(current_user)):
             await db.meetings.update_one({"_id": meeting["_id"]}, {"$set": {"guestToken": token}})
             meeting["guestToken"] = token
     ended = await db.meetings.find({"company": company, "status": "ended"}).sort("endedAt", -1).to_list(30)
-    return dump({"live": [public_meeting(m, True) for m in live], "recent": [public_meeting(m, True) for m in ended]})
+    from ..serialize import attach
+    await attach(db.users, live, "host", ["username", "role", "avatar"])
+    await attach(db.users, ended, "host", ["username", "role", "avatar"])
+    listed = [public_meeting(m, True) for m in live]
+    recents = [public_meeting(m, True) for m in ended]
+    return dump({"live": listed, "ended": recents, "recent": recents})
 
 
 @router.post("/")
@@ -309,7 +314,7 @@ async def add_note(meeting_id: str, body: dict = Body(default={}), user=Depends(
     if not text:
         fail(400, "Note is empty")
     meeting = await load_meeting(meeting_id, user)
-    note = {"user": user["_id"], "username": user.get("username"), "text": text, "at": datetime.now(timezone.utc)}
+    note = {"user": user["_id"], "username": user.get("username"), "avatar": user.get("avatar") or "", "text": text, "at": datetime.now(timezone.utc)}
     updated = await get_db().meetings.find_one_and_update({"_id": meeting["_id"]}, {"$push": {"notes": note}}, return_document=ReturnDocument.AFTER)
     return dump(updated.get("notes") or [])
 

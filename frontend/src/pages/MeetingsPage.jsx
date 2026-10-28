@@ -7,6 +7,9 @@ import { formatIST } from '../utils/time';
 import { ROLE_LABELS, canSeeAll } from '../utils/roles';
 import { useAuth } from '../context/AuthContext';
 import { meetingInviteText, cleanSummaryText } from '../utils/meet';
+import PageLoader from '../components/PageLoader';
+import PersonName from '../components/PersonName';
+import UserAvatar from '../components/UserAvatar';
 
 export default function MeetingsPage() {
   const { user } = useAuth();
@@ -18,6 +21,7 @@ export default function MeetingsPage() {
   const [directory, setDirectory] = useState([]);
   const [invitees, setInvitees] = useState([]);
   const [busy, setBusy] = useState(false);
+  const [ready, setReady] = useState(false);
 
   const load = async () => {
     try {
@@ -25,6 +29,7 @@ export default function MeetingsPage() {
       setLive(res.data.live || []);
       setEnded(res.data.ended || []);
     } catch (_) {}
+    finally { setReady(true); }
   };
 
   useEffect(() => {
@@ -76,8 +81,10 @@ export default function MeetingsPage() {
     }
   };
 
+  if (!ready) return <PageLoader label="Loading meetings…" />;
+
   return (
-    <div className="p-4 sm:p-6 max-w-4xl mx-auto space-y-6">
+    <div className="p-4 sm:p-6 max-w-4xl mx-auto space-y-6 animate-fade-in">
       <div>
         <h1 className="text-xl font-bold text-brand-ink flex items-center gap-2">
           <Video size={22} className="text-brand-green" /> Live Meet
@@ -102,12 +109,13 @@ export default function MeetingsPage() {
                 key={p._id}
                 type="button"
                 onClick={() => toggleInvite(String(p._id))}
-                className={`px-2.5 py-1 rounded-full text-xs font-medium border ${
+                className={`inline-flex items-center gap-1.5 px-2 py-1 rounded-full text-xs font-medium border ${
                   invitees.includes(String(p._id))
                     ? 'bg-brand-green text-brand-ink border-brand-green'
                     : 'border-white/15 text-slate-300'
                 }`}
               >
+                <UserAvatar user={p} size={16} className="rounded-full" />
                 {p.username}
               </button>
             ))}
@@ -137,9 +145,9 @@ export default function MeetingsPage() {
               >
                 <button type="button" onClick={() => navigate(`/meet/${m._id}`)} className="w-full text-left">
                   <p className="font-semibold text-brand-ink">{m.title}</p>
-                  <p className="text-xs text-brand-blue mt-1">
-                    Host {m.host?.username} · {m.liveParticipants?.length || 0} in call
-                  </p>
+                  <div className="text-xs text-brand-blue mt-1 flex items-center gap-1.5">
+                    Host <PersonName user={m.host} size={16} nameClassName="text-brand-blue" /> · {m.liveParticipants?.length || 0} in call
+                  </div>
                   <p className="text-[11px] text-slate-400 mt-1">{formatIST(m.startedAt)}</p>
                 </button>
                 <div className="mt-3 flex flex-wrap gap-2">
@@ -186,8 +194,8 @@ export default function MeetingsPage() {
                 <div className="flex items-start justify-between gap-3">
                   <div>
                     <p className="font-semibold text-brand-ink">{m.title}</p>
-                    <p className="text-xs text-slate-500 mt-1">
-                      {m.host?.username} · {ROLE_LABELS[m.host?.role] || ''}
+                    <p className="text-xs text-slate-500 mt-1 flex items-center gap-1.5">
+                      <PersonName user={m.host} size={16} nameClassName="text-slate-500" /> · {ROLE_LABELS[m.host?.role] || ''}
                     </p>
                   </div>
                   <span className="inline-flex items-center gap-1 text-[11px] text-slate-400">

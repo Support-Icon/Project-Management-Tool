@@ -3,6 +3,7 @@ import { useNavigate } from 'react-router-dom';
 import { Bell, CheckCheck } from 'lucide-react';
 import { useNotifications } from '../context/NotificationContext';
 import { formatIST } from '../utils/time';
+import PersonName from './PersonName';
 
 export default function NotificationBell() {
   const { items, unreadCount, markRead, markAllRead, requestDesktopPermission } = useNotifications() || {};
@@ -69,7 +70,14 @@ export default function NotificationBell() {
                 onClick={() => handleItem(item)}
                 className={`w-full text-left px-4 py-3 border-b border-slate-50 hover:bg-slate-50 transition ${item.read ? '' : 'bg-brand-green/10'}`}
               >
-                <p className="text-sm font-semibold text-slate-800">{item.title}</p>
+                {item.actor?.username ? (
+                  <PersonName user={item.actor} size={22} nameClassName="text-sm font-semibold text-slate-800" />
+                ) : (
+                  <p className="text-sm font-semibold text-slate-800">{item.title}</p>
+                )}
+                {item.actor?.username && (
+                  <p className="text-sm font-semibold text-slate-800 mt-1">{item.title}</p>
+                )}
                 {item.body && <p className="text-xs text-slate-500 mt-0.5 line-clamp-2">{item.body}</p>}
                 <p className="text-[11px] text-slate-400 mt-1">{formatIST(item.createdAt)}</p>
               </button>

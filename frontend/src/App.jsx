@@ -21,13 +21,11 @@ import GuestJoin from './pages/GuestJoin';
 import ProjectsPage from './pages/ProjectsPage';
 import ProfilePage from './pages/ProfilePage';
 import Layout from './components/Layout';
+import PageLoader from './components/PageLoader';
 
 const Spinner = () => (
-  <div className="min-h-screen flex items-center justify-center bg-slate-50">
-    <div className="flex flex-col items-center gap-4">
-      <div className="w-12 h-12 border-4 border-brand-green border-t-transparent rounded-full animate-spin" />
-      <p className="text-slate-500 text-sm font-medium">Loading Supporticon…</p>
-    </div>
+  <div className="min-h-screen bg-[#eef3f0]">
+    <PageLoader label="Loading Supporticon…" />
   </div>
 );
 

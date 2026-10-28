@@ -7,6 +7,9 @@ import {
 } from 'lucide-react';
 import toast from 'react-hot-toast';
 import { ROLE_LABELS, roleTone, canManageUsers, creatableRoles } from '../utils/roles';
+import PageLoader from '../components/PageLoader';
+import UserAvatar from '../components/UserAvatar';
+import PersonName from '../components/PersonName';
 
 const ROLE_ICONS = {
   admin: Shield,
@@ -94,7 +97,7 @@ function UserModal({ user: editUser, allUsers = [], currentUser, onClose, onSave
               placeholder={editUser ? editUser.username : 'Enter username'}
               required={!editUser}
               minLength={editUser ? undefined : 3}
-              className="w-full px-4 py-3 rounded-xl border border-slate-200 text-slate-800 text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500 focus:border-transparent transition"
+              className="w-full px-4 py-3 rounded-xl border border-slate-200 text-slate-800 text-sm focus:outline-none focus:ring-2 focus:ring-brand-green focus:border-transparent transition"
             />
           </div>
 
@@ -108,7 +111,7 @@ function UserModal({ user: editUser, allUsers = [], currentUser, onClose, onSave
               onChange={set('email')}
               placeholder="person@company.com"
               required
-              className="w-full px-4 py-3 rounded-xl border border-slate-200 text-slate-800 text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500 focus:border-transparent transition"
+              className="w-full px-4 py-3 rounded-xl border border-slate-200 text-slate-800 text-sm focus:outline-none focus:ring-2 focus:ring-brand-green focus:border-transparent transition"
             />
           </div>
 
@@ -124,7 +127,7 @@ function UserModal({ user: editUser, allUsers = [], currentUser, onClose, onSave
                 placeholder={editUser ? '••••••' : 'Min. 6 characters'}
                 required={!editUser}
                 minLength={form.password ? 6 : undefined}
-                className="w-full px-4 py-3 pr-10 rounded-xl border border-slate-200 text-slate-800 text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500 focus:border-transparent transition"
+                className="w-full px-4 py-3 pr-10 rounded-xl border border-slate-200 text-slate-800 text-sm focus:outline-none focus:ring-2 focus:ring-brand-green focus:border-transparent transition"
               />
               <button
                 type="button"
@@ -141,7 +144,7 @@ function UserModal({ user: editUser, allUsers = [], currentUser, onClose, onSave
             <select
               value={form.role}
               onChange={set('role')}
-              className="w-full px-4 py-3 rounded-xl border border-slate-200 text-slate-800 text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500 focus:border-transparent transition bg-white"
+              className="w-full px-4 py-3 rounded-xl border border-slate-200 text-slate-800 text-sm focus:outline-none focus:ring-2 focus:ring-brand-green focus:border-transparent transition bg-white"
             >
               {allowedRoles.includes('member') && <option value="member">Member</option>}
               {allowedRoles.includes('team_lead') && <option value="team_lead">Team Lead — team reports + team chat</option>}
@@ -159,7 +162,7 @@ function UserModal({ user: editUser, allUsers = [], currentUser, onClose, onSave
               <select
                 value={form.teamLead}
                 onChange={set('teamLead')}
-                className="w-full px-4 py-3 rounded-xl border border-slate-200 text-slate-800 text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500 focus:border-transparent transition bg-white"
+                className="w-full px-4 py-3 rounded-xl border border-slate-200 text-slate-800 text-sm focus:outline-none focus:ring-2 focus:ring-brand-green focus:border-transparent transition bg-white"
               >
                 <option value="">None</option>
                 {leads.map((lead) => (
@@ -176,7 +179,7 @@ function UserModal({ user: editUser, allUsers = [], currentUser, onClose, onSave
               type="checkbox"
               checked={form.emailNotifications}
               onChange={(e) => setForm((f) => ({ ...f, emailNotifications: e.target.checked }))}
-              className="w-4 h-4 rounded border-slate-300 text-indigo-600 focus:ring-indigo-500"
+              className="w-4 h-4 rounded border-slate-300 text-brand-blue focus:ring-brand-green"
             />
             Receive assignment and daily reminder emails
           </label>
@@ -192,7 +195,7 @@ function UserModal({ user: editUser, allUsers = [], currentUser, onClose, onSave
             <button
               type="submit"
               disabled={loading}
-              className="flex-1 px-4 py-2.5 rounded-xl bg-indigo-600 hover:bg-indigo-700 text-white text-sm font-semibold transition disabled:opacity-60 flex items-center justify-center gap-2"
+              className="flex-1 px-4 py-2.5 rounded-xl bg-brand-ink hover:bg-black text-white text-sm font-semibold transition disabled:opacity-60 flex items-center justify-center gap-2"
             >
               {loading ? (
                 <div className="w-4 h-4 border-2 border-white/30 border-t-white rounded-full animate-spin" />
@@ -255,6 +258,8 @@ export default function UsersPage() {
     );
   }
 
+  if (loading) return <PageLoader label="Loading team…" />;
+
   return (
     <div className="p-4 sm:p-6 max-w-4xl mx-auto animate-fade-in">
       <div className="flex items-center justify-between mb-6">
@@ -267,17 +272,13 @@ export default function UsersPage() {
         </div>
         <button
           onClick={() => setModal('create')}
-          className="flex items-center gap-2 bg-indigo-600 hover:bg-indigo-700 text-white text-sm font-semibold px-4 py-2.5 rounded-xl transition-all shadow-sm hover:shadow-md"
+          className="flex items-center gap-2 bg-brand-ink hover:bg-black text-white text-sm font-semibold px-4 py-2.5 rounded-xl transition-all shadow-sm hover:shadow-md"
         >
           <Plus size={16} /> Add Member
         </button>
       </div>
 
-      {loading ? (
-        <div className="flex justify-center py-12">
-          <div className="w-8 h-8 border-3 border-indigo-500 border-t-transparent rounded-full animate-spin" />
-        </div>
-      ) : users.length === 0 ? (
+      {users.length === 0 ? (
         <div className="bg-white rounded-2xl border-2 border-dashed border-slate-200 p-12 text-center">
           <Users size={40} className="text-slate-300 mx-auto mb-3" />
           <p className="text-slate-500">No team members yet</p>
@@ -299,25 +300,19 @@ export default function UsersPage() {
                 <tr key={u._id} className="border-b border-slate-50 hover:bg-slate-50/50 transition-colors last:border-0">
                   <td className="px-5 py-4">
                     <div className="flex items-center gap-3">
-                      <div className={`w-9 h-9 rounded-xl flex items-center justify-center text-white font-bold text-sm flex-shrink-0 ${
-                        u.role === 'admin'
-                          ? 'bg-gradient-to-br from-purple-500 to-indigo-600'
-                          : 'bg-gradient-to-br from-blue-400 to-cyan-500'
-                      }`}>
-                        {u.username[0].toUpperCase()}
-                      </div>
+                      <UserAvatar user={u} size={36} className="rounded-xl" />
                       <div>
                         <p className="font-semibold text-slate-800 text-sm">{u.username}</p>
                         <p className="text-xs text-slate-400">{u.email || 'No email configured'}</p>
                         {u._id === currentUser._id && (
-                          <p className="text-xs text-indigo-500">You</p>
+                          <p className="text-xs text-brand-blue">You</p>
                         )}
                       </div>
                     </div>
                   </td>
                   <td className="px-5 py-4">{roleBadge(u.role)}</td>
                   <td className="px-5 py-4 text-sm text-slate-500 hidden md:table-cell">
-                    {u.teamLead?.username || '—'}
+                    {u.teamLead?.username ? <PersonName user={u.teamLead} size={20} /> : '—'}
                   </td>
                   <td className="px-5 py-4 text-sm text-slate-500 hidden sm:table-cell">
                     {new Date(u.createdAt).toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' })}
@@ -326,7 +321,7 @@ export default function UsersPage() {
                     <div className="flex items-center gap-2 justify-end">
                       <button
                         onClick={() => setModal(u)}
-                        className="p-2 text-slate-400 hover:text-indigo-600 hover:bg-indigo-50 rounded-lg transition-all"
+                        className="p-2 text-slate-400 hover:text-brand-blue hover:bg-brand-green/10 rounded-lg transition-all"
                         title="Edit"
                       >
                         <Edit3 size={15} />

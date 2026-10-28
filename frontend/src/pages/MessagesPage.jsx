@@ -12,6 +12,7 @@ import { formatIST } from '../utils/time';
 import { ROLE_LABELS, canAssignOthers } from '../utils/roles';
 import MediaViewer from '../components/MediaViewer';
 import UserAvatar from '../components/UserAvatar';
+import PageLoader from '../components/PageLoader';
 
 const FileChip = ({ file, onRemove }) => (
   <span className="inline-flex items-center gap-1.5 px-2 py-1 rounded-lg bg-slate-100 text-xs text-slate-600">
@@ -241,7 +242,7 @@ export default function MessagesPage() {
         </div>
         <div className="flex-1 overflow-y-auto scrollbar-thin">
           {loadingList ? (
-            <p className="p-4 text-sm text-slate-400">Loading…</p>
+            <PageLoader label="Loading chats…" />
           ) : (
             <>
               {filteredConversations.map((c) => (

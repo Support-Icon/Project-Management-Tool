@@ -2,6 +2,7 @@ import React from 'react';
 import { Draggable } from '@hello-pangea/dnd';
 import { Activity, Calendar, Edit3, Trash2, Link2, Timer } from 'lucide-react';
 import { remainingLabel, formatDuration, formatIST } from '../utils/time';
+import UserAvatar from './UserAvatar';
 
 const priorityConfig = {
   high: {
@@ -48,7 +49,7 @@ export default function TaskCard({ task, index, onEdit, onDelete, onDailyUpdate,
           {...provided.draggableProps}
           {...provided.dragHandleProps}
           className={`bg-white rounded-xl border border-l-4 ${pc.border} border-r-slate-100 border-t-slate-100 border-b-slate-100 p-4 shadow-sm
-            ${snapshot.isDragging ? 'shadow-xl rotate-1 scale-105 ring-2 ring-indigo-300' : 'hover:shadow-md'}
+            ${snapshot.isDragging ? 'shadow-xl rotate-1 scale-105 ring-2 ring-brand-green/50' : 'hover:shadow-md'}
             transition-all duration-150 cursor-grab active:cursor-grabbing group`}
         >
           {/* Header */}
@@ -66,7 +67,7 @@ export default function TaskCard({ task, index, onEdit, onDelete, onDailyUpdate,
               )}
               <button
                 onClick={(e) => { e.stopPropagation(); onEdit(task); }}
-                className="p-1 text-slate-400 hover:text-indigo-600 hover:bg-indigo-50 rounded-lg transition-all"
+                className="p-1 text-slate-400 hover:text-brand-blue hover:bg-brand-green/10 rounded-lg transition-all"
               >
                 <Edit3 size={13} />
               </button>
@@ -90,7 +91,7 @@ export default function TaskCard({ task, index, onEdit, onDelete, onDailyUpdate,
             <div className={`mb-2 px-2.5 py-1.5 rounded-lg text-xs font-semibold flex items-center gap-1.5 ${
               overdueDeadline && task.column !== 'done'
                 ? 'bg-red-50 text-red-700'
-                : 'bg-indigo-50 text-indigo-700'
+                : 'bg-brand-green/10 text-brand-ink'
             }`} title={task.deadlineAt ? formatIST(task.deadlineAt) : ''}>
               <Timer size={12} />
               {formatDuration(task.duration)}
@@ -169,12 +170,7 @@ export default function TaskCard({ task, index, onEdit, onDelete, onDailyUpdate,
 
               {/* Assignee avatar */}
               {task.assignee && (
-                <div
-                  className="w-6 h-6 rounded-lg bg-gradient-to-br from-indigo-400 to-purple-500 flex items-center justify-center text-white text-xs font-bold flex-shrink-0"
-                  title={task.assignee.username}
-                >
-                  {task.assignee.username[0].toUpperCase()}
-                </div>
+                <UserAvatar user={task.assignee} size={24} className="rounded-lg" />
               )}
             </div>
           </div>

@@ -5,6 +5,8 @@ import api from '../api/axios';
 import { useAuth } from '../context/AuthContext';
 import { canSeeAll, canViewTeamAnalytics, ROLE_LABELS } from '../utils/roles';
 import { formatIST, toDateOnly } from '../utils/time';
+import PageLoader from '../components/PageLoader';
+import PersonName from '../components/PersonName';
 
 const tone = {
   pending: 'bg-amber-50 text-amber-700',
@@ -21,6 +23,7 @@ export default function LeavesPage() {
   const [queue, setQueue] = useState([]);
   const [form, setForm] = useState({ startDate: today, endDate: today, reason: '' });
   const [busy, setBusy] = useState(false);
+  const [ready, setReady] = useState(false);
 
   const load = async () => {
     try {
@@ -31,6 +34,7 @@ export default function LeavesPage() {
         setQueue((all.data || []).filter((r) => r.status === 'pending' && r.user?._id !== user?._id));
       }
     } catch (_) {}
+    finally { setReady(true); }
   };
 
   useEffect(() => { load(); }, [reviewer, user?._id]);
@@ -70,8 +74,10 @@ export default function LeavesPage() {
     }
   };
 
+  if (!ready) return <PageLoader label="Loading leave…" />;
+
   return (
-    <div className="p-4 sm:p-6 max-w-4xl mx-auto space-y-6">
+    <div className="p-4 sm:p-6 max-w-4xl mx-auto space-y-6 animate-fade-in">
       <div>
         <h1 className="text-xl font-bold text-brand-ink flex items-center gap-2">
           <Palmtree size={22} className="text-brand-green" /> Leave
@@ -131,7 +137,7 @@ export default function LeavesPage() {
           ) : queue.map((row) => (
             <div key={row._id} className="px-4 sm:px-5 py-4 border-b border-slate-50 flex flex-col sm:flex-row sm:items-center gap-3">
               <div className="flex-1 min-w-0">
-                <p className="font-semibold text-slate-800">{row.user?.username}</p>
+                <PersonName user={row.user} size={28} nameClassName="font-semibold text-slate-800" />
                 <p className="text-xs text-slate-400">{ROLE_LABELS[row.user?.role] || row.user?.role}</p>
                 <p className="text-sm text-slate-600 mt-1">{row.startDate} → {row.endDate}</p>
                 {row.reason && <p className="text-sm text-slate-500 mt-0.5">{row.reason}</p>}

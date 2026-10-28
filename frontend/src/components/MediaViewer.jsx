@@ -74,7 +74,7 @@ export default function MediaViewer({ file, compact }) {
                 <a
                   href={downloadUrl}
                   download={file.filename}
-                  className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-indigo-600 text-white text-xs font-semibold"
+                  className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-brand-ink text-white text-xs font-semibold"
                 >
                   <Download size={13} /> Download
                 </a>

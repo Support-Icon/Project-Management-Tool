@@ -493,13 +493,13 @@ export default function AiChatPanel({ compact = false, onClose, onExpand }) {
 
   return (
     <div className={`flex flex-col bg-white ${compact ? 'h-full' : 'h-full min-h-[560px] rounded-2xl border border-slate-200 shadow-sm overflow-hidden'}`}>
-      <header className="px-4 py-3 bg-gradient-to-r from-indigo-600 to-violet-600 text-white flex items-center gap-3 flex-shrink-0">
+      <header className="px-4 py-3 bg-gradient-to-r from-brand-ink to-brand-blue text-white flex items-center gap-3 flex-shrink-0">
         <div className="w-9 h-9 rounded-xl bg-white/15 flex items-center justify-center">
           <Sparkles size={18} />
         </div>
         <div className="min-w-0 flex-1">
-          <p className="font-semibold text-sm">ProjectFlow AI</p>
-          <p className="text-[11px] text-indigo-100">
+          <p className="font-semibold text-sm">Ask AI</p>
+          <p className="text-[11px] text-white/80">
             {flow
               ? `Guided: ${flow.type === 'create_project' ? 'Create project' : 'Create task'} · step ${flow.step}`
               : isAdmin ? 'Admin assistant' : 'Personal assistant'}
@@ -523,7 +523,7 @@ export default function AiChatPanel({ compact = false, onClose, onExpand }) {
             key={`${msg.role}-${index}`}
             className={`max-w-[92%] rounded-2xl px-3.5 py-2.5 ${
               msg.role === 'user'
-                ? 'ml-auto bg-indigo-600 text-white text-sm whitespace-pre-wrap'
+                ? 'ml-auto bg-brand-ink text-white text-sm whitespace-pre-wrap'
                 : 'bg-white border border-slate-200 shadow-sm'
             }`}
           >
@@ -549,7 +549,7 @@ export default function AiChatPanel({ compact = false, onClose, onExpand }) {
               type="button"
               onClick={chip.onClick}
               disabled={sending}
-              className="whitespace-nowrap text-[11px] px-2.5 py-1.5 rounded-full bg-indigo-50 text-indigo-700 border border-indigo-100 hover:bg-indigo-100 flex items-center gap-1.5"
+              className="whitespace-nowrap text-[11px] px-2.5 py-1.5 rounded-full bg-brand-green/10 text-brand-ink border border-brand-green/20 hover:bg-brand-green/15 flex items-center gap-1.5"
             >
               <chip.icon size={12} />
               {chip.label}
@@ -567,7 +567,7 @@ export default function AiChatPanel({ compact = false, onClose, onExpand }) {
               type="button"
               onClick={() => sendFreeform(item)}
               disabled={sending}
-              className="text-[11px] px-2.5 py-1 rounded-lg bg-slate-100 text-slate-700 hover:bg-indigo-50 hover:text-indigo-700 border border-slate-200"
+              className="text-[11px] px-2.5 py-1 rounded-lg bg-slate-100 text-slate-700 hover:bg-brand-green/10 hover:text-brand-ink border border-slate-200"
             >
               {item}
             </button>
@@ -590,12 +590,12 @@ export default function AiChatPanel({ compact = false, onClose, onExpand }) {
               ? `Answer: ${flow.step}…`
               : 'Ask anything, or use Create project / Create task…'
           }
-          className="flex-1 px-3 py-2.5 rounded-xl border border-slate-200 text-sm outline-none focus:ring-2 focus:ring-indigo-500"
+          className="flex-1 px-3 py-2.5 rounded-xl border border-slate-200 text-sm outline-none focus:ring-2 focus:ring-brand-green"
         />
         <button
           type="submit"
           disabled={sending || !input.trim()}
-          className="w-11 h-11 rounded-xl bg-indigo-600 text-white flex items-center justify-center disabled:opacity-50"
+          className="w-11 h-11 rounded-xl bg-brand-ink text-white flex items-center justify-center disabled:opacity-50"
         >
           <Send size={16} />
         </button>

@@ -20,8 +20,8 @@ export const creatableRoles = (user) => {
 };
 
 export const roleTone = (role) => ({
-  admin: 'bg-purple-100 text-purple-700',
-  manager: 'bg-amber-100 text-amber-800',
-  team_lead: 'bg-sky-100 text-sky-700',
-  member: 'bg-blue-100 text-blue-700',
+  admin: 'bg-brand-ink text-brand-green',
+  manager: 'bg-brand-yellow/20 text-brand-ink',
+  team_lead: 'bg-brand-blue/15 text-brand-blue',
+  member: 'bg-brand-green/15 text-brand-ink',
 }[role] || 'bg-slate-100 text-slate-600');

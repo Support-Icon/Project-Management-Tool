@@ -5,6 +5,8 @@ import { formatIST } from '../utils/time';
 import { Navigate } from 'react-router-dom';
 import { ROLE_LABELS, canViewTeamAnalytics } from '../utils/roles';
 import { useAuth } from '../context/AuthContext';
+import PageLoader from '../components/PageLoader';
+import PersonName from '../components/PersonName';
 
 const tone = {
   working: 'bg-emerald-50 text-emerald-700',
@@ -40,6 +42,7 @@ export default function AttendancePage() {
   }, [date]);
 
   if (!canViewTeamAnalytics(user)) return <Navigate to="/" replace />;
+  if (loading) return <PageLoader label="Loading attendance…" />;
 
   return (
     <div className="p-4 sm:p-6 max-w-5xl mx-auto">
@@ -62,13 +65,12 @@ export default function AttendancePage() {
       </div>
 
       <div className="sm:hidden space-y-3">
-        {loading && <p className="text-center text-slate-400 py-8">Loading attendance…</p>}
-        {!loading && people.map((p) => (
+        {people.map((p) => (
           <div key={p.userId} className="bg-white rounded-2xl border border-black/5 p-4 shadow-sm">
             <div className="flex items-center justify-between gap-2">
               <div>
-                <p className="font-semibold text-slate-800">{p.username}</p>
-                <p className="text-xs text-slate-400">{ROLE_LABELS[p.role] || p.role}</p>
+                <PersonName user={p} name={p.username} avatar={p.avatar} size={28} nameClassName="font-semibold text-slate-800" />
+                <p className="text-xs text-slate-400 mt-1">{ROLE_LABELS[p.role] || p.role}</p>
               </div>
               <span className={`px-2 py-1 rounded-lg text-xs font-semibold capitalize ${tone[p.status] || tone.working}`}>
                 {p.onBreak ? 'break' : p.status}
@@ -98,22 +100,16 @@ export default function AttendancePage() {
             </tr>
           </thead>
           <tbody>
-            {loading && (
-              <tr>
-                <td colSpan={7} className="px-4 py-10 text-center text-slate-400">
-                  <div className="w-8 h-8 mx-auto mb-2 rounded-full border-4 border-brand-green/20 border-t-brand-green animate-spin" />
-                  Loading attendance…
-                </td>
-              </tr>
-            )}
-            {!loading && people.length === 0 && (
+            {people.length === 0 && (
               <tr>
                 <td colSpan={7} className="px-4 py-8 text-center text-slate-400">No people found.</td>
               </tr>
             )}
-            {!loading && people.map((p) => (
+            {people.map((p) => (
               <tr key={p.userId} className="border-t border-slate-50">
-                <td className="px-4 py-3 font-medium text-slate-800">{p.username}</td>
+                <td className="px-4 py-3 font-medium text-slate-800">
+                  <PersonName user={p} name={p.username} avatar={p.avatar} size={28} nameClassName="font-medium" />
+                </td>
                 <td className="px-4 py-3 text-slate-500">{ROLE_LABELS[p.role] || p.role}</td>
                 <td className="px-4 py-3">
                   <span className={`px-2 py-1 rounded-lg text-xs font-semibold capitalize ${tone[p.status] || tone.working}`}>

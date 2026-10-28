@@ -4,6 +4,7 @@ import toast from 'react-hot-toast';
 import api from '../api/axios';
 import { useAuth } from '../context/AuthContext';
 import { canSeeAll } from '../utils/roles';
+import PageLoader from '../components/PageLoader';
 
 const timezones = [
   'Asia/Kolkata',
@@ -81,7 +82,7 @@ export default function SettingsPage() {
       time: '19:30',
     },
     emailTemplates: {
-      brandColor: '#4f46e5',
+      brandColor: '#0B0B0D',
       logoUrl: '',
       assignmentSubject: '',
       assignmentHtml: '',
@@ -270,9 +271,7 @@ export default function SettingsPage() {
   };
 
   if (!canSeeAll(user)) return null;
-  if (loading) {
-    return <div className="p-8 text-center text-slate-500">Loading settings…</div>;
-  }
+  if (loading) return <PageLoader label="Loading settings…" />;
 
   const provider = form.email.provider;
 
@@ -317,7 +316,7 @@ export default function SettingsPage() {
                 type="checkbox"
                 checked={form.email.enabled}
                 onChange={(e) => updateEmail('enabled', e.target.checked)}
-                className="w-4 h-4 text-indigo-600 rounded"
+                className="w-4 h-4 text-brand-blue rounded"
               />
               Enabled
             </label>
@@ -335,8 +334,8 @@ export default function SettingsPage() {
                 onClick={() => updateEmail('provider', option.id)}
                 className={`px-3 py-2.5 rounded-xl text-xs font-semibold border transition ${
                   form.email.provider === option.id
-                    ? 'bg-indigo-600 text-white border-indigo-600'
-                    : 'border-slate-200 text-slate-600 hover:border-indigo-300'
+                    ? 'bg-brand-ink text-white border-brand-ink'
+                    : 'border-slate-200 text-slate-600 hover:border-brand-green'
                 }`}
               >
                 {option.label}
@@ -350,7 +349,7 @@ export default function SettingsPage() {
               <input
                 value={form.email.fromName}
                 onChange={(e) => updateEmail('fromName', e.target.value)}
-                className="w-full px-4 py-3 rounded-xl border border-slate-200 focus:ring-2 focus:ring-indigo-500 outline-none"
+                className="w-full px-4 py-3 rounded-xl border border-slate-200 focus:ring-2 focus:ring-brand-green outline-none"
               />
             </label>
 
@@ -364,7 +363,7 @@ export default function SettingsPage() {
                     onChange={(e) => updateEmail('fromEmail', e.target.value)}
                     placeholder="noreply@supporticon.com"
                     required={form.email.enabled}
-                    className="w-full px-4 py-3 rounded-xl border border-slate-200 focus:ring-2 focus:ring-indigo-500 outline-none"
+                    className="w-full px-4 py-3 rounded-xl border border-slate-200 focus:ring-2 focus:ring-brand-green outline-none"
                   />
                   <span className="text-[11px] text-slate-400 mt-1 block">
                     Must be a verified identity in AWS SES
@@ -375,7 +374,7 @@ export default function SettingsPage() {
                   <select
                     value={form.email.sesRegion}
                     onChange={(e) => updateEmail('sesRegion', e.target.value)}
-                    className="w-full px-4 py-3 rounded-xl border border-slate-200 bg-white focus:ring-2 focus:ring-indigo-500 outline-none"
+                    className="w-full px-4 py-3 rounded-xl border border-slate-200 bg-white focus:ring-2 focus:ring-brand-green outline-none"
                   >
                     {sesRegions.map((region) => (
                       <option key={region} value={region}>{region}</option>
@@ -388,7 +387,7 @@ export default function SettingsPage() {
                     value={form.email.sesAccessKeyId}
                     onChange={(e) => updateEmail('sesAccessKeyId', e.target.value)}
                     placeholder="AKIA..."
-                    className="w-full px-4 py-3 rounded-xl border border-slate-200 focus:ring-2 focus:ring-indigo-500 outline-none"
+                    className="w-full px-4 py-3 rounded-xl border border-slate-200 focus:ring-2 focus:ring-brand-green outline-none"
                   />
                 </label>
                 <label className="sm:col-span-2 text-sm text-slate-600">
@@ -401,7 +400,7 @@ export default function SettingsPage() {
                       value={form.email.sesSecretAccessKey}
                       onChange={(e) => updateEmail('sesSecretAccessKey', e.target.value)}
                       placeholder={form.email.hasSesSecret ? '••••••••••••' : 'wJalrXUtnFEMI/...'}
-                      className="w-full px-4 py-3 pr-11 rounded-xl border border-slate-200 focus:ring-2 focus:ring-indigo-500 outline-none"
+                      className="w-full px-4 py-3 pr-11 rounded-xl border border-slate-200 focus:ring-2 focus:ring-brand-green outline-none"
                     />
                     <button
                       type="button"
@@ -424,7 +423,7 @@ export default function SettingsPage() {
                     value={form.email.fromEmail}
                     onChange={(e) => updateEmail('fromEmail', e.target.value)}
                     placeholder="onboarding@resend.dev"
-                    className="w-full px-4 py-3 rounded-xl border border-slate-200 focus:ring-2 focus:ring-indigo-500 outline-none"
+                    className="w-full px-4 py-3 rounded-xl border border-slate-200 focus:ring-2 focus:ring-brand-green outline-none"
                   />
                 </label>
                 <label className="sm:col-span-2 text-sm text-slate-600">
@@ -437,7 +436,7 @@ export default function SettingsPage() {
                       value={form.email.resendApiKey}
                       onChange={(e) => updateEmail('resendApiKey', e.target.value)}
                       placeholder={form.email.hasResendApiKey ? '••••••••••••' : 're_xxxxxxxx'}
-                      className="w-full px-4 py-3 pr-11 rounded-xl border border-slate-200 focus:ring-2 focus:ring-indigo-500 outline-none"
+                      className="w-full px-4 py-3 pr-11 rounded-xl border border-slate-200 focus:ring-2 focus:ring-brand-green outline-none"
                     />
                     <button
                       type="button"
@@ -460,7 +459,7 @@ export default function SettingsPage() {
                     value={form.email.gmailUser}
                     onChange={(e) => updateEmail('gmailUser', e.target.value)}
                     placeholder="company@gmail.com"
-                    className="w-full px-4 py-3 rounded-xl border border-slate-200 focus:ring-2 focus:ring-indigo-500 outline-none"
+                    className="w-full px-4 py-3 rounded-xl border border-slate-200 focus:ring-2 focus:ring-brand-green outline-none"
                   />
                 </label>
                 <label className="sm:col-span-2 text-sm text-slate-600">
@@ -473,7 +472,7 @@ export default function SettingsPage() {
                       value={form.email.appPassword}
                       onChange={(e) => updateEmail('appPassword', e.target.value)}
                       placeholder={form.email.hasAppPassword ? '•••• •••• •••• ••••' : '16-character app password'}
-                      className="w-full px-4 py-3 pr-11 rounded-xl border border-slate-200 focus:ring-2 focus:ring-indigo-500 outline-none"
+                      className="w-full px-4 py-3 pr-11 rounded-xl border border-slate-200 focus:ring-2 focus:ring-brand-green outline-none"
                     />
                     <button
                       type="button"
@@ -496,7 +495,7 @@ export default function SettingsPage() {
               type="checkbox"
               checked={form.email.assignmentEnabled}
               onChange={(e) => updateEmail('assignmentEnabled', e.target.checked)}
-              className="w-4 h-4 text-indigo-600 rounded"
+              className="w-4 h-4 text-brand-blue rounded"
             />
             Send an email when a task is assigned or reassigned
           </label>
@@ -505,7 +504,7 @@ export default function SettingsPage() {
         <section className="bg-white rounded-2xl border border-slate-100 shadow-sm p-6">
           <div className="flex items-start justify-between gap-4 mb-5">
             <div className="flex gap-3">
-              <div className="w-10 h-10 rounded-xl bg-indigo-50 text-indigo-600 flex items-center justify-center">
+              <div className="w-10 h-10 rounded-xl bg-brand-green/10 text-brand-blue flex items-center justify-center">
                 <Clock size={20} />
               </div>
               <div>
@@ -518,7 +517,7 @@ export default function SettingsPage() {
                 type="checkbox"
                 checked={form.digest.enabled}
                 onChange={(e) => updateDigest('enabled', e.target.checked)}
-                className="w-4 h-4 text-indigo-600 rounded"
+                className="w-4 h-4 text-brand-blue rounded"
               />
               Enabled
             </label>
@@ -530,7 +529,7 @@ export default function SettingsPage() {
                 type="time"
                 value={form.digest.time}
                 onChange={(e) => updateDigest('time', e.target.value)}
-                className="w-full px-4 py-3 rounded-xl border border-slate-200 focus:ring-2 focus:ring-indigo-500 outline-none"
+                className="w-full px-4 py-3 rounded-xl border border-slate-200 focus:ring-2 focus:ring-brand-green outline-none"
               />
             </label>
             <label className="text-sm text-slate-600">
@@ -538,7 +537,7 @@ export default function SettingsPage() {
               <select
                 value={form.digest.timezone}
                 onChange={(e) => updateDigest('timezone', e.target.value)}
-                className="w-full px-4 py-3 rounded-xl border border-slate-200 bg-white focus:ring-2 focus:ring-indigo-500 outline-none"
+                className="w-full px-4 py-3 rounded-xl border border-slate-200 bg-white focus:ring-2 focus:ring-brand-green outline-none"
               >
                 {timezones.map((timezone) => <option key={timezone}>{timezone}</option>)}
               </select>
@@ -565,7 +564,7 @@ export default function SettingsPage() {
                 type="checkbox"
                 checked={form.report.enabled}
                 onChange={(e) => updateReport('enabled', e.target.checked)}
-                className="w-4 h-4 text-indigo-600 rounded"
+                className="w-4 h-4 text-brand-blue rounded"
               />
               Enabled
             </label>
@@ -577,7 +576,7 @@ export default function SettingsPage() {
                 type="time"
                 value={form.report.time}
                 onChange={(e) => updateReport('time', e.target.value)}
-                className="w-full px-4 py-3 rounded-xl border border-slate-200 focus:ring-2 focus:ring-indigo-500 outline-none"
+                className="w-full px-4 py-3 rounded-xl border border-slate-200 focus:ring-2 focus:ring-brand-green outline-none"
               />
             </label>
             <div className="flex items-end">
@@ -606,7 +605,7 @@ export default function SettingsPage() {
         <section className="bg-white rounded-2xl border border-slate-100 shadow-sm p-6">
           <div className="flex items-start justify-between gap-4 mb-5">
             <div className="flex gap-3">
-              <div className="w-10 h-10 rounded-xl bg-violet-50 text-violet-600 flex items-center justify-center">
+              <div className="w-10 h-10 rounded-xl bg-brand-blue/10 text-brand-blue flex items-center justify-center">
                 <ClipboardList size={20} />
               </div>
               <div>
@@ -621,7 +620,7 @@ export default function SettingsPage() {
                 type="checkbox"
                 checked={form.weeklyReport?.enabled !== false}
                 onChange={(e) => updateWeekly('enabled', e.target.checked)}
-                className="w-4 h-4 text-indigo-600 rounded"
+                className="w-4 h-4 text-brand-blue rounded"
               />
               Enabled
             </label>
@@ -633,7 +632,7 @@ export default function SettingsPage() {
                 type="time"
                 value={form.weeklyReport?.time || '19:30'}
                 onChange={(e) => updateWeekly('time', e.target.value)}
-                className="w-full px-4 py-3 rounded-xl border border-slate-200 focus:ring-2 focus:ring-indigo-500 outline-none"
+                className="w-full px-4 py-3 rounded-xl border border-slate-200 focus:ring-2 focus:ring-brand-green outline-none"
               />
             </label>
             <div className="flex items-end">
@@ -651,7 +650,7 @@ export default function SettingsPage() {
                     setSendingWeekly(false);
                   }
                 }}
-                className="w-full px-4 py-3 rounded-xl bg-violet-600 text-white font-semibold disabled:opacity-60"
+                className="w-full px-4 py-3 rounded-xl bg-brand-ink text-white font-semibold disabled:opacity-60"
               >
                 {sendingWeekly ? 'Sending…' : 'Send weekly report now'}
               </button>
@@ -679,7 +678,7 @@ export default function SettingsPage() {
               <div className="flex gap-2">
                 <input
                   type="color"
-                  value={form.emailTemplates.brandColor || '#4f46e5'}
+                  value={form.emailTemplates.brandColor || '#0B0B0D'}
                   onChange={(e) => updateTemplate('brandColor', e.target.value)}
                   className="h-11 w-14 rounded-lg border border-slate-200 p-1"
                 />
@@ -775,7 +774,7 @@ export default function SettingsPage() {
           <button
             type="submit"
             disabled={saving}
-            className="flex-1 py-3 rounded-xl bg-indigo-600 hover:bg-indigo-700 text-white font-semibold flex items-center justify-center gap-2 disabled:opacity-60"
+            className="flex-1 py-3 rounded-xl bg-brand-ink hover:bg-black text-white font-semibold flex items-center justify-center gap-2 disabled:opacity-60"
           >
             <Save size={17} /> {saving ? 'Saving…' : 'Save Email Settings'}
           </button>
@@ -793,7 +792,7 @@ export default function SettingsPage() {
       <section className="mt-8 bg-white rounded-2xl border border-slate-100 shadow-sm p-6">
         <div className="flex items-start justify-between gap-4 mb-5">
           <div className="flex gap-3">
-            <div className="w-10 h-10 rounded-xl bg-violet-50 text-violet-600 flex items-center justify-center">
+            <div className="w-10 h-10 rounded-xl bg-brand-blue/10 text-brand-blue flex items-center justify-center">
               <Bot size={20} />
             </div>
             <div>
@@ -808,7 +807,7 @@ export default function SettingsPage() {
               type="checkbox"
               checked={aiForm.enabled}
               onChange={(e) => updateAi('enabled', e.target.checked)}
-              className="w-4 h-4 text-indigo-600 rounded"
+              className="w-4 h-4 text-brand-blue rounded"
             />
             Enabled
           </label>
@@ -879,7 +878,7 @@ export default function SettingsPage() {
             type="button"
             onClick={saveAi}
             disabled={savingAi}
-            className="flex-1 py-3 rounded-xl bg-violet-600 hover:bg-violet-700 text-white font-semibold flex items-center justify-center gap-2 disabled:opacity-60"
+            className="flex-1 py-3 rounded-xl bg-brand-ink hover:bg-black text-white font-semibold flex items-center justify-center gap-2 disabled:opacity-60"
           >
             <Save size={17} /> {savingAi ? 'Saving…' : 'Save AI Settings'}
           </button>

@@ -49,7 +49,7 @@ async def unlock_dependents(db, completed_id):
 
 async def populate_task(db, task):
     docs = [task]
-    await attach(db.users, docs, "assignee", ["username", "email", "emailNotifications"])
+    await attach(db.users, docs, "assignee", ["username", "email", "emailNotifications", "avatar"])
     await attach(db.users, docs, "createdBy", ["username"])
     await attach(db.tasks, docs, "dependsOn", ["title", "column", "completedAt"])
     return dump(docs[0])
@@ -115,7 +115,7 @@ async def list_tasks(project_id: str, mineOnly: str | None = Query(default=None)
     if not project:
         fail(404 if can_see_all(user) else 403, "Project not found" if can_see_all(user) else "You do not have access to this project")
     tasks = await db.tasks.find({"project": oid(project_id), **task_filter_for_user(user, mineOnly)}).sort("order", 1).to_list(1000)
-    await attach(db.users, tasks, "assignee", ["username"])
+    await attach(db.users, tasks, "assignee", ["username", "avatar"])
     await attach(db.users, tasks, "createdBy", ["username"])
     await attach(db.tasks, tasks, "dependsOn", ["title", "column", "completedAt"])
     day = today_in_zone(await timezone_for(db, company_id(user)))

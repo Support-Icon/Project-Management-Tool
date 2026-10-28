@@ -107,7 +107,7 @@ export default function AiMessageContent({ content }) {
             <ul key={index} className="space-y-1.5 pl-1">
               {block.items.map((item, itemIndex) => (
                 <li key={itemIndex} className="flex gap-2 text-slate-700">
-                  <span className="mt-1.5 w-1.5 h-1.5 rounded-full bg-indigo-400 flex-shrink-0" />
+                  <span className="mt-1.5 w-1.5 h-1.5 rounded-full bg-brand-blue flex-shrink-0" />
                   <span>{inlineFormat(item)}</span>
                 </li>
               ))}

@@ -3,6 +3,7 @@ import { useNavigate, useParams } from 'react-router-dom';
 import toast from 'react-hot-toast';
 import api from '../api/axios';
 import BrandLogo from '../components/BrandLogo';
+import PersonName from '../components/PersonName';
 import { cleanSummaryText } from '../utils/meet';
 
 export default function GuestJoin() {
@@ -44,7 +45,10 @@ export default function GuestJoin() {
         <BrandLogo className="h-12 w-auto mx-auto mb-4" />
         {error && <p className="text-center text-sm text-rose-300">{error}</p>}
         {!error && !info && (
-          <p className="text-center text-sm text-slate-300">Checking meeting link…</p>
+          <div className="py-8 flex flex-col items-center gap-3">
+            <div className="w-10 h-10 rounded-full border-4 border-white/20 border-t-brand-green animate-spin" />
+            <p className="text-center text-sm text-slate-300">Checking meeting link…</p>
+          </div>
         )}
         {info?.status === 'ended' && (
           <div>
@@ -60,7 +64,11 @@ export default function GuestJoin() {
             <div>
               <p className="text-xs uppercase tracking-wide text-brand-blue">Guest meeting</p>
               <h1 className="text-xl font-bold mt-1">{info.title}</h1>
-              <p className="text-sm text-slate-300 mt-1">Hosted by {info.host || 'the team'}. This link only lets you join this call.</p>
+              <p className="text-sm text-slate-300 mt-2 flex items-center gap-2">
+                Hosted by {info.host?.username
+                  ? <PersonName user={info.host} size={20} nameClassName="text-white" />
+                  : 'the team'}. This link only lets you join this call.
+              </p>
             </div>
             <input
               required

@@ -72,7 +72,7 @@ async def list_updates(task_id: str, user=Depends(current_user)):
     if not in_scope(user, assignee.get("_id") if isinstance(assignee, dict) else assignee):
         fail(403, "You cannot view updates for this task")
     updates = await db.taskupdates.find({"task": task["_id"], "company": company_id(user)}).sort("updateDate", -1).to_list(200)
-    await attach(db.users, updates, "author", ["username"])
+    await attach(db.users, updates, "author", ["username", "avatar"])
     return dump({"taskStatus": task.get("column"), "today": await today(db, company_id(user)), "updates": updates})
 
 
@@ -108,5 +108,5 @@ async def add_update(task_id: str, body: dict = Body(default={}), user=Depends(c
     )
     await db.tasks.update_one({"_id": task["_id"]}, {"$set": {"lastUpdateAt": datetime.now(timezone.utc)}})
     docs = [update]
-    await attach(db.users, docs, "author", ["username"])
+    await attach(db.users, docs, "author", ["username", "avatar"])
     return dump(docs[0])

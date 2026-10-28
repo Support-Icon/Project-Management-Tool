@@ -10,12 +10,13 @@ import TaskCard from '../components/TaskCard';
 import TaskModal from '../components/TaskModal';
 import DailyUpdateModal from '../components/DailyUpdateModal';
 import { Plus, Settings, ArrowLeft, RefreshCw, Loader2 } from 'lucide-react';
+import PageLoader from '../components/PageLoader';
 
 const columnHeaderColors = {
-  todo: 'from-indigo-500 to-indigo-600',
-  inprogress: 'from-amber-500 to-orange-500',
-  review: 'from-purple-500 to-violet-600',
-  done: 'from-emerald-500 to-teal-600',
+  todo: 'from-brand-blue to-brand-ink',
+  inprogress: 'from-brand-ink to-brand-yellow',
+  review: 'from-brand-red to-brand-ink',
+  done: 'from-brand-green to-brand-greenDark',
 };
 
 const getColumnGradient = (colId, customColor) => {
@@ -168,16 +169,7 @@ export default function KanbanPage() {
     }
   };
 
-  if (loading) {
-    return (
-      <div className="flex items-center justify-center h-full">
-        <div className="flex flex-col items-center gap-3">
-          <div className="w-10 h-10 border-4 border-indigo-500 border-t-transparent rounded-full animate-spin" />
-          <p className="text-slate-500 text-sm">Loading board…</p>
-        </div>
-      </div>
-    );
-  }
+  if (loading) return <PageLoader label="Loading board…" />;
 
   if (!project) return null;
 
@@ -220,7 +212,7 @@ export default function KanbanPage() {
           </button>
           <button
             onClick={() => setModal({ mode: 'create', column: project.columns[0]?.id || 'todo' })}
-            className="flex items-center gap-2 bg-indigo-600 hover:bg-indigo-700 text-white text-sm font-semibold px-4 py-2 rounded-xl transition-all shadow-sm"
+            className="flex items-center gap-2 bg-brand-ink hover:bg-black text-white text-sm font-semibold px-4 py-2 rounded-xl transition-all shadow-sm"
           >
             <Plus size={16} /> Add Task
           </button>
@@ -266,7 +258,7 @@ export default function KanbanPage() {
                           {...provided.droppableProps}
                           className={`flex-1 rounded-b-2xl p-3 space-y-3 overflow-y-auto scrollbar-thin transition-colors kanban-column ${
                             snapshot.isDraggingOver
-                              ? 'bg-indigo-50 ring-2 ring-indigo-200 ring-inset'
+                              ? 'bg-brand-green/10 ring-2 ring-brand-green/40 ring-inset'
                               : 'bg-slate-200/60'
                           }`}
                         >
@@ -292,7 +284,7 @@ export default function KanbanPage() {
                           {/* Add task button at bottom */}
                           <button
                             onClick={() => setModal({ mode: 'create', column: col.id })}
-                            className="w-full py-2.5 rounded-xl border-2 border-dashed border-slate-300 text-slate-400 text-xs font-medium hover:border-indigo-400 hover:text-indigo-500 hover:bg-white transition-all flex items-center justify-center gap-1"
+                            className="w-full py-2.5 rounded-xl border-2 border-dashed border-slate-300 text-slate-400 text-xs font-medium hover:border-brand-green hover:text-brand-blue hover:bg-white transition-all flex items-center justify-center gap-1"
                           >
                             <Plus size={13} /> Add task
                           </button>

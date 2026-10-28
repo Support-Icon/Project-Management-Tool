@@ -7,6 +7,7 @@ import {
   Download, Users, FolderKanban, User, Calendar,
   FileSpreadsheet, Shield
 } from 'lucide-react';
+import PageLoader from '../components/PageLoader';
 
 const REPORT_TYPES = [
   { id: 'users', label: 'All Users Summary', icon: Users, desc: 'Task counts per team member' },
@@ -43,10 +44,13 @@ export default function ReportsPage() {
   const [users, setUsers] = useState([]);
   const [projects, setProjects] = useState([]);
   const [loading, setLoading] = useState(false);
+  const [ready, setReady] = useState(false);
 
   useEffect(() => {
-    api.get('/api/users').then((r) => setUsers(r.data)).catch(() => {});
-    api.get('/api/projects').then((r) => setProjects(r.data)).catch(() => {});
+    Promise.all([
+      api.get('/api/users').then((r) => setUsers(r.data)).catch(() => {}),
+      api.get('/api/projects').then((r) => setProjects(r.data)).catch(() => {}),
+    ]).finally(() => setReady(true));
   }, []);
 
   const buildQuery = () => {
@@ -131,12 +135,14 @@ export default function ReportsPage() {
     );
   }
 
+  if (!ready) return <PageLoader label="Loading reports…" />;
+
   return (
     <div className="p-4 sm:p-6 max-w-3xl mx-auto animate-fade-in">
       <div className="mb-8">
         <div className="flex items-center gap-3 mb-2">
-          <div className="w-10 h-10 rounded-xl bg-indigo-100 flex items-center justify-center">
-            <FileSpreadsheet size={20} className="text-indigo-600" />
+          <div className="w-10 h-10 rounded-xl bg-brand-green/15 flex items-center justify-center">
+            <FileSpreadsheet size={20} className="text-brand-blue" />
           </div>
           <div>
             <h2 className="text-2xl font-bold text-slate-800">Download Reports</h2>
@@ -161,13 +167,13 @@ export default function ReportsPage() {
                   onClick={() => setReportType(rt.id)}
                   className={`text-left p-4 rounded-xl border-2 transition-all ${
                     reportType === rt.id
-                      ? 'border-indigo-500 bg-indigo-50'
+                      ? 'border-brand-green bg-brand-green/10'
                       : 'border-slate-200 hover:border-slate-300'
                   }`}
                 >
                   <div className="flex items-center gap-2 mb-1">
-                    <Icon size={16} className={reportType === rt.id ? 'text-indigo-600' : 'text-slate-400'} />
-                    <span className={`text-sm font-semibold ${reportType === rt.id ? 'text-indigo-700' : 'text-slate-700'}`}>
+                    <Icon size={16} className={reportType === rt.id ? 'text-brand-blue' : 'text-slate-400'} />
+                    <span className={`text-sm font-semibold ${reportType === rt.id ? 'text-brand-ink' : 'text-slate-700'}`}>
                       {rt.label}
                     </span>
                   </div>
@@ -187,7 +193,7 @@ export default function ReportsPage() {
             <select
               value={userId}
               onChange={(e) => setUserId(e.target.value)}
-              className="w-full px-4 py-3 rounded-xl border border-slate-200 text-slate-800 text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500 bg-white"
+              className="w-full px-4 py-3 rounded-xl border border-slate-200 text-slate-800 text-sm focus:outline-none focus:ring-2 focus:ring-brand-green bg-white"
             >
               <option value="">Choose a user…</option>
               {users.map((u) => (
@@ -205,7 +211,7 @@ export default function ReportsPage() {
             <select
               value={projectId}
               onChange={(e) => setProjectId(e.target.value)}
-              className="w-full px-4 py-3 rounded-xl border border-slate-200 text-slate-800 text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500 bg-white"
+              className="w-full px-4 py-3 rounded-xl border border-slate-200 text-slate-800 text-sm focus:outline-none focus:ring-2 focus:ring-brand-green bg-white"
             >
               <option value="">Choose a project…</option>
               {projects.map((p) => (
@@ -228,8 +234,8 @@ export default function ReportsPage() {
                 onClick={() => setPeriod(p.id)}
                 className={`py-2.5 px-3 rounded-xl text-xs font-semibold border transition-all ${
                   period === p.id
-                    ? 'bg-indigo-600 text-white border-indigo-600'
-                    : 'border-slate-200 text-slate-600 hover:border-indigo-300'
+                    ? 'bg-brand-ink text-white border-brand-ink'
+                    : 'border-slate-200 text-slate-600 hover:border-brand-green'
                 }`}
               >
                 {p.label}
@@ -248,7 +254,7 @@ export default function ReportsPage() {
                 type="date"
                 value={startDate}
                 onChange={(e) => setStartDate(e.target.value)}
-                className="w-full px-4 py-3 rounded-xl border border-slate-200 text-slate-800 text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500"
+                className="w-full px-4 py-3 rounded-xl border border-slate-200 text-slate-800 text-sm focus:outline-none focus:ring-2 focus:ring-brand-green"
               />
             </div>
             <div>
@@ -259,7 +265,7 @@ export default function ReportsPage() {
                 type="date"
                 value={endDate}
                 onChange={(e) => setEndDate(e.target.value)}
-                className="w-full px-4 py-3 rounded-xl border border-slate-200 text-slate-800 text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500"
+                className="w-full px-4 py-3 rounded-xl border border-slate-200 text-slate-800 text-sm focus:outline-none focus:ring-2 focus:ring-brand-green"
               />
             </div>
           </div>
@@ -269,7 +275,7 @@ export default function ReportsPage() {
           <button
             onClick={handleDownload}
             disabled={loading}
-            className="w-full flex items-center justify-center gap-2 bg-indigo-600 hover:bg-indigo-700 text-white font-semibold py-3.5 rounded-xl transition-all shadow-sm disabled:opacity-60"
+            className="w-full flex items-center justify-center gap-2 bg-brand-ink hover:bg-black text-white font-semibold py-3.5 rounded-xl transition-all shadow-sm disabled:opacity-60"
           >
             {loading ? (
               <div className="w-5 h-5 border-2 border-white/30 border-t-white rounded-full animate-spin" />

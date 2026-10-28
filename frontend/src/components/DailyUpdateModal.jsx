@@ -2,6 +2,8 @@ import React, { useEffect, useState } from 'react';
 import { Activity, AlertTriangle, Check, ChevronRight, X } from 'lucide-react';
 import toast from 'react-hot-toast';
 import api from '../api/axios';
+import PersonName from './PersonName';
+import PageLoader from './PageLoader';
 
 export default function DailyUpdateModal({ task, onClose, onSaved }) {
   const [history, setHistory] = useState([]);
@@ -56,7 +58,7 @@ export default function DailyUpdateModal({ task, onClose, onSaved }) {
     <div className="fixed inset-0 bg-black/50 backdrop-blur-sm flex items-center justify-center z-[60] p-4">
       <div className="bg-white rounded-2xl shadow-2xl w-full max-w-2xl max-h-[92vh] overflow-y-auto">
         <header className="sticky top-0 bg-white border-b border-slate-100 px-6 py-4 flex items-center gap-3 z-10">
-          <div className="w-10 h-10 rounded-xl bg-indigo-50 text-indigo-600 flex items-center justify-center">
+          <div className="w-10 h-10 rounded-xl bg-brand-green/10 text-brand-blue flex items-center justify-center">
             <Activity size={20} />
           </div>
           <div className="flex-1 min-w-0">
@@ -69,14 +71,14 @@ export default function DailyUpdateModal({ task, onClose, onSaved }) {
         </header>
 
         {loading ? (
-          <div className="p-10 text-center text-slate-500">Loading updates…</div>
+          <PageLoader label="Loading updates…" />
         ) : (
           <div className="p-6 space-y-7">
             {task.column !== 'done' ? (
-              <form onSubmit={submit} className="space-y-4 bg-indigo-50/60 border border-indigo-100 rounded-2xl p-5">
+              <form onSubmit={submit} className="space-y-4 bg-brand-green/10 border border-brand-green/20 rounded-2xl p-5">
                 <div>
-                  <h4 className="font-semibold text-indigo-900">Update for {today}</h4>
-                  <p className="text-xs text-indigo-600 mt-1">You can edit today’s update until the task is completed.</p>
+                  <h4 className="font-semibold text-brand-ink">Update for {today}</h4>
+                  <p className="text-xs text-brand-blue mt-1">You can edit today’s update until the task is completed.</p>
                 </div>
                 <label className="block">
                   <span className="block text-xs font-semibold text-slate-600 uppercase mb-1.5">What did you work on?</span>
@@ -87,12 +89,12 @@ export default function DailyUpdateModal({ task, onClose, onSaved }) {
                     required
                     maxLength={2000}
                     placeholder="Describe today's progress…"
-                    className="w-full px-4 py-3 rounded-xl border border-slate-200 resize-none outline-none focus:ring-2 focus:ring-indigo-500"
+                    className="w-full px-4 py-3 rounded-xl border border-slate-200 resize-none outline-none focus:ring-2 focus:ring-brand-green"
                   />
                 </label>
                 <label className="block">
                   <span className="flex justify-between text-xs font-semibold text-slate-600 uppercase mb-1.5">
-                    Progress <strong className="text-indigo-600">{form.progressPercent}%</strong>
+                    Progress <strong className="text-brand-blue">{form.progressPercent}%</strong>
                   </span>
                   <input
                     type="range"
@@ -104,7 +106,7 @@ export default function DailyUpdateModal({ task, onClose, onSaved }) {
                       ...current,
                       progressPercent: Number(e.target.value),
                     }))}
-                    className="w-full accent-indigo-600"
+                    className="w-full accent-brand-green"
                   />
                 </label>
                 <div className="grid sm:grid-cols-2 gap-3">
@@ -115,7 +117,7 @@ export default function DailyUpdateModal({ task, onClose, onSaved }) {
                       onChange={(e) => setForm((current) => ({ ...current, blockers: e.target.value }))}
                       rows={2}
                       placeholder="Anything blocking you?"
-                      className="w-full px-3 py-2.5 rounded-xl border border-slate-200 resize-none outline-none focus:ring-2 focus:ring-indigo-500"
+                      className="w-full px-3 py-2.5 rounded-xl border border-slate-200 resize-none outline-none focus:ring-2 focus:ring-brand-green"
                     />
                   </label>
                   <label>
@@ -125,14 +127,14 @@ export default function DailyUpdateModal({ task, onClose, onSaved }) {
                       onChange={(e) => setForm((current) => ({ ...current, nextPlan: e.target.value }))}
                       rows={2}
                       placeholder="What will you do next?"
-                      className="w-full px-3 py-2.5 rounded-xl border border-slate-200 resize-none outline-none focus:ring-2 focus:ring-indigo-500"
+                      className="w-full px-3 py-2.5 rounded-xl border border-slate-200 resize-none outline-none focus:ring-2 focus:ring-brand-green"
                     />
                   </label>
                 </div>
                 <button
                   type="submit"
                   disabled={saving}
-                  className="w-full py-2.5 rounded-xl bg-indigo-600 hover:bg-indigo-700 text-white font-semibold flex items-center justify-center gap-2 disabled:opacity-60"
+                  className="w-full py-2.5 rounded-xl bg-brand-ink hover:bg-black text-white font-semibold flex items-center justify-center gap-2 disabled:opacity-60"
                 >
                   <Check size={16} /> {saving ? 'Saving…' : 'Save Daily Update'}
                 </button>
@@ -156,12 +158,14 @@ export default function DailyUpdateModal({ task, onClose, onSaved }) {
                       <div className="flex items-center justify-between mb-2">
                         <div>
                           <span className="text-sm font-semibold text-slate-700">{update.updateDate}</span>
-                          <span className="text-xs text-slate-400 ml-2">by {update.author?.username}</span>
+                          <span className="text-xs text-slate-400 ml-2 inline-flex items-center gap-1">
+                            by <PersonName user={update.author} size={16} nameClassName="text-xs text-slate-500" />
+                          </span>
                         </div>
-                        <span className="text-xs font-bold text-indigo-600">{update.progressPercent}%</span>
+                        <span className="text-xs font-bold text-brand-blue">{update.progressPercent}%</span>
                       </div>
                       <div className="h-1.5 bg-slate-100 rounded-full mb-3 overflow-hidden">
-                        <div className="h-full bg-indigo-500" style={{ width: `${update.progressPercent}%` }} />
+                        <div className="h-full bg-brand-green/100" style={{ width: `${update.progressPercent}%` }} />
                       </div>
                       <p className="text-sm text-slate-700 whitespace-pre-wrap">{update.content}</p>
                       {update.blockers && (

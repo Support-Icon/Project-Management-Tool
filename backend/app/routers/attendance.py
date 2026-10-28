@@ -194,7 +194,7 @@ async def list_attendance(date: str | None = Query(default=None), user=Depends(c
     day = date or today_in_zone(IST)
     db = get_db()
     company = company_id(user)
-    people = await db.users.find({"company": company}, {"username": 1, "role": 1}).sort("username", 1).to_list(500)
+    people = await db.users.find({"company": company}, {"username": 1, "role": 1, "avatar": 1}).sort("username", 1).to_list(500)
     if is_team_lead(user) and not can_see_all(user):
         members = await team_member_ids(db, user["_id"], company)
         allowed = {str(i) for i in members} | {str(user["_id"])}
@@ -222,6 +222,7 @@ async def list_attendance(date: str | None = Query(default=None), user=Depends(c
                 "userId": person["_id"],
                 "username": person.get("username"),
                 "role": person.get("role"),
+                "avatar": person.get("avatar") or "",
                 "status": "leave" if leave_by.get(str(person["_id"]), {}).get("status") == "approved" else (by_user.get(str(person["_id"])) or {}).get("status") or "working",
                 "startAt": (by_user.get(str(person["_id"])) or {}).get("startAt"),
                 "endAt": (by_user.get(str(person["_id"])) or {}).get("endAt"),

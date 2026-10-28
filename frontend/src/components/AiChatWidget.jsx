@@ -1,5 +1,4 @@
 import React, { useState } from 'react';
-import { Bot } from 'lucide-react';
 import { useNavigate, useLocation } from 'react-router-dom';
 import AiChatPanel from './AiChatPanel';
 
@@ -17,11 +16,12 @@ export default function AiChatWidget() {
     <>
       {!open && (
         <button
+          type="button"
           onClick={() => setOpen(true)}
-          className="fixed bottom-20 right-4 md:bottom-5 md:right-5 z-40 w-14 h-14 rounded-2xl bg-brand-green hover:bg-brand-greenDark text-brand-ink shadow-xl flex items-center justify-center"
-          title="Open AI assistant"
+          className="ask-ai-btn fixed bottom-20 right-4 md:bottom-5 md:right-5 z-40"
+          title="Ask AI"
         >
-          <Bot size={24} />
+          Ask AI
         </button>
       )}
 

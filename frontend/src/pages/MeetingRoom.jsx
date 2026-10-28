@@ -10,6 +10,7 @@ import { useAuth } from '../context/AuthContext';
 import { canSeeAll } from '../utils/roles';
 import BrandLogo from '../components/BrandLogo';
 import UserAvatar from '../components/UserAvatar';
+import PersonName from '../components/PersonName';
 import {
   MEET_LANGS, SPEECH_LANG, REACTIONS, meetT, meetingInviteText, cleanSummaryText
 } from '../utils/meet';
@@ -961,7 +962,7 @@ export default function MeetingRoom() {
             <div className="flex-1 overflow-y-auto p-3 space-y-2">
               {notes.map((n, i) => (
                 <div key={`${n.at}-${i}`} className="bg-slate-50 rounded-xl p-2.5">
-                  <p className="text-[11px] font-semibold text-brand-blue">{n.username}</p>
+                  <PersonName name={n.username} avatar={n.avatar} size={18} nameClassName="text-[11px] font-semibold text-brand-blue" />
                   <p className="text-sm whitespace-pre-wrap">{n.text}</p>
                 </div>
               ))}

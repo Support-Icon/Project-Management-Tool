@@ -26,10 +26,10 @@ async def context(db, company, days_param):
 async def scoped_users(db, user):
     company = company_id(user)
     if can_see_all(user):
-        return await db.users.find({"company": company}, {"username": 1, "email": 1, "role": 1}).to_list(500)
+        return await db.users.find({"company": company}, {"username": 1, "email": 1, "role": 1, "avatar": 1}).to_list(500)
     if isinstance(user.get("scopeUserIds"), list):
-        return await db.users.find({"company": company, "_id": {"$in": user["scopeUserIds"]}}, {"username": 1, "email": 1, "role": 1}).to_list(500)
-    return await db.users.find({"_id": user["_id"]}, {"username": 1, "email": 1, "role": 1}).to_list(5)
+        return await db.users.find({"company": company, "_id": {"$in": user["scopeUserIds"]}}, {"username": 1, "email": 1, "role": 1, "avatar": 1}).to_list(500)
+    return await db.users.find({"_id": user["_id"]}, {"username": 1, "email": 1, "role": 1, "avatar": 1}).to_list(5)
 
 
 def person_stats(person, open_tasks, updates, today, dates):
@@ -44,6 +44,7 @@ def person_stats(person, open_tasks, updates, today, dates):
         "username": person.get("username"),
         "email": person.get("email"),
         "role": person.get("role"),
+        "avatar": person.get("avatar") or "",
         "assignedOpen": len(assigned),
         "updatesToday": len([u for u in mine if u.get("updateDate") == today]),
         "missingToday": missing,
@@ -118,7 +119,7 @@ async def daily_updates(days: int = Query(default=7), user=Depends(leader_user))
         filt["author"] = {"$in": user["scopeUserIds"]}
     docs = await db.taskupdates.find(filt).sort("updateDate", -1).to_list(400)
     from ..serialize import attach
-    await attach(db.users, docs, "author", ["username"])
+    await attach(db.users, docs, "author", ["username", "avatar"])
     await attach(db.tasks, docs, "task", ["title", "column"])
     return dump(docs)
 
@@ -142,6 +143,7 @@ async def today_work(user=Depends(leader_user)):
             "_id": person["_id"],
             "username": person.get("username"),
             "role": person.get("role"),
+            "avatar": person.get("avatar") or "",
             "openTasks": len(assigned),
             "updatedToday": len(by_author.get(str(person["_id"]), [])),
             "tasks": assigned[:12],
