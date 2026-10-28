@@ -168,7 +168,6 @@ export default function MeetingRoom() {
   const [lang, setLang] = useState('en');
   const [leavingIds, setLeavingIds] = useState(() => new Set());
   const [captionsOn, setCaptionsOn] = useState(false);
-  const [captionLang, setCaptionLang] = useState('en');
   const [shownCaptions, setShownCaptions] = useState([]);
   const [liveCaption, setLiveCaption] = useState(null);
 
@@ -336,7 +335,6 @@ export default function MeetingRoom() {
     setMeeting(data);
     if (data.language && !langReady.current) {
       setLang(data.language);
-      setCaptionLang(data.language);
       langReady.current = true;
     }
     if (data.notes) setNotes(data.notes);
@@ -566,7 +564,7 @@ export default function MeetingRoom() {
     let cancelled = false;
     const rows = (meeting?.captions || []).slice(-4);
     const next = rows.map((row) => {
-      const key = `${row.lang}|${captionLang}|${row.text}`;
+      const key = `${row.lang}|${lang}|${row.text}`;
       const cached = captionCache.current.get(key);
       return {
         id: `${row.user}-${row.at}`,
@@ -578,13 +576,13 @@ export default function MeetingRoom() {
     });
     setShownCaptions(next);
     rows.forEach(async (row) => {
-      if (!row.final || !row.lang || row.lang === captionLang) return;
-      const key = `${row.lang}|${captionLang}|${row.text}`;
+      if (!row.final || !row.lang || row.lang === lang) return;
+      const key = `${row.lang}|${lang}|${row.text}`;
       if (captionCache.current.has(key)) return;
       try {
         const res = await api.post(`/api/meetings/${meetingId}/translate`, {
           text: row.text,
-          language: captionLang
+          language: lang
         });
         const text = res.data.text || row.text;
         captionCache.current.set(key, text);
@@ -596,7 +594,7 @@ export default function MeetingRoom() {
       }
     });
     return () => { cancelled = true; };
-  }, [meeting?.captions, captionLang, captionsOn, meetingId, myId]);
+  }, [meeting?.captions, lang, captionsOn, meetingId, myId]);
 
   const captionLines = useMemo(() => {
     const lines = shownCaptions.filter((line) => !liveCaption?.text || !line.mine);
@@ -914,20 +912,6 @@ export default function MeetingRoom() {
           <button type="button" onClick={copyInvite} className="p-2 rounded-xl bg-white/10" title={t('invite')}>
             <Link2 size={16} />
           </button>
-        )}
-        {captionsOn && (
-          <label className="flex items-center gap-1 text-xs text-slate-300" title={t('captionLang')}>
-            <span className="font-bold text-[10px] px-1.5 py-0.5 rounded bg-white/15">CC</span>
-            <select
-              value={captionLang}
-              onChange={(e) => setCaptionLang(e.target.value)}
-              className="bg-white/10 border border-white/10 rounded-lg px-2 py-1 text-xs outline-none max-w-[8.5rem]"
-            >
-              {MEET_LANGS.map((item) => (
-                <option key={`cap-${item.id}`} value={item.id} className="text-slate-800">{item.label}</option>
-              ))}
-            </select>
-          </label>
         )}
         <button
           type="button"

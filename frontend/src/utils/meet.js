@@ -45,7 +45,6 @@ const STR = {
     guest: 'Guest',
     speaking: 'Speaking',
     subtitles: 'Subtitles',
-    captionLang: 'Caption language',
     captionsOn: 'Captions on',
     captionsOff: 'Captions off',
     joined: 'joined',

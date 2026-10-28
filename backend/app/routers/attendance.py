@@ -1,4 +1,4 @@
-from datetime import datetime, timezone
+from datetime import date as date_cls, datetime, timedelta, timezone
 
 from fastapi import APIRouter, Body, Depends, Query
 from fastapi.responses import PlainTextResponse
@@ -188,10 +188,68 @@ async def set_status(body: dict = Body(default={}), user=Depends(current_user)):
     return serialize(row, leave)
 
 
-async def attendance_payload(date: str | None, user):
+def parse_day(value: str | None):
+    if not value:
+        return None
+    text = str(value).strip()[:10]
+    try:
+        return date_cls.fromisoformat(text).isoformat()
+    except ValueError:
+        fail(400, "Use dates like YYYY-MM-DD")
+
+
+def range_days(start: str, end: str, max_days=62):
+    a = date_cls.fromisoformat(start)
+    b = date_cls.fromisoformat(end)
+    if b < a:
+        a, b = b, a
+    if (b - a).days + 1 > max_days:
+        fail(400, f"Pick a range of {max_days} days or less")
+    days = []
+    cur = a
+    while cur <= b:
+        days.append(cur.isoformat())
+        cur += timedelta(days=1)
+    return days
+
+
+def leave_on_day(items, day):
+    hit = None
+    for item in items or []:
+        start = str(item.get("startDate") or "")[:10]
+        end = str(item.get("endDate") or "")[:10]
+        if start <= day <= end:
+            if not hit or item.get("status") == "approved":
+                hit = item
+    return hit
+
+
+def person_day_row(person, att, leave_item):
+    att = att or {}
+    leave_status = (leave_item or {}).get("status")
+    return {
+        "userId": person["_id"],
+        "username": person.get("username"),
+        "role": person.get("role"),
+        "avatar": person.get("avatar") or "",
+        "status": "leave" if leave_status == "approved" else att.get("status") or "working",
+        "startAt": att.get("startAt"),
+        "endAt": att.get("endAt"),
+        "onBreak": on_break(att),
+        "hours": hours_between(att.get("startAt"), att.get("endAt"), att.get("breaks")),
+        "breakHours": break_hours(att.get("breaks"), att.get("endAt")),
+        "leaveStatus": leave_status,
+    }
+
+
+async def attendance_payload(date: str | None, user, from_date: str | None = None, to_date: str | None = None):
     if not can_see_all(user) and not is_team_lead(user):
         fail(403, "Attendance view is for admin, manager, or team lead")
-    day = date or today_in_zone(IST)
+    today = today_in_zone(IST)
+    start = parse_day(from_date) or parse_day(date) or today
+    end = parse_day(to_date) or parse_day(date) or start
+    days = range_days(start, end)
+    start, end = days[0], days[-1]
     db = get_db()
     company = company_id(user)
     people = await db.users.find({"company": company}, {"username": 1, "role": 1, "avatar": 1}).sort("username", 1).to_list(500)
@@ -200,39 +258,44 @@ async def attendance_payload(date: str | None, user):
         allowed = {str(i) for i in members} | {str(user["_id"])}
         people = [p for p in people if str(p["_id"]) in allowed]
     ids = [p["_id"] for p in people]
-    rows = await db.attendances.find({"company": company, "date": day, "user": {"$in": ids}}).to_list(500)
+    rows = await db.attendances.find({
+        "company": company,
+        "date": {"$gte": start, "$lte": end},
+        "user": {"$in": ids},
+    }).to_list(8000)
     leaves = await db.leaverequests.find({
         "company": company,
         "status": {"$in": ["approved", "pending"]},
-        "startDate": {"$lte": day},
-        "endDate": {"$gte": day},
+        "startDate": {"$lte": end},
+        "endDate": {"$gte": start},
         "user": {"$in": ids},
-    }).to_list(500)
-    leave_by = {}
+    }).to_list(2000)
+    leave_by_user = {}
     for item in leaves:
-        key = str(item["user"])
-        prev = leave_by.get(key)
-        if not prev or item.get("status") == "approved":
-            leave_by[key] = item
-    by_user = {str(r["user"]): r for r in rows}
+        leave_by_user.setdefault(str(item["user"]), []).append(item)
+    by_user_date = {}
+    for row in rows:
+        by_user_date[f"{row.get('user')}|{row.get('date')}"] = row
+    day_payloads = []
+    for day in days:
+        day_payloads.append({
+            "date": day,
+            "people": dump([
+                person_day_row(
+                    person,
+                    by_user_date.get(f"{person['_id']}|{day}"),
+                    leave_on_day(leave_by_user.get(str(person["_id"])), day),
+                )
+                for person in people
+            ]),
+        })
+    latest = day_payloads[-1]["people"] if day_payloads else []
     return {
-        "date": day,
-        "people": dump([
-            {
-                "userId": person["_id"],
-                "username": person.get("username"),
-                "role": person.get("role"),
-                "avatar": person.get("avatar") or "",
-                "status": "leave" if leave_by.get(str(person["_id"]), {}).get("status") == "approved" else (by_user.get(str(person["_id"])) or {}).get("status") or "working",
-                "startAt": (by_user.get(str(person["_id"])) or {}).get("startAt"),
-                "endAt": (by_user.get(str(person["_id"])) or {}).get("endAt"),
-                "onBreak": on_break(by_user.get(str(person["_id"]))),
-                "hours": hours_between((by_user.get(str(person["_id"])) or {}).get("startAt"), (by_user.get(str(person["_id"])) or {}).get("endAt"), (by_user.get(str(person["_id"])) or {}).get("breaks")),
-                "breakHours": break_hours((by_user.get(str(person["_id"])) or {}).get("breaks"), (by_user.get(str(person["_id"])) or {}).get("endAt")),
-                "leaveStatus": (leave_by.get(str(person["_id"])) or {}).get("status"),
-            }
-            for person in people
-        ]),
+        "date": end,
+        "from": start,
+        "to": end,
+        "days": dump(day_payloads),
+        "people": latest,
     }
 
 
@@ -244,29 +307,42 @@ def _csv_cell(value):
 
 
 @router.get("/")
-async def list_attendance(date: str | None = Query(default=None), user=Depends(current_user)):
-    return await attendance_payload(date, user)
+async def list_attendance(
+    date: str | None = Query(default=None),
+    from_date: str | None = Query(default=None, alias="from"),
+    to_date: str | None = Query(default=None, alias="to"),
+    user=Depends(current_user),
+):
+    return await attendance_payload(date, user, from_date, to_date)
 
 
 @router.get("/export")
-async def export_attendance(date: str | None = Query(default=None), user=Depends(current_user)):
-    payload = await attendance_payload(date, user)
-    lines = ["Person,Role,Status,Start,End,Break hours,Work hours"]
-    for person in payload["people"]:
-        status = "break" if person.get("onBreak") else (person.get("status") or "working")
-        lines.append(",".join([
-            _csv_cell(person.get("username")),
-            _csv_cell(person.get("role")),
-            _csv_cell(status),
-            _csv_cell(format_ist(person.get("startAt")) if person.get("startAt") else ""),
-            _csv_cell(format_ist(person.get("endAt")) if person.get("endAt") else ""),
-            _csv_cell(person.get("breakHours") if person.get("breakHours") else "0"),
-            _csv_cell("" if person.get("hours") is None else person.get("hours")),
-        ]))
-    day = payload["date"]
+async def export_attendance(
+    date: str | None = Query(default=None),
+    from_date: str | None = Query(default=None, alias="from"),
+    to_date: str | None = Query(default=None, alias="to"),
+    user=Depends(current_user),
+):
+    payload = await attendance_payload(date, user, from_date, to_date)
+    lines = ["Date,Person,Role,Status,Start,End,Break hours,Work hours"]
+    for day in payload.get("days") or []:
+        for person in day.get("people") or []:
+            status = "break" if person.get("onBreak") else (person.get("status") or "working")
+            lines.append(",".join([
+                _csv_cell(day.get("date")),
+                _csv_cell(person.get("username")),
+                _csv_cell(person.get("role")),
+                _csv_cell(status),
+                _csv_cell(format_ist(person.get("startAt")) if person.get("startAt") else ""),
+                _csv_cell(format_ist(person.get("endAt")) if person.get("endAt") else ""),
+                _csv_cell(person.get("breakHours") if person.get("breakHours") else "0"),
+                _csv_cell("" if person.get("hours") is None else person.get("hours")),
+            ]))
+    start, end = payload["from"], payload["to"]
+    filename = f"attendance-{start}.csv" if start == end else f"attendance-{start}-to-{end}.csv"
     body = "\n".join(lines) + "\n"
     return PlainTextResponse(
         body,
         media_type="text/csv",
-        headers={"Content-Disposition": f'attachment; filename="attendance-{day}.csv"'},
+        headers={"Content-Disposition": f'attachment; filename="{filename}"'},
     )

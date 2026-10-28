@@ -1,7 +1,7 @@
 import React, { useEffect, useMemo, useState } from 'react';
 import {
-  Activity, AlertCircle, CalendarDays, CheckCircle2, ClipboardList,
-  Download, RefreshCw, TrendingUp, Users, UserRound,
+  Activity, AlertCircle, CheckCircle2, ClipboardList,
+  RefreshCw, TrendingUp, Users, UserRound,
 } from 'lucide-react';
 import {
   Area, Bar, BarChart, CartesianGrid, Cell, ComposedChart, Legend,
@@ -10,10 +10,9 @@ import {
 import toast from 'react-hot-toast';
 import api from '../api/axios';
 import { useAuth } from '../context/AuthContext';
-import { canViewTeamAnalytics, ROLE_LABELS } from '../utils/roles';
+import { canViewTeamAnalytics } from '../utils/roles';
 import PageLoader from '../components/PageLoader';
 import PersonName from '../components/PersonName';
-import { formatIST } from '../utils/time';
 
 const STATUS_COLORS = {
   todo: '#1E88E5',
@@ -115,13 +114,6 @@ export default function AnalyticsPage() {
   const [personal, setPersonal] = useState(null);
   const [updates, setUpdates] = useState([]);
   const [loading, setLoading] = useState(true);
-  const todayIst = () => new Intl.DateTimeFormat('en-CA', {
-    timeZone: 'Asia/Kolkata', year: 'numeric', month: '2-digit', day: '2-digit',
-  }).format(new Date());
-  const [attDate, setAttDate] = useState(todayIst);
-  const [attPeople, setAttPeople] = useState([]);
-  const [attLoading, setAttLoading] = useState(false);
-  const [attDownloading, setAttDownloading] = useState(false);
 
   const load = async () => {
     setLoading(true);
@@ -145,41 +137,6 @@ export default function AnalyticsPage() {
   };
 
   useEffect(() => { load(); }, [days, tab, isAdmin]);
-
-  useEffect(() => {
-    if (!(isAdmin && tab === 'team')) return undefined;
-    let cancelled = false;
-    setAttLoading(true);
-    api.get(`/api/attendance?date=${attDate}`)
-      .then((res) => {
-        if (!cancelled) setAttPeople(res.data.people || []);
-      })
-      .catch(() => {
-        if (!cancelled) setAttPeople([]);
-      })
-      .finally(() => {
-        if (!cancelled) setAttLoading(false);
-      });
-    return () => { cancelled = true; };
-  }, [attDate, tab, isAdmin]);
-
-  const downloadAttendance = async () => {
-    setAttDownloading(true);
-    try {
-      const res = await api.get(`/api/attendance/export?date=${attDate}`, { responseType: 'blob' });
-      const blob = new Blob([res.data], { type: 'text/csv;charset=utf-8;' });
-      const link = document.createElement('a');
-      link.href = URL.createObjectURL(blob);
-      link.download = `attendance-${attDate}.csv`;
-      link.click();
-      URL.revokeObjectURL(link.href);
-      toast.success('Attendance report downloaded');
-    } catch (err) {
-      toast.error(err.response?.data?.message || 'Could not download attendance');
-    } finally {
-      setAttDownloading(false);
-    }
-  };
 
   const recentUpdates = useMemo(() => updates.slice(0, 25), [updates]);
 
@@ -252,72 +209,6 @@ export default function AnalyticsPage() {
           </div>
 
           <Charts charts={overview.charts} />
-
-          <section className="bg-white rounded-2xl border border-slate-100 shadow-sm overflow-hidden mb-6">
-            <div className="px-5 py-4 border-b border-slate-100 flex flex-wrap items-center justify-between gap-3">
-              <div>
-                <h3 className="font-bold text-slate-800 flex items-center gap-2">
-                  <CalendarDays size={18} className="text-brand-green" /> Attendance
-                </h3>
-                <p className="text-xs text-slate-500 mt-1">Date-wise start, end, breaks, and leave. Admin, manager, and team lead can download this report.</p>
-              </div>
-              <div className="flex flex-wrap items-center gap-2">
-                <input
-                  type="date"
-                  value={attDate}
-                  onChange={(e) => setAttDate(e.target.value)}
-                  className="px-3 py-2 rounded-xl border border-slate-200 text-sm"
-                />
-                <button
-                  type="button"
-                  onClick={downloadAttendance}
-                  disabled={attDownloading}
-                  className="inline-flex items-center gap-1.5 px-3 py-2 rounded-xl bg-brand-ink text-white text-sm font-semibold disabled:opacity-60"
-                >
-                  <Download size={15} /> {attDownloading ? 'Downloading…' : 'Download'}
-                </button>
-              </div>
-            </div>
-            {attLoading ? (
-              <p className="px-5 py-8 text-sm text-slate-400 text-center">Loading attendance…</p>
-            ) : (
-              <div className="overflow-x-auto">
-                <table className="w-full min-w-[720px] text-sm">
-                  <thead className="bg-slate-50 text-xs uppercase text-slate-500">
-                    <tr>
-                      <th className="text-left px-5 py-3">Person</th>
-                      <th className="text-left px-4 py-3">Role</th>
-                      <th className="text-left px-4 py-3">Status</th>
-                      <th className="text-left px-4 py-3">Start</th>
-                      <th className="text-left px-4 py-3">End</th>
-                      <th className="text-left px-4 py-3">Break</th>
-                      <th className="text-left px-4 py-3">Hours</th>
-                    </tr>
-                  </thead>
-                  <tbody>
-                    {attPeople.length === 0 && (
-                      <tr>
-                        <td colSpan={7} className="px-5 py-8 text-center text-slate-400">No attendance for this date.</td>
-                      </tr>
-                    )}
-                    {attPeople.map((p) => (
-                      <tr key={p.userId} className="border-t border-slate-50">
-                        <td className="px-5 py-3">
-                          <PersonName user={p} name={p.username} avatar={p.avatar} size={24} nameClassName="font-semibold text-slate-800" />
-                        </td>
-                        <td className="px-4 py-3 text-slate-500">{ROLE_LABELS[p.role] || p.role}</td>
-                        <td className="px-4 py-3 capitalize">{p.onBreak ? 'break' : p.status}</td>
-                        <td className="px-4 py-3 text-slate-600">{p.startAt ? formatIST(p.startAt) : '—'}</td>
-                        <td className="px-4 py-3 text-slate-600">{p.endAt ? formatIST(p.endAt) : '—'}</td>
-                        <td className="px-4 py-3 text-slate-600">{p.breakHours ? `${p.breakHours}h` : '—'}</td>
-                        <td className="px-4 py-3 text-slate-600">{p.hours == null ? '—' : `${p.hours}h`}</td>
-                      </tr>
-                    ))}
-                  </tbody>
-                </table>
-              </div>
-            )}
-          </section>
 
           <section className="bg-white rounded-2xl border border-slate-100 shadow-sm overflow-hidden mb-6">
             <div className="px-5 py-4 border-b border-slate-100">
