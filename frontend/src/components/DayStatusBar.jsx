@@ -1,8 +1,9 @@
 import React, { useEffect, useState } from 'react';
-import { Circle, Coffee, LogIn, LogOut, Palmtree, X } from 'lucide-react';
+import { Check, Circle, Coffee, LogIn, Sunset, X } from 'lucide-react';
 import toast from 'react-hot-toast';
 import api from '../api/axios';
-import { formatIST, toDateOnly } from '../utils/time';
+import { formatIST } from '../utils/time';
+import DailyUpdateModal from './DailyUpdateModal';
 
 const STATUS = [
   { id: 'working', label: 'Working', className: 'bg-emerald-50 text-emerald-700 border-emerald-200' },
@@ -12,9 +13,11 @@ const STATUS = [
 export default function DayStatusBar() {
   const [row, setRow] = useState(null);
   const [busy, setBusy] = useState(false);
-  const [leaveOpen, setLeaveOpen] = useState(false);
-  const today = toDateOnly(new Date());
-  const [leaveForm, setLeaveForm] = useState({ startDate: today, endDate: today, reason: '' });
+  const [eodOpen, setEodOpen] = useState(false);
+  const [pending, setPending] = useState([]);
+  const [done, setDone] = useState([]);
+  const [loadingEod, setLoadingEod] = useState(false);
+  const [updateTask, setUpdateTask] = useState(null);
 
   const load = async () => {
     try {
@@ -31,26 +34,41 @@ export default function DayStatusBar() {
       const res = await fn();
       setRow(res.data);
       if (ok) toast.success(ok);
+      return true;
     } catch (error) {
       toast.error(error.response?.data?.message || 'Could not update');
+      return false;
     } finally {
       setBusy(false);
     }
   };
 
-  const requestLeave = async (e) => {
-    e.preventDefault();
-    setBusy(true);
+  const loadEodTasks = async () => {
+    setLoadingEod(true);
     try {
-      await api.post('/api/leaves', leaveForm);
-      toast.success('Leave request sent');
-      setLeaveOpen(false);
-      await load();
-    } catch (error) {
-      toast.error(error.response?.data?.message || 'Could not request leave');
+      const res = await api.get('/api/task-updates/pending/mine');
+      setPending(res.data.pending || res.data.tasks || []);
+      setDone(res.data.done || []);
+    } catch (_) {
+      setPending([]);
+      setDone([]);
     } finally {
-      setBusy(false);
+      setLoadingEod(false);
     }
+  };
+
+  const openEod = async () => {
+    setEodOpen(true);
+    await loadEodTasks();
+  };
+
+  const completeEod = async () => {
+    if (pending.length > 0) {
+      toast.error('Add daily updates for every In Progress task first');
+      return;
+    }
+    const ok = await act(() => api.post('/api/attendance/end'), 'Work day complete');
+    if (ok) setEodOpen(false);
   };
 
   const approvedLeave = row?.leave?.status === 'approved';
@@ -113,27 +131,18 @@ export default function DayStatusBar() {
         <button
           type="button"
           disabled={busy || blocked || !started || ended}
-          onClick={() => act(() => api.post('/api/attendance/end'), 'Day ended')}
-          className="flex items-center gap-1 text-xs font-semibold px-2.5 py-1.5 rounded-lg border border-slate-200 text-slate-600 bg-white hover:bg-slate-50 disabled:opacity-40 whitespace-nowrap"
-          title={ended ? `Ended ${formatIST(row.endAt)}` : 'End day'}
+          onClick={openEod}
+          className="flex items-center gap-1 text-xs font-semibold px-2.5 py-1.5 rounded-lg border border-brand-ink/15 text-brand-ink bg-white hover:bg-slate-50 disabled:opacity-40 whitespace-nowrap"
+          title={ended ? `EOD ${formatIST(row.endAt)}` : 'End of day — daily updates then complete'}
         >
-          <LogOut size={13} /> End
-        </button>
-        <button
-          type="button"
-          disabled={busy || approvedLeave}
-          onClick={() => setLeaveOpen(true)}
-          className="flex items-center gap-1 text-xs font-semibold px-2.5 py-1.5 rounded-lg border border-brand-blue/30 text-brand-blue bg-white hover:bg-sky-50 disabled:opacity-40 whitespace-nowrap"
-          title="Ask your manager for leave"
-        >
-          <Palmtree size={13} /> Leave
+          <Sunset size={13} /> EOD
         </button>
         {started && (
           <span className="flex items-center gap-1 text-[11px] text-slate-500 whitespace-nowrap">
             <Circle size={8} className={
               ended ? 'text-slate-400' : onBreak ? 'text-amber-500 fill-amber-500' : 'text-emerald-500 fill-emerald-500'
             } />
-            {ended ? 'Done' : onBreak ? 'Break' : 'In'}
+            {ended ? 'EOD' : onBreak ? 'Break' : 'In'}
           </span>
         )}
         {pendingLeave && (
@@ -141,56 +150,99 @@ export default function DayStatusBar() {
         )}
       </div>
 
-      {leaveOpen && (
+      {eodOpen && (
         <div className="fixed inset-0 z-[60] bg-black/40 flex items-end sm:items-center justify-center p-0 sm:p-4">
-          <form
-            onSubmit={requestLeave}
-            className="bg-white w-full sm:max-w-md sm:rounded-2xl rounded-t-2xl p-5 shadow-xl"
-          >
-            <div className="flex items-center justify-between mb-4">
-              <h3 className="font-bold text-brand-ink">Request leave</h3>
-              <button type="button" onClick={() => setLeaveOpen(false)} className="text-slate-400">
+          <div className="bg-white w-full sm:max-w-lg sm:rounded-2xl rounded-t-2xl p-5 shadow-xl max-h-[90vh] overflow-y-auto">
+            <div className="flex items-center justify-between mb-3">
+              <div>
+                <h3 className="font-bold text-brand-ink">End of day</h3>
+                <p className="text-xs text-slate-500 mt-0.5">
+                  Add today’s daily update for every In Progress task, then complete EOD.
+                </p>
+              </div>
+              <button type="button" onClick={() => setEodOpen(false)} className="text-slate-400">
                 <X size={18} />
               </button>
             </div>
-            <div className="grid grid-cols-2 gap-3">
-              <label className="text-xs text-slate-500">
-                From
-                <input
-                  type="date"
-                  required
-                  value={leaveForm.startDate}
-                  onChange={(e) => setLeaveForm((f) => ({ ...f, startDate: e.target.value }))}
-                  className="mt-1 w-full px-3 py-2 rounded-xl border border-slate-200 text-sm text-slate-800"
-                />
-              </label>
-              <label className="text-xs text-slate-500">
-                To
-                <input
-                  type="date"
-                  required
-                  value={leaveForm.endDate}
-                  onChange={(e) => setLeaveForm((f) => ({ ...f, endDate: e.target.value }))}
-                  className="mt-1 w-full px-3 py-2 rounded-xl border border-slate-200 text-sm text-slate-800"
-                />
-              </label>
-            </div>
-            <textarea
-              value={leaveForm.reason}
-              onChange={(e) => setLeaveForm((f) => ({ ...f, reason: e.target.value }))}
-              rows={3}
-              placeholder="Reason (optional)"
-              className="mt-3 w-full px-3 py-2 rounded-xl border border-slate-200 text-sm"
-            />
+
+            {loadingEod ? (
+              <p className="py-8 text-center text-sm text-slate-400">Loading today’s updates…</p>
+            ) : (
+              <div className="space-y-4">
+                {pending.length === 0 && done.length === 0 && (
+                  <p className="text-sm text-slate-500 bg-slate-50 rounded-xl px-4 py-3">
+                    No In Progress tasks today. You can complete EOD.
+                  </p>
+                )}
+
+                {pending.length > 0 && (
+                  <section>
+                    <p className="text-[11px] font-semibold uppercase tracking-wide text-amber-700 mb-2">
+                      Need daily update ({pending.length})
+                    </p>
+                    <div className="space-y-2">
+                      {pending.map((task) => (
+                        <button
+                          key={task._id}
+                          type="button"
+                          onClick={() => setUpdateTask(task)}
+                          className="w-full text-left px-3 py-3 rounded-xl border border-amber-200 bg-amber-50 hover:border-amber-400"
+                        >
+                          <p className="text-sm font-semibold text-slate-800">{task.title}</p>
+                          <p className="text-[11px] text-slate-500 mt-0.5">{task.project?.title}</p>
+                          <p className="text-[11px] text-amber-700 font-semibold mt-1">Add daily update</p>
+                        </button>
+                      ))}
+                    </div>
+                  </section>
+                )}
+
+                {done.length > 0 && (
+                  <section>
+                    <p className="text-[11px] font-semibold uppercase tracking-wide text-emerald-700 mb-2">
+                      Updated today ({done.length})
+                    </p>
+                    <div className="space-y-2">
+                      {done.map((task) => (
+                        <button
+                          key={task._id}
+                          type="button"
+                          onClick={() => setUpdateTask(task)}
+                          className="w-full text-left px-3 py-3 rounded-xl border border-emerald-100 bg-emerald-50/70"
+                        >
+                          <p className="text-sm font-semibold text-slate-800 flex items-center gap-2">
+                            <Check size={14} className="text-emerald-600" /> {task.title}
+                          </p>
+                          <p className="text-[11px] text-slate-500 mt-0.5">{task.project?.title}</p>
+                        </button>
+                      ))}
+                    </div>
+                  </section>
+                )}
+              </div>
+            )}
+
             <button
-              type="submit"
-              disabled={busy}
-              className="mt-4 w-full py-2.5 rounded-xl bg-brand-green text-brand-ink font-semibold disabled:opacity-50"
+              type="button"
+              disabled={busy || loadingEod || pending.length > 0}
+              onClick={completeEod}
+              className="mt-5 w-full py-2.5 rounded-xl bg-brand-ink text-white font-semibold disabled:opacity-50 inline-flex items-center justify-center gap-2"
             >
-              Send to manager
+              <Sunset size={16} /> {pending.length > 0 ? 'Finish daily updates to EOD' : 'Complete EOD'}
             </button>
-          </form>
+          </div>
         </div>
+      )}
+
+      {updateTask && (
+        <DailyUpdateModal
+          task={updateTask}
+          onClose={() => setUpdateTask(null)}
+          onSaved={() => {
+            setUpdateTask(null);
+            loadEodTasks();
+          }}
+        />
       )}
     </>
   );

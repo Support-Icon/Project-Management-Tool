@@ -55,7 +55,7 @@ export default function DailyUpdateModal({ task, onClose, onSaved }) {
   };
 
   return (
-    <div className="fixed inset-0 bg-black/50 backdrop-blur-sm flex items-center justify-center z-[60] p-4">
+    <div className="fixed inset-0 bg-black/50 backdrop-blur-sm flex items-center justify-center z-[70] p-4">
       <div className="bg-white rounded-2xl shadow-2xl w-full max-w-2xl max-h-[92vh] overflow-y-auto">
         <header className="sticky top-0 bg-white border-b border-slate-100 px-6 py-4 flex items-center gap-3 z-10">
           <div className="w-10 h-10 rounded-xl bg-brand-green/10 text-brand-blue flex items-center justify-center">

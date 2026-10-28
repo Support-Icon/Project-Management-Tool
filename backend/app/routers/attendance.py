@@ -8,6 +8,7 @@ from ..deps import company_id, current_user, fail
 from ..duration import IST, format_ist, today_in_zone
 from ..roles import can_see_all, is_team_lead, team_member_ids
 from ..serialize import dump, oid
+from .task_updates import eod_checklist
 
 router = APIRouter(prefix="/api/attendance", tags=["attendance"])
 
@@ -147,6 +148,9 @@ async def end_day(user=Depends(current_user)):
     leave = await leave_for_date(db, company_id(user), user["_id"], date)
     if row.get("endAt"):
         return serialize(row, leave)
+    _, pending, _ = await eod_checklist(db, user)
+    if pending:
+        fail(400, "Submit today's daily updates before EOD")
     close_open_break(row)
     row["endAt"] = datetime.now(timezone.utc)
     await db.attendances.update_one({"_id": row["_id"]}, {"$set": {"breaks": row.get("breaks") or [], "endAt": row["endAt"]}})

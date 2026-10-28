@@ -30,9 +30,18 @@ async def load_task(db, task_id, company):
     return task
 
 
-@router.get("/pending/mine")
-async def pending_mine(user=Depends(current_user)):
-    db = get_db()
+def shape_eod_task(task, projects):
+    return {
+        "_id": task["_id"],
+        "title": task.get("title"),
+        "project": projects[str(task["project"])],
+        "priority": task.get("priority"),
+        "dueDate": task.get("dueDate"),
+        "column": task.get("column"),
+    }
+
+
+async def eod_checklist(db, user):
     company = company_id(user)
     day = await today(db, company)
     tasks = await db.tasks.find({"assignee": user["_id"], "column": "inprogress"}).to_list(200)
@@ -46,20 +55,15 @@ async def pending_mine(user=Depends(current_user)):
         "task": {"$in": [t["_id"] for t in company_tasks]},
     })
     updated = {str(i) for i in updated_ids}
-    return dump({
-        "date": day,
-        "tasks": [
-            {
-                "_id": t["_id"],
-                "title": t.get("title"),
-                "project": projects[str(t["project"])],
-                "priority": t.get("priority"),
-                "dueDate": t.get("dueDate"),
-                "column": t.get("column"),
-            }
-            for t in company_tasks if str(t["_id"]) not in updated
-        ],
-    })
+    pending = [shape_eod_task(t, projects) for t in company_tasks if str(t["_id"]) not in updated]
+    done = [shape_eod_task(t, projects) for t in company_tasks if str(t["_id"]) in updated]
+    return day, pending, done
+
+
+@router.get("/pending/mine")
+async def pending_mine(user=Depends(current_user)):
+    day, pending, done = await eod_checklist(get_db(), user)
+    return dump({"date": day, "tasks": pending, "pending": pending, "done": done})
 
 
 @router.get("/{task_id}")
