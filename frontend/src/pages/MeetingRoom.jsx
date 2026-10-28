@@ -1,7 +1,7 @@
 import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { Navigate, useNavigate, useParams } from 'react-router-dom';
 import {
-  Mic, MicOff, Video, VideoOff, PhoneOff, StickyNote, Send, MonitorUp,
+  Mic, MicOff, Video, VideoOff, PhoneOff, StickyNote, Send, MonitorUp, MonitorOff,
   Pin, PinOff, Maximize, Minimize, Hand, Smile, Link2, Languages
 } from 'lucide-react';
 import toast from 'react-hot-toast';
@@ -27,7 +27,7 @@ const VideoTile = ({
     if (ref.current) ref.current.srcObject = stream || null;
   }, [stream]);
   return (
-    <div className={`relative rounded-2xl overflow-hidden bg-[#1a1a1e] h-full min-h-[96px] group ${
+    <div className={`relative rounded-2xl overflow-hidden bg-[#1a1a1e] w-full h-full aspect-square group ${
       speaking ? 'ring-2 ring-brand-green' : ''
     }`}>
       <video
@@ -390,7 +390,25 @@ export default function MeetingRoom() {
     setCamOff(next);
   };
 
+  const stopShare = () => {
+    const cam = streamRef.current?.getVideoTracks()[0];
+    pcs.current.forEach((pc) => {
+      const sender = pc.getSenders().find((s) => s.track?.kind === 'video');
+      if (sender && cam) sender.replaceTrack(cam);
+    });
+    (displayStream?.getTracks() || []).forEach((tr) => {
+      tr.onended = null;
+      tr.stop();
+    });
+    setDisplayStream(null);
+    setSharing(false);
+  };
+
   const shareScreen = async () => {
+    if (sharing) {
+      stopShare();
+      return;
+    }
     try {
       const screen = await navigator.mediaDevices.getDisplayMedia({ video: true });
       const track = screen.getVideoTracks()[0];
@@ -400,15 +418,7 @@ export default function MeetingRoom() {
       });
       setDisplayStream(screen);
       setSharing(true);
-      track.onended = () => {
-        const cam = streamRef.current?.getVideoTracks()[0];
-        pcs.current.forEach((pc) => {
-          const sender = pc.getSenders().find((s) => s.track?.kind === 'video');
-          if (sender && cam) sender.replaceTrack(cam);
-        });
-        setDisplayStream(null);
-        setSharing(false);
-      };
+      track.onended = () => stopShare();
     } catch (_) {}
   };
 
@@ -576,24 +586,26 @@ export default function MeetingRoom() {
 
       <div className="flex-1 min-h-0 flex">
         <div className="flex-1 min-w-0 flex flex-col p-2 sm:p-3 gap-2">
-          <div className="flex-1 min-h-0">
+          <div className="flex-1 min-h-0 flex items-center justify-center">
             {stage && (
-              <VideoTile
-                {...stage}
-                pinned={pinnedId === stage.id}
-                onPin={() => setPinnedId((id) => (id === stage.id ? null : stage.id))}
-                t={t}
-              />
+              <div className="aspect-square h-full max-h-full max-w-full">
+                <VideoTile
+                  {...stage}
+                  pinned={pinnedId === stage.id}
+                  onPin={() => setPinnedId((id) => (id === stage.id ? null : stage.id))}
+                  t={t}
+                />
+              </div>
             )}
           </div>
           {strip.length > 0 && (
-            <div className="h-24 sm:h-28 flex gap-2 overflow-x-auto scrollbar-thin">
+            <div className="h-24 sm:h-28 flex gap-2 overflow-x-auto scrollbar-thin justify-center">
               {strip.map((tile) => (
                 <button
                   key={tile.id}
                   type="button"
                   onClick={() => setPinnedId(tile.id)}
-                  className="w-36 sm:w-44 flex-shrink-0"
+                  className="w-24 h-24 sm:w-28 sm:h-28 flex-shrink-0"
                 >
                   <VideoTile
                     {...tile}
@@ -642,8 +654,13 @@ export default function MeetingRoom() {
         <button type="button" onClick={toggleCam} className={`p-3 rounded-full ${camOff ? 'bg-brand-red' : 'bg-white/10'}`}>
           {camOff ? <VideoOff size={18} /> : <Video size={18} />}
         </button>
-        <button type="button" onClick={shareScreen} className="hidden sm:inline-flex p-3 rounded-full bg-white/10" title={t('share')}>
-          <MonitorUp size={18} />
+        <button
+          type="button"
+          onClick={shareScreen}
+          className={`inline-flex p-3 rounded-full ${sharing ? 'bg-brand-red' : 'bg-white/10'}`}
+          title={sharing ? t('stopShare') : t('share')}
+        >
+          {sharing ? <MonitorOff size={18} /> : <MonitorUp size={18} />}
         </button>
         <button
           type="button"

@@ -18,6 +18,8 @@ import MeetingsPage from './pages/MeetingsPage';
 import MeetingRoom from './pages/MeetingRoom';
 import MeetingSummary from './pages/MeetingSummary';
 import GuestJoin from './pages/GuestJoin';
+import ProjectsPage from './pages/ProjectsPage';
+import ProfilePage from './pages/ProfilePage';
 import Layout from './components/Layout';
 
 const Spinner = () => (
@@ -53,6 +55,8 @@ const AppRoutes = () => {
         }
       >
         <Route index element={<Dashboard />} />
+        <Route path="projects" element={<ProjectsPage />} />
+        <Route path="profile" element={<ProfilePage />} />
         <Route path="kanban/:projectId" element={<KanbanPage />} />
         <Route path="users" element={<UsersPage />} />
         <Route path="reports" element={<ReportsPage />} />

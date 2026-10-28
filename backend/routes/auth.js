@@ -100,6 +100,7 @@ router.post('/login', async (req, res) => {
         username: user.username,
         email: user.email,
         role: user.role,
+        avatar: user.avatar || '',
         teamLead: user.teamLead || null,
         company: { _id: user.company._id, name: user.company.name }
       }
@@ -117,6 +118,7 @@ router.get('/me', auth, (req, res) => {
     username: u.username,
     email: u.email,
     role: u.role,
+    avatar: u.avatar || '',
     teamLead: u.teamLead || null,
     company: { _id: u.company._id, name: u.company.name }
   });

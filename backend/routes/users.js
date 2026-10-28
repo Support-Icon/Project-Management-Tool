@@ -6,7 +6,7 @@ const { ROLES, canAssignOthers, canSeeAll, creatableRoles, isAdmin, isTeamLead }
 
 const router = express.Router();
 
-const PUBLIC_FIELDS = 'username email role teamLead createdAt';
+const PUBLIC_FIELDS = 'username email role teamLead avatar createdAt';
 
 const normalizeRole = (role) => (ROLES.includes(role) ? role : null);
 
@@ -114,6 +114,33 @@ router.post('/', auth, staffOnly, async (req, res) => {
       .populate('teamLead', 'username role');
 
     res.status(201).json(populated);
+  } catch (error) {
+    res.status(500).json({ message: error.message });
+  }
+});
+
+const MAX_AVATAR_BYTES = 10 * 1024;
+
+router.put('/me/avatar', auth, async (req, res) => {
+  try {
+    const raw = String(req.body.avatar || '');
+    if (!raw) {
+      req.user.avatar = '';
+      await req.user.save();
+      return res.json({ avatar: '' });
+    }
+    const match = raw.match(/^data:image\/(jpeg|jpg|png|webp);base64,([A-Za-z0-9+/=\s]+)$/i);
+    if (!match) {
+      return res.status(400).json({ message: 'Use a JPG or PNG photo' });
+    }
+    const bytes = Buffer.from(match[2].replace(/\s/g, ''), 'base64');
+    if (bytes.length > MAX_AVATAR_BYTES) {
+      return res.status(400).json({ message: 'Photo must be under 10 KB. Try a smaller crop.' });
+    }
+    const mime = match[1].toLowerCase() === 'jpg' ? 'jpeg' : match[1].toLowerCase();
+    req.user.avatar = `data:image/${mime};base64,${bytes.toString('base64')}`;
+    await req.user.save();
+    res.json({ avatar: req.user.avatar });
   } catch (error) {
     res.status(500).json({ message: error.message });
   }

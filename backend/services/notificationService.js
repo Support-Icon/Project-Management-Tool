@@ -98,8 +98,9 @@ const notifyLeaveDecision = async ({ companyId, request, memberId, approved, rev
 };
 
 const notifyMeetingInvite = async ({ companyId, meeting, host, inviteeIds }) => {
+  const hostId = host?._id || host?.id;
   const items = (inviteeIds || [])
-    .filter((id) => id && id.toString() !== host._id.toString())
+    .filter((id) => id && hostId && String(id) !== String(hostId))
     .map((id) => ({
       user: id,
       company: companyId,
@@ -107,7 +108,7 @@ const notifyMeetingInvite = async ({ companyId, meeting, host, inviteeIds }) => 
       title: `${host.username} started a meeting`,
       body: meeting.title || 'Team meeting',
       link: `/meet/${meeting._id}`,
-      actor: host._id,
+      actor: hostId,
       meta: { meetingId: meeting._id }
     }));
   return createMany(items);

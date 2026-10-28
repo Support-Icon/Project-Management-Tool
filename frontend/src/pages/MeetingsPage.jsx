@@ -1,13 +1,16 @@
 import React, { useEffect, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { Clock, Link2, Plus, Video } from 'lucide-react';
+import { Clock, Link2, PhoneOff, Plus, Video } from 'lucide-react';
 import toast from 'react-hot-toast';
 import api from '../api/axios';
 import { formatIST } from '../utils/time';
-import { ROLE_LABELS } from '../utils/roles';
+import { ROLE_LABELS, canSeeAll } from '../utils/roles';
+import { useAuth } from '../context/AuthContext';
 import { meetingInviteText, cleanSummaryText } from '../utils/meet';
 
 export default function MeetingsPage() {
+  const { user } = useAuth();
+  const canCut = canSeeAll(user);
   const navigate = useNavigate();
   const [live, setLive] = useState([]);
   const [ended, setEnded] = useState([]);
@@ -37,7 +40,7 @@ export default function MeetingsPage() {
     try {
       const res = await api.post('/api/meetings', {
         title: title.trim() || 'Team meeting',
-        invitees
+        invitees: invitees.map((id) => String(id)).filter(Boolean)
       });
       navigate(`/meet/${res.data._id}`);
     } catch (error) {
@@ -49,6 +52,18 @@ export default function MeetingsPage() {
 
   const toggleInvite = (id) => {
     setInvitees((prev) => (prev.includes(id) ? prev.filter((x) => x !== id) : [...prev, id]));
+  };
+
+  const endLive = async (meeting, event) => {
+    event.stopPropagation();
+    if (!window.confirm(`End “${meeting.title}” for everyone?`)) return;
+    try {
+      await api.post(`/api/meetings/${meeting._id}/end`);
+      toast.success('Meeting ended');
+      await load();
+    } catch (error) {
+      toast.error(error.response?.data?.message || 'Could not end meeting');
+    }
   };
 
   const copyInvite = async (meeting, event) => {
@@ -86,9 +101,9 @@ export default function MeetingsPage() {
               <button
                 key={p._id}
                 type="button"
-                onClick={() => toggleInvite(p._id)}
+                onClick={() => toggleInvite(String(p._id))}
                 className={`px-2.5 py-1 rounded-full text-xs font-medium border ${
-                  invitees.includes(p._id)
+                  invitees.includes(String(p._id))
                     ? 'bg-brand-green text-brand-ink border-brand-green'
                     : 'border-white/15 text-slate-300'
                 }`}
@@ -127,15 +142,26 @@ export default function MeetingsPage() {
                   </p>
                   <p className="text-[11px] text-slate-400 mt-1">{formatIST(m.startedAt)}</p>
                 </button>
-                {m.guestToken && (
-                  <button
-                    type="button"
-                    onClick={(e) => copyInvite(m, e)}
-                    className="mt-3 inline-flex items-center gap-1 text-xs font-semibold text-brand-blue"
-                  >
-                    <Link2 size={13} /> Copy guest invite
-                  </button>
-                )}
+                <div className="mt-3 flex flex-wrap gap-2">
+                  {m.guestToken && (
+                    <button
+                      type="button"
+                      onClick={(e) => copyInvite(m, e)}
+                      className="inline-flex items-center gap-1 text-xs font-semibold text-brand-blue"
+                    >
+                      <Link2 size={13} /> Copy guest invite
+                    </button>
+                  )}
+                  {canCut && (
+                    <button
+                      type="button"
+                      onClick={(e) => endLive(m, e)}
+                      className="inline-flex items-center gap-1 text-xs font-semibold text-brand-red"
+                    >
+                      <PhoneOff size={13} /> End meeting
+                    </button>
+                  )}
+                </div>
               </div>
             ))}
           </div>

@@ -82,6 +82,18 @@ export const AuthProvider = ({ children }) => {
     setUser(null);
   };
 
+  const updateUser = (partial) => {
+    setUser((prev) => {
+      if (!prev) return prev;
+      const next = { ...prev, ...partial };
+      try {
+        const stored = JSON.parse(localStorage.getItem('auth') || '{}');
+        localStorage.setItem('auth', JSON.stringify({ ...stored, user: next }));
+      } catch (_) {}
+      return next;
+    });
+  };
+
   return (
     <AuthContext.Provider
       value={{
@@ -89,6 +101,7 @@ export const AuthProvider = ({ children }) => {
         loading,
         login,
         logout,
+        updateUser,
         adminMineOnly,
         toggleAdminMineOnly,
       }}

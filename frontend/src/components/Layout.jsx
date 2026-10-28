@@ -4,8 +4,8 @@ import { useAuth } from '../context/AuthContext';
 import api from '../api/axios';
 import { withMineOnly } from '../utils/apiQuery';
 import {
-  LayoutDashboard, Users, FolderKanban, Plus, LogOut,
-  ChevronRight, Menu, X, Building2, Briefcase, FileSpreadsheet, UserCheck,
+  LayoutDashboard, Users, FolderKanban, LogOut,
+  Menu, X, Building2, FileSpreadsheet, UserCheck,
   BarChart3, Settings, Bot, MessageSquare, CalendarDays, Video, Palmtree
 } from 'lucide-react';
 import toast from 'react-hot-toast';
@@ -14,6 +14,7 @@ import AiChatWidget from './AiChatWidget';
 import NotificationBell from './NotificationBell';
 import DayStatusBar from './DayStatusBar';
 import BrandLogo from './BrandLogo';
+import UserAvatar from './UserAvatar';
 import { canSeeAll, canManageUsers, canViewTeamAnalytics, ROLE_LABELS } from '../utils/roles';
 import { useNotifications } from '../context/NotificationContext';
 
@@ -63,7 +64,6 @@ export default function Layout() {
     navigate(`/kanban/${proj._id}`);
   };
 
-  const avatar = user?.username?.[0]?.toUpperCase() || 'U';
   const navClass = ({ isActive }) =>
     `flex items-center gap-3 px-3 py-2.5 rounded-xl text-sm font-medium transition-all ${
       isActive
@@ -75,51 +75,10 @@ export default function Layout() {
   const fillPage = location.pathname.startsWith('/messages') || location.pathname.startsWith('/kanban');
 
   const projectsNav = canLead && (
-    <div className="pt-2 pb-2">
-      <div className="flex items-center justify-between px-3 mb-2">
-        <span className="text-xs font-semibold text-slate-500 uppercase tracking-widest">
-          Projects
-        </span>
-        {isAdmin && (
-          <button
-            onClick={() => setShowProjectModal(true)}
-            className="w-5 h-5 rounded-md bg-white/10 hover:bg-brand-green hover:text-brand-ink flex items-center justify-center text-slate-400 transition-all"
-            title="New project"
-          >
-            <Plus size={13} />
-          </button>
-        )}
-      </div>
-      {projects.length === 0 ? (
-        <div className="text-center py-3 px-2">
-          <Briefcase size={22} className="text-slate-600 mx-auto mb-1" />
-          <p className="text-xs text-slate-500">
-            {canManage ? 'No projects yet' : 'No projects assigned'}
-          </p>
-        </div>
-      ) : (
-        <div className="space-y-0.5">
-          {projects.map((p) => (
-            <NavLink
-              key={p._id}
-              to={`/kanban/${p._id}`}
-              onClick={closeMobileNav}
-              className={({ isActive }) =>
-                `flex items-center gap-2.5 px-3 py-2 rounded-xl text-sm transition-all group ${
-                  isActive
-                    ? 'bg-brand-green text-brand-ink'
-                    : 'text-slate-400 hover:bg-white/10 hover:text-white'
-                }`
-              }
-            >
-              <FolderKanban size={15} className="flex-shrink-0" />
-              <span className="truncate flex-1">{p.title}</span>
-              <ChevronRight size={13} className="opacity-0 group-hover:opacity-100 transition" />
-            </NavLink>
-          ))}
-        </div>
-      )}
-    </div>
+    <NavLink to="/projects" className={navClass} onClick={closeMobileNav}>
+      <FolderKanban size={17} />
+      Projects
+    </NavLink>
   );
 
   if (inMeetRoom) {
@@ -240,13 +199,21 @@ export default function Layout() {
 
         <div className="p-3 border-t border-white/10">
           <div className="flex items-center gap-3 px-2 py-2">
-            <div className="w-8 h-8 rounded-xl bg-brand-green text-brand-ink flex items-center justify-center font-bold text-sm flex-shrink-0">
-              {avatar}
-            </div>
-            <div className="flex-1 min-w-0">
+            <button
+              type="button"
+              onClick={() => { closeMobileNav(); navigate('/profile'); }}
+              title="Profile photo"
+            >
+              <UserAvatar user={user} size={32} />
+            </button>
+            <button
+              type="button"
+              onClick={() => { closeMobileNav(); navigate('/profile'); }}
+              className="flex-1 min-w-0 text-left"
+            >
               <p className="text-white text-sm font-medium truncate">{user?.username}</p>
               <p className="text-brand-blue text-xs">{ROLE_LABELS[user?.role] || user?.role}</p>
-            </div>
+            </button>
             <button
               onClick={handleLogout}
               className="text-slate-400 hover:text-red-400 transition-colors p-1"

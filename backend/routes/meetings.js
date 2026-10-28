@@ -44,13 +44,17 @@ const publicMeeting = (meeting, { includeGuestToken = false } = {}) => {
   return out;
 };
 
+const companyIdOf = (user) => user?.company?._id || user?.company;
+
 const canJoin = (user, meeting) => {
-  if (!meeting) return false;
-  if (user?.isGuest) return String(meeting._id) === String(user.guestMeetingId || '');
-  if (String(meeting.host) === String(user._id) || String(meeting.host?._id) === String(user._id)) return true;
-  const invitees = (meeting.invitees || []).map((id) => id.toString());
+  if (!meeting || !user) return false;
+  if (user.isGuest) return String(meeting._id) === String(user.guestMeetingId || '');
+  const uid = String(user._id || user.id || '');
+  const hostId = String(meeting.host?._id || meeting.host || '');
+  if (uid && hostId && uid === hostId) return true;
+  const invitees = (meeting.invitees || []).map((id) => (id ? String(id) : '')).filter(Boolean);
   if (!invitees.length) return true;
-  if (invitees.includes(user._id.toString())) return true;
+  if (uid && invitees.includes(uid)) return true;
   return canSeeAll(user);
 };
 
@@ -58,7 +62,7 @@ const assertMeetingAccess = (req, meeting) => {
   if (req.user?.isGuest) {
     return String(req.guestMeetingId) === String(meeting._id);
   }
-  return String(meeting.company._id || meeting.company) === String(req.user.company._id);
+  return String(meeting.company?._id || meeting.company) === String(companyIdOf(req.user));
 };
 
 const staffOnly = (req, res, next) => {
@@ -132,7 +136,7 @@ router.use(authOrGuest);
 
 router.get('/', staffOnly, async (req, res) => {
   try {
-    const companyId = req.user.company._id;
+    const companyId = companyIdOf(req.user);
     const live = await Meeting.find({ company: companyId, status: 'live' })
       .populate('host', 'username role')
       .sort({ startedAt: -1 })
@@ -164,7 +168,7 @@ router.post('/', staffOnly, async (req, res) => {
       : [];
     const language = LANGUAGE_NAMES[req.body.language] ? req.body.language : 'en';
     const meeting = await Meeting.create({
-      company: req.user.company._id,
+      company: companyIdOf(req.user),
       title,
       host: req.user._id,
       invitees,
@@ -177,12 +181,16 @@ router.post('/', staffOnly, async (req, res) => {
         lastSeen: new Date()
       }]
     });
-    await notifyMeetingInvite({
-      companyId: req.user.company._id,
-      meeting,
-      host: req.user,
-      inviteeIds: invitees
-    });
+    try {
+      await notifyMeetingInvite({
+        companyId: companyIdOf(req.user),
+        meeting,
+        host: req.user,
+        inviteeIds: invitees
+      });
+    } catch (notifyErr) {
+      console.error('Meeting invite notify failed:', notifyErr.message);
+    }
     const populated = await Meeting.findById(meeting._id).populate('host', 'username role');
     res.status(201).json(publicMeeting(populated, { includeGuestToken: true }));
   } catch (error) {
@@ -193,7 +201,7 @@ router.post('/', staffOnly, async (req, res) => {
 const loadMeeting = async (req, res) => {
   const filter = req.user.isGuest
     ? { _id: req.params.id }
-    : { _id: req.params.id, company: req.user.company._id };
+    : { _id: req.params.id, company: companyIdOf(req.user) };
   const meeting = await Meeting.findOne(filter).populate('host', 'username role');
   if (!meeting) {
     res.status(404).json({ message: 'Meeting not found' });
@@ -433,7 +441,7 @@ router.post('/:id/end', async (req, res) => {
       Math.round((meeting.endedAt - meeting.startedAt) / 60000)
     );
     meeting.summary = await summarizeMeeting({
-      companyId: req.user.company._id,
+      companyId: companyIdOf(req.user),
       title: meeting.title,
       participants: meeting.participants,
       notes: meeting.notes,

@@ -29,6 +29,7 @@ const userSchema = new mongoose.Schema({
     ref: 'User',
     default: null
   },
+  avatar: { type: String, default: '' },
   company: {
     type: mongoose.Schema.Types.ObjectId,
     ref: 'Company',
