@@ -38,28 +38,18 @@ export default function Dashboard() {
   useEffect(() => {
     const fetchStats = async () => {
       try {
-        const pendingRes = await api.get('/api/task-updates/pending/mine');
+        const [pendingRes, statsRes, usersRes] = await Promise.all([
+          api.get('/api/task-updates/pending/mine'),
+          api.get(`/api/tasks/summary${withMineOnly(isAdmin, adminMineOnly)}`),
+          canManage ? api.get('/api/users') : Promise.resolve({ data: [] }),
+        ]);
         setPendingUpdates(pendingRes.data);
-        if (canManage) {
-          const usersRes = await api.get('/api/users');
-          setUserCount(usersRes.data.length);
-        }
-
-        if (projects.length > 0) {
-          let total = 0, done = 0;
-          await Promise.all(
-            projects.map(async (p) => {
-              const res = await api.get(`/api/tasks/${p._id}${withMineOnly(isAdmin, adminMineOnly)}`);
-              total += res.data.length;
-              done += res.data.filter((t) => t.column === 'done').length;
-            })
-          );
-          setTaskStats({ total, done });
-        }
+        setTaskStats({ total: statsRes.data.total || 0, done: statsRes.data.done || 0 });
+        if (canManage) setUserCount(usersRes.data.length);
       } catch (_) {}
     };
     fetchStats();
-  }, [projects, user, isAdmin, adminMineOnly]);
+  }, [user, isAdmin, adminMineOnly, canManage]);
 
   const handleDelete = async (e, id) => {
     e.stopPropagation();

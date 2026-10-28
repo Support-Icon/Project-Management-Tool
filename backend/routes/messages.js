@@ -5,6 +5,7 @@ const Message = require('../models/Message');
 const Attachment = require('../models/Attachment');
 const User = require('../models/User');
 const { auth } = require('../middleware/auth');
+const Notification = require('../models/Notification');
 const { notifyNewMessage } = require('../services/notificationService');
 const { canAssignOthers, getTeamMemberIds } = require('../utils/roles');
 
@@ -339,6 +340,16 @@ router.post('/conversations/:id/read', auth, async (req, res) => {
       { conversation: conversation._id, readBy: { $ne: req.user._id } },
       { $addToSet: { readBy: req.user._id } }
     );
+    const conversationId = conversation._id.toString();
+    await Notification.deleteMany({
+      user: req.user._id,
+      type: 'message',
+      $or: [
+        { 'meta.conversationId': conversation._id },
+        { 'meta.conversationId': conversationId },
+        { link: `/messages/${conversationId}` }
+      ]
+    });
     res.json({ updated: result.modifiedCount || 0 });
   } catch (error) {
     res.status(500).json({ message: error.message });

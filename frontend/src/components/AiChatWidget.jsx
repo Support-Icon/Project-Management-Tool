@@ -16,7 +16,7 @@ export default function AiChatWidget() {
       {!open && (
         <button
           onClick={() => setOpen(true)}
-          className="fixed bottom-5 right-5 z-40 w-14 h-14 rounded-2xl bg-indigo-600 hover:bg-indigo-700 text-white shadow-xl flex items-center justify-center"
+          className="fixed bottom-5 right-5 z-40 w-14 h-14 rounded-2xl bg-brand-green hover:bg-brand-greenDark text-brand-ink shadow-xl flex items-center justify-center"
           title="Open AI assistant"
         >
           <Bot size={24} />

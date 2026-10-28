@@ -9,7 +9,7 @@
 
   body {
     font-family: 'Inter', system-ui, sans-serif;
-    background-color: #f1f5f9;
+    background-color: #eef3f0;
     -webkit-font-smoothing: antialiased;
   }
 }
@@ -34,6 +34,13 @@
     backdrop-filter: blur(12px);
     background: rgba(255, 255, 255, 0.7);
   }
+}
+
+.chat-canvas {
+  background-color: #e8eee6;
+  background-image:
+    radial-gradient(circle at 12% 18%, rgba(141, 198, 63, 0.12), transparent 28%),
+    radial-gradient(circle at 88% 82%, rgba(30, 136, 229, 0.1), transparent 32%);
 }
 
 /* Drag-and-drop column styling */

@@ -5,12 +5,12 @@ import {
   Search, Send, Users, X, Plus
 } from 'lucide-react';
 import toast from 'react-hot-toast';
-import api, { attachmentUrl } from '../api/axios';
+import api from '../api/axios';
 import { useAuth } from '../context/AuthContext';
+import { useNotifications } from '../context/NotificationContext';
 import { formatIST } from '../utils/time';
 import { ROLE_LABELS, canAssignOthers } from '../utils/roles';
-
-const isImage = (mime) => String(mime || '').startsWith('image/');
+import MediaViewer from '../components/MediaViewer';
 
 const FileChip = ({ file, onRemove }) => (
   <span className="inline-flex items-center gap-1.5 px-2 py-1 rounded-lg bg-slate-100 text-xs text-slate-600">
@@ -22,22 +22,11 @@ const FileChip = ({ file, onRemove }) => (
   </span>
 );
 
-const AttachmentLink = ({ file }) => (
-  <a
-    href={attachmentUrl(file.attachment, isImage(file.mimeType))}
-    target="_blank"
-    rel="noreferrer"
-    className="mt-2 inline-flex items-center gap-1.5 px-2.5 py-1.5 rounded-lg bg-white/70 border border-slate-200 text-xs font-semibold text-indigo-600 hover:bg-white"
-  >
-    <Paperclip size={12} />
-    {file.filename}
-  </a>
-);
-
 export default function MessagesPage() {
   const { conversationId } = useParams();
   const navigate = useNavigate();
   const { user } = useAuth();
+  const { refresh: refreshNotifications } = useNotifications() || {};
   const canCreateTeam = canAssignOthers(user);
   const [conversations, setConversations] = useState([]);
   const [directory, setDirectory] = useState([]);
@@ -82,14 +71,15 @@ export default function MessagesPage() {
       activeIdRef.current = res.data.conversation?._id;
       setMessages(list);
       afterRef.current = list.at(-1)?.createdAt || new Date().toISOString();
-      api.post(`/api/messages/conversations/${id}/read`).catch(() => {});
+      await api.post(`/api/messages/conversations/${id}/read`).catch(() => {});
       setConversations((prev) => prev.map((c) => (c._id === id ? { ...c, unread: 0 } : c)));
+      refreshNotifications?.();
     } catch (_) {
       toast.error('Could not open conversation');
     } finally {
       setLoadingThread(false);
     }
-  }, []);
+  }, [refreshNotifications]);
 
   useEffect(() => {
     loadConversations();
@@ -211,18 +201,21 @@ export default function MessagesPage() {
   };
 
   return (
-    <div className="h-full flex bg-slate-100">
-      <aside className="w-72 flex-shrink-0 bg-white border-r border-slate-200 flex flex-col">
-        <div className="p-4 border-b border-slate-100">
+    <div className="h-full flex bg-[#e8eee6]">
+      <aside className="w-[20rem] flex-shrink-0 bg-white/90 backdrop-blur border-r border-black/5 flex flex-col">
+        <div className="p-4 border-b border-black/5">
           <div className="flex items-center justify-between gap-2">
-            <h2 className="font-bold text-slate-800 flex items-center gap-2">
-              <MessageSquare size={18} className="text-indigo-600" /> Messages
+            <h2 className="font-bold text-brand-ink flex items-center gap-2">
+              <span className="w-8 h-8 rounded-xl bg-brand-ink text-brand-green flex items-center justify-center">
+                <MessageSquare size={16} />
+              </span>
+              Messages
             </h2>
             {canCreateTeam && (
               <button
                 type="button"
                 onClick={() => setTeamModal(true)}
-                className="p-1.5 rounded-lg bg-indigo-50 text-indigo-600 hover:bg-indigo-100"
+                className="p-1.5 rounded-lg bg-brand-green/15 text-brand-greenDark hover:bg-brand-green hover:text-brand-ink"
                 title="New team chat"
               >
                 <Plus size={16} />
@@ -235,11 +228,11 @@ export default function MessagesPage() {
               value={search}
               onChange={(e) => setSearch(e.target.value)}
               placeholder="Search people…"
-              className="w-full pl-9 pr-3 py-2 rounded-xl border border-slate-200 text-sm outline-none focus:ring-2 focus:ring-indigo-500"
+              className="w-full pl-9 pr-3 py-2 rounded-full border border-black/10 bg-[#f6f8f4] text-sm outline-none focus:ring-2 focus:ring-brand-green"
             />
           </div>
         </div>
-        <div className="flex-1 overflow-y-auto">
+        <div className="flex-1 overflow-y-auto scrollbar-thin">
           {loadingList ? (
             <p className="p-4 text-sm text-slate-400">Loading…</p>
           ) : (
@@ -252,24 +245,24 @@ export default function MessagesPage() {
                     setLoadingThread(true);
                     navigate(`/messages/${c._id}`);
                   }}
-                  className={`w-full text-left px-4 py-3 border-b border-slate-50 hover:bg-slate-50 ${
-                    active?._id === c._id ? 'bg-indigo-50' : ''
+                  className={`w-full text-left px-4 py-3 border-b border-black/5 transition ${
+                    active?._id === c._id ? 'bg-brand-green/15' : 'hover:bg-black/[0.03]'
                   }`}
                 >
-                  <div className="flex items-center gap-2">
-                    <div className={`w-8 h-8 rounded-lg flex items-center justify-center text-white text-xs font-bold ${
-                      c.type === 'company' ? 'bg-indigo-600' : c.type === 'team' ? 'bg-amber-500' : 'bg-sky-500'
+                  <div className="flex items-center gap-3">
+                    <div className={`w-11 h-11 rounded-2xl flex items-center justify-center text-white text-sm font-bold shadow-sm ${
+                      c.type === 'company' ? 'bg-brand-ink text-brand-green' : c.type === 'team' ? 'bg-brand-yellow text-brand-ink' : 'bg-brand-blue'
                     }`}>
                       {iconFor(c)}
                     </div>
                     <div className="flex-1 min-w-0">
-                      <p className="text-sm font-semibold text-slate-800 truncate">
+                      <p className="text-sm font-semibold text-brand-ink truncate">
                         {c.type === 'company' ? `# ${c.name || 'company'}` : c.name}
                       </p>
-                      <p className="text-xs text-slate-400 truncate">{c.lastMessageText || 'No messages yet'}</p>
+                      <p className="text-xs text-slate-500 truncate">{c.lastMessageText || 'No messages yet'}</p>
                     </div>
                     {c.unread > 0 && (
-                      <span className="text-[10px] font-bold bg-rose-500 text-white rounded-full min-w-[18px] h-[18px] flex items-center justify-center px-1">
+                      <span className="text-[10px] font-bold bg-brand-red text-white rounded-full min-w-[18px] h-[18px] flex items-center justify-center px-1">
                         {c.unread}
                       </span>
                     )}
@@ -286,9 +279,9 @@ export default function MessagesPage() {
                   key={p._id}
                   type="button"
                   onClick={() => startDirect(p._id)}
-                  className="w-full text-left px-4 py-2.5 hover:bg-slate-50 flex items-center gap-2"
+                  className="w-full text-left px-4 py-2.5 hover:bg-black/[0.03] flex items-center gap-3"
                 >
-                  <div className="w-8 h-8 rounded-lg bg-slate-200 text-slate-600 flex items-center justify-center text-xs font-bold">
+                  <div className="w-11 h-11 rounded-2xl bg-brand-blue/15 text-brand-blue flex items-center justify-center text-sm font-bold">
                     {p.username[0].toUpperCase()}
                   </div>
                   <div>
@@ -302,26 +295,34 @@ export default function MessagesPage() {
         </div>
       </aside>
 
-      <section className="flex-1 flex flex-col min-w-0">
+      <section className="flex-1 flex flex-col min-w-0 chat-canvas">
         {!active && !loadingThread ? (
-          <div className="flex-1 flex items-center justify-center text-slate-400 text-sm">
-            Pick a company channel, team chat, or start a direct message.
+          <div className="flex-1 flex flex-col items-center justify-center text-center px-6">
+            <img
+              src={`${import.meta.env.BASE_URL}supporticon-logo.png`}
+              alt=""
+              className="h-16 w-auto opacity-90 mb-5"
+            />
+            <p className="text-brand-ink font-semibold">Your team chat</p>
+            <p className="text-sm text-slate-500 mt-1 max-w-sm">
+              Pick a company channel, team chat, or start a direct message.
+            </p>
           </div>
         ) : (
           <>
-            <header className="h-14 bg-white border-b border-slate-200 px-5 flex items-center gap-3">
-              <div className="w-8 h-8 rounded-lg bg-indigo-600 text-white flex items-center justify-center">
-                {active?.type === 'company' ? <Building2 size={14} /> : active?.type === 'team' ? <Users size={14} /> : <MessageSquare size={14} />}
+            <header className="h-16 bg-white/90 backdrop-blur border-b border-black/5 px-5 flex items-center gap-3">
+              <div className="w-10 h-10 rounded-2xl bg-brand-ink text-brand-green flex items-center justify-center">
+                {active?.type === 'company' ? <Building2 size={16} /> : active?.type === 'team' ? <Users size={16} /> : <MessageSquare size={16} />}
               </div>
               <div>
-                <p className="font-bold text-slate-800 text-sm">
+                <p className="font-bold text-brand-ink text-sm">
                   {loadingThread && !active
                     ? 'Opening chat…'
                     : active?.type === 'company'
                       ? `# ${active.name || 'company'}`
                       : conversations.find((c) => c._id === active?._id)?.name}
                 </p>
-                <p className="text-[11px] text-slate-400">
+                <p className="text-[11px] text-brand-blue">
                   {active?.type === 'company' && 'Everyone in the company'}
                   {active?.type === 'direct' && 'Direct message'}
                   {active?.type === 'team' && 'Team chat'}
@@ -329,16 +330,16 @@ export default function MessagesPage() {
                 </p>
               </div>
             </header>
-            <div className="flex-1 overflow-y-auto p-5 space-y-3">
+            <div className="flex-1 overflow-y-auto p-5 space-y-3 scrollbar-thin">
               {loadingThread && (
                 <div className="h-full min-h-[240px] flex flex-col items-center justify-center gap-4">
-                  <div className="w-10 h-10 rounded-full border-4 border-indigo-100 border-t-indigo-600 animate-spin" />
+                  <div className="w-10 h-10 rounded-full border-4 border-brand-green/30 border-t-brand-green animate-spin" />
                   <p className="text-sm text-slate-500">Loading messages…</p>
                   <div className="w-full max-w-md space-y-3 pt-2">
                     {[1, 2, 3, 4].map((n) => (
                       <div
                         key={n}
-                        className={`h-12 rounded-2xl bg-slate-200/80 animate-pulse ${n % 2 === 0 ? 'ml-12' : 'mr-12'}`}
+                        className={`h-12 rounded-2xl bg-white/70 animate-pulse ${n % 2 === 0 ? 'ml-12' : 'mr-12'}`}
                       />
                     ))}
                   </div>
@@ -349,18 +350,20 @@ export default function MessagesPage() {
                 return (
                   <div key={m._id} className={`flex ${mine ? 'justify-end' : 'justify-start'}`}>
                     <div className={`max-w-[75%] rounded-2xl px-3.5 py-2.5 shadow-sm ${
-                      mine ? 'bg-indigo-600 text-white' : 'bg-white border border-slate-100 text-slate-800'
+                      mine
+                        ? 'bg-brand-green text-brand-ink rounded-br-md'
+                        : 'bg-white border border-black/5 text-slate-800 rounded-bl-md'
                     }`}>
                       {!mine && (
-                        <p className="text-[11px] font-semibold mb-0.5 text-indigo-600">
+                        <p className="text-[11px] font-semibold mb-0.5 text-brand-blue">
                           {m.sender?.username}
                         </p>
                       )}
                       {m.text && <p className="text-sm whitespace-pre-wrap break-words">{m.text}</p>}
                       {m.attachments?.map((file) => (
-                        <AttachmentLink key={file.attachment} file={file} />
+                        <MediaViewer key={file.attachment} file={file} compact={mine} />
                       ))}
-                      <p className={`text-[10px] mt-1 ${mine ? 'text-indigo-200' : 'text-slate-400'}`}>
+                      <p className={`text-[10px] mt-1 ${mine ? 'text-brand-ink/60' : 'text-slate-400'}`}>
                         {formatIST(m.createdAt)}
                       </p>
                     </div>
@@ -369,7 +372,7 @@ export default function MessagesPage() {
               })}
               <div ref={listEndRef} />
             </div>
-            <form onSubmit={send} className="bg-white border-t border-slate-200 p-3">
+            <form onSubmit={send} className="bg-white/90 backdrop-blur border-t border-black/5 p-3">
               {files.length > 0 && (
                 <div className="flex flex-wrap gap-2 mb-2">
                   {files.map((file, index) => (
@@ -385,7 +388,7 @@ export default function MessagesPage() {
                 <button
                   type="button"
                   onClick={() => fileRef.current?.click()}
-                  className="p-2.5 rounded-xl border border-slate-200 text-slate-500 hover:text-indigo-600"
+                  className="p-2.5 rounded-full border border-black/10 text-slate-500 hover:text-brand-greenDark hover:border-brand-green"
                   title="Attach documents or images"
                 >
                   <Paperclip size={18} />
@@ -394,6 +397,7 @@ export default function MessagesPage() {
                   ref={fileRef}
                   type="file"
                   multiple
+                  accept="image/*,video/*,.pdf,.doc,.docx,.xls,.xlsx,.ppt,.pptx,.txt,.zip,.csv"
                   className="hidden"
                   onChange={(e) => {
                     const next = [...files, ...Array.from(e.target.files || [])].slice(0, 5);
@@ -406,7 +410,7 @@ export default function MessagesPage() {
                   onChange={(e) => setText(e.target.value)}
                   rows={1}
                   placeholder="Write a message…"
-                  className="flex-1 px-3 py-2.5 rounded-xl border border-slate-200 text-sm resize-none outline-none focus:ring-2 focus:ring-indigo-500"
+                  className="flex-1 px-4 py-2.5 rounded-full border border-black/10 bg-[#f6f8f4] text-sm resize-none outline-none focus:ring-2 focus:ring-brand-green"
                   onKeyDown={(e) => {
                     if (e.key === 'Enter' && !e.shiftKey) {
                       e.preventDefault();
@@ -417,9 +421,9 @@ export default function MessagesPage() {
                 <button
                   type="submit"
                   disabled={sending || (!text.trim() && files.length === 0)}
-                  className="px-4 py-2.5 rounded-xl bg-indigo-600 text-white font-semibold disabled:opacity-50 flex items-center justify-center gap-1.5"
+                  className="w-11 h-11 rounded-full bg-brand-green text-brand-ink font-semibold disabled:opacity-50 flex items-center justify-center hover:bg-brand-greenDark"
                 >
-                  <Send size={16} /> Send
+                  <Send size={16} />
                 </button>
               </div>
             </form>
@@ -463,7 +467,7 @@ export default function MessagesPage() {
             <button
               type="button"
               onClick={createTeamChat}
-              className="w-full py-2.5 rounded-xl bg-indigo-600 text-white font-semibold"
+              className="w-full py-2.5 rounded-xl bg-brand-green text-brand-ink font-semibold"
             >
               Create team chat
             </button>

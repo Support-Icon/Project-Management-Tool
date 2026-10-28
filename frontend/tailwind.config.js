@@ -3,6 +3,17 @@ export default {
   content: ['./index.html', './src/**/*.{js,ts,jsx,tsx}'],
   theme: {
     extend: {
+      colors: {
+        brand: {
+          green: '#8DC63F',
+          greenDark: '#6BA32A',
+          blue: '#1E88E5',
+          red: '#E31C3D',
+          yellow: '#F5C518',
+          ink: '#0B0B0D',
+          inkSoft: '#141418',
+        },
+      },
       fontFamily: {
         sans: ['Inter', 'system-ui', 'sans-serif'],
       },

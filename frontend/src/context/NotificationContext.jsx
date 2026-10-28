@@ -1,4 +1,4 @@
-import React, { createContext, useContext, useEffect, useRef, useState } from 'react';
+import React, { createContext, useCallback, useContext, useEffect, useRef, useState } from 'react';
 import api from '../api/axios';
 import { useAuth } from './AuthContext';
 import { playNotifySound, unlockNotifySound } from '../utils/notifySound';
@@ -53,7 +53,7 @@ export const NotificationProvider = ({ children }) => {
     } catch (_) {}
   };
 
-  const poll = async () => {
+  const poll = useCallback(async () => {
     if (!user) return;
     try {
       const res = await api.get('/api/notifications?limit=30');
@@ -76,7 +76,7 @@ export const NotificationProvider = ({ children }) => {
       persistSeen();
       readyRef.current = true;
     } catch (_) {}
-  };
+  }, [user]);
 
   useEffect(() => {
     if (!user) {
@@ -89,7 +89,7 @@ export const NotificationProvider = ({ children }) => {
     poll();
     const id = setInterval(poll, POLL_MS);
     return () => clearInterval(id);
-  }, [user?._id]);
+  }, [user, poll]);
 
   const markRead = async (id) => {
     setItems((prev) => prev.filter((item) => item._id !== id));

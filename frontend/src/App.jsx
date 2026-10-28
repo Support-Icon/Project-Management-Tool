@@ -12,13 +12,14 @@ import SettingsPage from './pages/SettingsPage';
 import MessagesPage from './pages/MessagesPage';
 import TeamWorkPage from './pages/TeamWorkPage';
 import AiChatPage from './pages/AiChatPage';
+import AttendancePage from './pages/AttendancePage';
 import Layout from './components/Layout';
 
 const Spinner = () => (
   <div className="min-h-screen flex items-center justify-center bg-slate-50">
     <div className="flex flex-col items-center gap-4">
-      <div className="w-12 h-12 border-4 border-indigo-500 border-t-transparent rounded-full animate-spin" />
-      <p className="text-slate-500 text-sm font-medium">Loading ProjectFlow…</p>
+      <div className="w-12 h-12 border-4 border-brand-green border-t-transparent rounded-full animate-spin" />
+      <p className="text-slate-500 text-sm font-medium">Loading Supporticon…</p>
     </div>
   </div>
 );
@@ -50,6 +51,7 @@ const AppRoutes = () => {
         <Route path="reports" element={<ReportsPage />} />
         <Route path="analytics" element={<AnalyticsPage />} />
         <Route path="team-work" element={<TeamWorkPage />} />
+        <Route path="attendance" element={<AttendancePage />} />
         <Route path="settings" element={<SettingsPage />} />
         <Route path="messages" element={<MessagesPage />} />
         <Route path="messages/:conversationId" element={<MessagesPage />} />

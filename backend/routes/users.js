@@ -28,7 +28,8 @@ router.get('/directory', auth, async (req, res) => {
   try {
     const users = await User.find({ company: req.user.company._id })
       .select(PUBLIC_FIELDS)
-      .sort({ username: 1 });
+      .sort({ username: 1 })
+      .lean();
     res.json(users);
   } catch (error) {
     res.status(500).json({ message: error.message });
@@ -45,7 +46,7 @@ router.get('/assignable', auth, async (req, res) => {
     if (!canSeeAll(req.user) && Array.isArray(req.scopeUserIds)) {
       filter._id = { $in: req.scopeUserIds };
     }
-    const users = await User.find(filter).select(PUBLIC_FIELDS).sort({ username: 1 });
+    const users = await User.find(filter).select(PUBLIC_FIELDS).sort({ username: 1 }).lean();
     res.json(users);
   } catch (error) {
     res.status(500).json({ message: error.message });

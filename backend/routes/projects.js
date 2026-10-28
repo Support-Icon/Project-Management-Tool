@@ -19,8 +19,10 @@ router.get('/', auth, async (req, res) => {
     }
 
     const projects = await Project.find(filter)
+      .select('title createdBy createdAt')
       .populate('createdBy', 'username')
-      .sort({ createdAt: -1 });
+      .sort({ createdAt: -1 })
+      .lean();
     res.json(projects);
   } catch (error) {
     res.status(500).json({ message: error.message });

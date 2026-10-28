@@ -41,6 +41,23 @@ const announceAssignment = ({ companyId, assignee, task, project, assignedBy }) 
     .catch((error) => console.error('Assignment email failed:', error.message));
 };
 
+router.get('/summary', auth, async (req, res) => {
+  try {
+    const projectIds = await Project.find({ company: req.user.company._id }).distinct('_id');
+    const filter = {
+      project: { $in: projectIds },
+      ...getTaskFilterForUser(req.user, req.query.mineOnly)
+    };
+    const [total, done] = await Promise.all([
+      Task.countDocuments(filter),
+      Task.countDocuments({ ...filter, column: 'done' })
+    ]);
+    res.json({ total, done });
+  } catch (error) {
+    res.status(500).json({ message: error.message });
+  }
+});
+
 // Get tasks for a project (admin/manager: all; team lead: team; member: own)
 router.get('/:projectId', auth, async (req, res) => {
   try {

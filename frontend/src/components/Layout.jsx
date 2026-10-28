@@ -5,13 +5,15 @@ import api from '../api/axios';
 import { withMineOnly } from '../utils/apiQuery';
 import {
   LayoutDashboard, Users, FolderKanban, Plus, LogOut,
-  ChevronRight, Layers, Menu, X, Building2, Briefcase, FileSpreadsheet, UserCheck,
-  BarChart3, Settings, Bot, MessageSquare
+  ChevronRight, Menu, X, Building2, Briefcase, FileSpreadsheet, UserCheck,
+  BarChart3, Settings, Bot, MessageSquare, CalendarDays
 } from 'lucide-react';
 import toast from 'react-hot-toast';
 import ProjectModal from './ProjectModal';
 import AiChatWidget from './AiChatWidget';
 import NotificationBell from './NotificationBell';
+import DayStatusBar from './DayStatusBar';
+import BrandLogo from './BrandLogo';
 import { canSeeAll, canManageUsers, canViewTeamAnalytics, ROLE_LABELS, isAdmin as isCompanyAdmin } from '../utils/roles';
 import { useNotifications } from '../context/NotificationContext';
 
@@ -47,28 +49,26 @@ export default function Layout() {
   };
 
   const avatar = user?.username?.[0]?.toUpperCase() || 'U';
+  const navClass = ({ isActive }) =>
+    `flex items-center gap-3 px-3 py-2.5 rounded-xl text-sm font-medium transition-all ${
+      isActive
+        ? 'bg-brand-green text-brand-ink shadow-lg shadow-brand-green/20'
+        : 'text-slate-400 hover:bg-white/10 hover:text-white'
+    }`;
 
   return (
-    <div className="flex h-screen bg-slate-100 overflow-hidden">
+    <div className="flex h-screen bg-[#eef3f0] overflow-hidden">
       {/* Sidebar */}
       <aside
         className={`${
           sidebarOpen ? 'w-64' : 'w-0 overflow-hidden'
-        } transition-all duration-300 bg-gradient-to-b from-slate-900 to-indigo-950 flex flex-col flex-shrink-0 shadow-2xl`}
+        } transition-all duration-300 bg-brand-ink flex flex-col flex-shrink-0 shadow-2xl`}
       >
-        {/* Logo */}
-        <div className="p-5 border-b border-white/10">
-          <div className="flex items-center gap-3">
-            <div className="w-9 h-9 bg-gradient-to-br from-indigo-500 to-purple-600 rounded-xl flex items-center justify-center shadow-lg flex-shrink-0">
-              <Layers size={18} className="text-white" />
-            </div>
-            <div>
-              <h1 className="text-white font-bold text-base leading-tight">ProjectFlow</h1>
-              <div className="flex items-center gap-1 text-indigo-300 text-xs">
-                <Building2 size={10} />
-                <span className="truncate max-w-[110px]">{user?.company?.name}</span>
-              </div>
-            </div>
+        <div className="p-4 border-b border-white/10">
+          <BrandLogo className="h-9 w-auto max-w-[200px]" />
+          <div className="flex items-center gap-1 text-brand-blue text-xs mt-2 px-0.5">
+            <Building2 size={10} />
+            <span className="truncate max-w-[200px]">{user?.company?.name}</span>
           </div>
         </div>
 
@@ -77,13 +77,7 @@ export default function Layout() {
           <NavLink
             to="/"
             end
-            className={({ isActive }) =>
-              `flex items-center gap-3 px-3 py-2.5 rounded-xl text-sm font-medium transition-all ${
-                isActive
-                  ? 'bg-indigo-600 text-white shadow-lg shadow-indigo-500/20'
-                  : 'text-slate-400 hover:bg-white/10 hover:text-white'
-              }`
-            }
+            className={navClass}
           >
             <LayoutDashboard size={17} />
             Dashboard
@@ -91,13 +85,7 @@ export default function Layout() {
 
           <NavLink
             to="/ai-chat"
-            className={({ isActive }) =>
-              `flex items-center gap-3 px-3 py-2.5 rounded-xl text-sm font-medium transition-all ${
-                isActive
-                  ? 'bg-indigo-600 text-white shadow-lg shadow-indigo-500/20'
-                  : 'text-slate-400 hover:bg-white/10 hover:text-white'
-              }`
-            }
+            className={navClass}
           >
             <Bot size={17} />
             AI Chat
@@ -105,18 +93,12 @@ export default function Layout() {
 
           <NavLink
             to="/messages"
-            className={({ isActive }) =>
-              `flex items-center gap-3 px-3 py-2.5 rounded-xl text-sm font-medium transition-all ${
-                isActive
-                  ? 'bg-indigo-600 text-white shadow-lg shadow-indigo-500/20'
-                  : 'text-slate-400 hover:bg-white/10 hover:text-white'
-              }`
-            }
+            className={navClass}
           >
             <MessageSquare size={17} />
             <span className="flex-1">Messages</span>
             {unreadMessages > 0 && (
-              <span className="min-w-[18px] h-[18px] px-1 rounded-full bg-rose-500 text-white text-[10px] font-bold flex items-center justify-center">
+              <span className="min-w-[18px] h-[18px] px-1 rounded-full bg-brand-red text-white text-[10px] font-bold flex items-center justify-center">
                 {unreadMessages > 99 ? '99+' : unreadMessages}
               </span>
             )}
@@ -124,13 +106,7 @@ export default function Layout() {
 
           <NavLink
             to="/analytics"
-            className={({ isActive }) =>
-              `flex items-center gap-3 px-3 py-2.5 rounded-xl text-sm font-medium transition-all ${
-                isActive
-                  ? 'bg-indigo-600 text-white shadow-lg shadow-indigo-500/20'
-                  : 'text-slate-400 hover:bg-white/10 hover:text-white'
-              }`
-            }
+            className={navClass}
           >
             <BarChart3 size={17} />
             Analytics
@@ -138,14 +114,18 @@ export default function Layout() {
 
           {canLead && (
             <NavLink
+              to="/attendance"
+              className={navClass}
+            >
+              <CalendarDays size={17} />
+              Attendance
+            </NavLink>
+          )}
+
+          {canLead && (
+            <NavLink
               to="/team-work"
-              className={({ isActive }) =>
-                `flex items-center gap-3 px-3 py-2.5 rounded-xl text-sm font-medium transition-all ${
-                  isActive
-                    ? 'bg-indigo-600 text-white shadow-lg shadow-indigo-500/20'
-                    : 'text-slate-400 hover:bg-white/10 hover:text-white'
-                }`
-              }
+              className={navClass}
             >
               <Users size={17} />
               Team Work
@@ -155,13 +135,7 @@ export default function Layout() {
           {canManage && (
             <NavLink
               to="/users"
-              className={({ isActive }) =>
-                `flex items-center gap-3 px-3 py-2.5 rounded-xl text-sm font-medium transition-all ${
-                  isActive
-                    ? 'bg-indigo-600 text-white shadow-lg shadow-indigo-500/20'
-                    : 'text-slate-400 hover:bg-white/10 hover:text-white'
-                }`
-              }
+              className={navClass}
             >
               <Users size={17} />
               Team Members
@@ -172,26 +146,14 @@ export default function Layout() {
             <>
               <NavLink
                 to="/reports"
-                className={({ isActive }) =>
-                  `flex items-center gap-3 px-3 py-2.5 rounded-xl text-sm font-medium transition-all ${
-                    isActive
-                      ? 'bg-indigo-600 text-white shadow-lg shadow-indigo-500/20'
-                      : 'text-slate-400 hover:bg-white/10 hover:text-white'
-                  }`
-                }
+                className={navClass}
               >
                 <FileSpreadsheet size={17} />
                 Reports
               </NavLink>
               <NavLink
                 to="/settings"
-                className={({ isActive }) =>
-                  `flex items-center gap-3 px-3 py-2.5 rounded-xl text-sm font-medium transition-all ${
-                    isActive
-                      ? 'bg-indigo-600 text-white shadow-lg shadow-indigo-500/20'
-                      : 'text-slate-400 hover:bg-white/10 hover:text-white'
-                  }`
-                }
+                className={navClass}
               >
                 <Settings size={17} />
                 Settings
@@ -208,7 +170,7 @@ export default function Layout() {
               {isCompanyAdmin(user) && (
                 <button
                   onClick={() => setShowProjectModal(true)}
-                  className="w-5 h-5 rounded-md bg-white/10 hover:bg-indigo-600 flex items-center justify-center text-slate-400 hover:text-white transition-all"
+                  className="w-5 h-5 rounded-md bg-white/10 hover:bg-brand-green hover:text-brand-ink flex items-center justify-center text-slate-400 transition-all"
                   title="New project"
                 >
                   <Plus size={13} />
@@ -232,7 +194,7 @@ export default function Layout() {
                     className={({ isActive }) =>
                       `flex items-center gap-2.5 px-3 py-2 rounded-xl text-sm transition-all group ${
                         isActive
-                          ? 'bg-indigo-600 text-white'
+                          ? 'bg-brand-green text-brand-ink'
                           : 'text-slate-400 hover:bg-white/10 hover:text-white'
                       }`
                     }
@@ -250,12 +212,12 @@ export default function Layout() {
         {/* User footer */}
         <div className="p-3 border-t border-white/10">
           <div className="flex items-center gap-3 px-2 py-2">
-            <div className="w-8 h-8 rounded-xl bg-gradient-to-br from-indigo-500 to-purple-600 flex items-center justify-center text-white font-bold text-sm flex-shrink-0">
+            <div className="w-8 h-8 rounded-xl bg-brand-green text-brand-ink flex items-center justify-center font-bold text-sm flex-shrink-0">
               {avatar}
             </div>
             <div className="flex-1 min-w-0">
               <p className="text-white text-sm font-medium truncate">{user?.username}</p>
-              <p className="text-indigo-300 text-xs">{ROLE_LABELS[user?.role] || user?.role}</p>
+              <p className="text-brand-blue text-xs">{ROLE_LABELS[user?.role] || user?.role}</p>
             </div>
             <button
               onClick={handleLogout}
@@ -279,6 +241,7 @@ export default function Layout() {
             {sidebarOpen ? <X size={20} /> : <Menu size={20} />}
           </button>
           <div className="flex-1" />
+          <DayStatusBar />
           <NotificationBell />
           {isAdmin && (
             <button
@@ -286,8 +249,8 @@ export default function Layout() {
               onClick={toggleAdminMineOnly}
               className={`flex items-center gap-2 text-sm font-semibold px-3 py-1.5 rounded-lg border transition-all ${
                 adminMineOnly
-                  ? 'bg-indigo-600 text-white border-indigo-600 shadow-sm'
-                  : 'bg-white text-slate-600 border-slate-200 hover:border-indigo-300 hover:text-indigo-600'
+                  ? 'bg-brand-green text-brand-ink border-brand-green shadow-sm'
+                  : 'bg-white text-slate-600 border-slate-200 hover:border-brand-green hover:text-brand-greenDark'
               }`}
               title={adminMineOnly ? 'Showing only your tasks — click for all tasks' : 'Show only tasks assigned to you'}
             >

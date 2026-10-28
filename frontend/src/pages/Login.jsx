@@ -2,7 +2,8 @@ import React, { useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { useAuth } from '../context/AuthContext';
 import toast from 'react-hot-toast';
-import { Eye, EyeOff, Layers, ArrowRight, Building2, User, Lock, Mail } from 'lucide-react';
+import { Eye, EyeOff, ArrowRight, Building2, User, Lock, Mail } from 'lucide-react';
+import BrandLogo from '../components/BrandLogo';
 
 const InputField = ({ icon: Icon, type, placeholder, value, onChange, rightElement }) => (
   <div className="relative">
@@ -15,7 +16,7 @@ const InputField = ({ icon: Icon, type, placeholder, value, onChange, rightEleme
       value={value}
       onChange={onChange}
       required
-      className="w-full pl-10 pr-10 py-3 rounded-xl border border-slate-200 bg-white/70 text-slate-800 placeholder-slate-400 text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500 focus:border-transparent transition"
+      className="w-full pl-10 pr-10 py-3 rounded-xl border border-white/15 bg-white text-slate-800 placeholder-slate-400 text-sm focus:outline-none focus:ring-2 focus:ring-brand-green focus:border-transparent transition"
     />
     {rightElement && (
       <div className="absolute right-3 top-1/2 -translate-y-1/2">{rightElement}</div>
@@ -66,20 +67,15 @@ export default function Login() {
   );
 
   return (
-    <div className="min-h-screen bg-gradient-to-br from-indigo-950 via-slate-900 to-purple-950 flex items-center justify-center p-4 relative overflow-hidden">
-      {/* Decorative blobs */}
-      <div className="absolute top-0 left-0 w-96 h-96 bg-indigo-500/20 rounded-full blur-3xl -translate-x-1/2 -translate-y-1/2" />
-      <div className="absolute bottom-0 right-0 w-96 h-96 bg-purple-500/20 rounded-full blur-3xl translate-x-1/2 translate-y-1/2" />
-      <div className="absolute top-1/2 left-1/2 w-64 h-64 bg-violet-500/10 rounded-full blur-3xl -translate-x-1/2 -translate-y-1/2" />
+    <div className="min-h-screen bg-brand-ink flex items-center justify-center p-4 relative overflow-hidden">
+      <div className="absolute top-0 left-0 w-96 h-96 bg-brand-green/20 rounded-full blur-3xl -translate-x-1/2 -translate-y-1/2" />
+      <div className="absolute bottom-0 right-0 w-96 h-96 bg-brand-blue/20 rounded-full blur-3xl translate-x-1/2 translate-y-1/2" />
+      <div className="absolute top-1/2 left-1/2 w-64 h-64 bg-brand-yellow/10 rounded-full blur-3xl -translate-x-1/2 -translate-y-1/2" />
 
       <div className="w-full max-w-md relative z-10 animate-slide-up">
-        {/* Logo */}
         <div className="text-center mb-8">
-          <div className="inline-flex items-center justify-center w-16 h-16 bg-gradient-to-br from-indigo-500 to-purple-600 rounded-2xl shadow-2xl mb-4">
-            <Layers size={28} className="text-white" />
-          </div>
-          <h1 className="text-3xl font-bold text-white tracking-tight">ProjectFlow</h1>
-          <p className="text-slate-400 mt-1 text-sm">Your work, organized beautifully</p>
+          <BrandLogo className="h-16 w-auto max-w-[340px] mx-auto mb-4" />
+          <p className="text-brand-blue text-sm font-medium">Work, chat, and delivery — in one place</p>
         </div>
 
         {/* Card */}
@@ -138,7 +134,7 @@ export default function Login() {
                 <select
                   value={form.role}
                   onChange={set('role')}
-                  className="w-full px-4 py-3 rounded-xl border border-slate-200 bg-white/70 text-slate-800 text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500"
+                  className="w-full px-4 py-3 rounded-xl border border-white/15 bg-white text-slate-800 text-sm focus:outline-none focus:ring-2 focus:ring-brand-green"
                 >
                   <option value="admin">Admin — full company access</option>
                   <option value="manager">Manager — all people + reports</option>
@@ -179,7 +175,7 @@ export default function Login() {
             <button
               type="submit"
               disabled={loading}
-              className="w-full bg-gradient-to-r from-indigo-500 to-purple-600 hover:from-indigo-600 hover:to-purple-700 text-white font-semibold py-3 rounded-xl flex items-center justify-center gap-2 transition-all shadow-lg hover:shadow-indigo-500/30 disabled:opacity-60 disabled:cursor-not-allowed mt-2"
+              className="w-full bg-brand-green hover:bg-brand-greenDark text-brand-ink font-semibold py-3 rounded-xl flex items-center justify-center gap-2 transition-all shadow-lg hover:shadow-brand-green/30 disabled:opacity-60 disabled:cursor-not-allowed mt-2"
             >
               {loading ? (
                 <div className="w-5 h-5 border-2 border-white/30 border-t-white rounded-full animate-spin" />
@@ -194,9 +190,9 @@ export default function Login() {
 
           {tab === 'register' && (
             <p className="text-xs text-slate-400 text-center mt-4 leading-relaxed">
-              First account can be <span className="text-indigo-400 font-medium">Admin</span>,
-              {' '}<span className="text-indigo-400 font-medium">Manager</span> or
-              {' '}<span className="text-indigo-400 font-medium">Team Lead</span>.
+              First account can be <span className="text-brand-green font-medium">Admin</span>,
+              {' '}<span className="text-brand-green font-medium">Manager</span> or
+              {' '}<span className="text-brand-green font-medium">Team Lead</span>.
               After signup you can add the other roles from Team Members.
             </p>
           )}
