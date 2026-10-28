@@ -1,25 +1,35 @@
 import React from 'react';
 
-export default function UserAvatar({ user, name, avatar, size = 32, className = '' }) {
+export default function UserAvatar({ user, name, avatar, size = 32, className = '', online = false }) {
   const src = avatar || user?.avatar || '';
   const label = name || user?.username || '?';
+  const px = Number(size) || 32;
   const dim = typeof size === 'number' ? `${size}px` : size;
-  if (src) {
-    return (
-      <img
-        src={src}
-        alt={label}
-        className={`rounded-xl object-cover flex-shrink-0 ${className}`}
-        style={{ width: dim, height: dim }}
-      />
-    );
-  }
-  return (
+  const dot = Math.max(8, Math.round(px * 0.28));
+  const inner = src ? (
+    <img
+      src={src}
+      alt={label}
+      className={`w-full h-full object-cover rounded-xl ${className}`}
+    />
+  ) : (
     <div
-      className={`rounded-xl bg-brand-green text-brand-ink flex items-center justify-center font-bold flex-shrink-0 ${className}`}
-      style={{ width: dim, height: dim, fontSize: Math.max(11, (Number(size) || 32) * 0.4) }}
+      className={`w-full h-full rounded-xl bg-brand-green text-brand-ink flex items-center justify-center font-bold ${className}`}
+      style={{ fontSize: Math.max(11, px * 0.4) }}
     >
       {label[0]?.toUpperCase() || '?'}
     </div>
+  );
+  return (
+    <span className="relative inline-flex flex-shrink-0" style={{ width: dim, height: dim }}>
+      {inner}
+      {online && (
+        <span
+          className="absolute rounded-full bg-emerald-500 ring-2 ring-white"
+          style={{ width: dot, height: dot, right: -1, bottom: -1 }}
+          title="At work"
+        />
+      )}
+    </span>
   );
 }

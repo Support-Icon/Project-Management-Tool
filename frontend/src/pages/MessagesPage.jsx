@@ -43,6 +43,7 @@ export default function MessagesPage() {
   const [teamModal, setTeamModal] = useState(false);
   const [teamName, setTeamName] = useState('');
   const [teamPicks, setTeamPicks] = useState([]);
+  const [onlineIds, setOnlineIds] = useState(() => new Set());
   const listEndRef = useRef(null);
   const fileRef = useRef(null);
   const afterRef = useRef(null);
@@ -89,6 +90,17 @@ export default function MessagesPage() {
       .then((res) => setDirectory(res.data.filter((u) => u._id !== user?._id)))
       .catch(() => {});
   }, [loadConversations, user?._id]);
+
+  useEffect(() => {
+    const loadPresence = () => {
+      api.get('/api/attendance/presence')
+        .then((res) => setOnlineIds(new Set((res.data.online || []).map(String))))
+        .catch(() => {});
+    };
+    loadPresence();
+    const timer = setInterval(loadPresence, 30000);
+    return () => clearInterval(timer);
+  }, []);
 
   useEffect(() => {
     if (conversationId) {
@@ -208,6 +220,9 @@ export default function MessagesPage() {
     return (c.other?.username?.[0] || '?').toUpperCase();
   };
 
+  const isOnline = (person) => Boolean(person?._id && onlineIds.has(String(person._id)));
+  const otherPerson = active?.other || conversations.find((c) => c._id === active?._id)?.other;
+
   return (
     <div className="h-full flex bg-[#e8eee6]">
       <aside className={`${active ? 'hidden' : 'flex'} md:flex w-full md:w-[20rem] flex-shrink-0 bg-white/90 backdrop-blur border-r border-black/5 flex-col`}>
@@ -251,6 +266,7 @@ export default function MessagesPage() {
                   type="button"
                   onClick={() => {
                     setLoadingThread(true);
+                    setActive(c);
                     navigate(`/messages/${c._id}`);
                   }}
                   className={`w-full text-left px-4 py-3 border-b border-black/5 transition ${
@@ -259,7 +275,7 @@ export default function MessagesPage() {
                 >
                   <div className="flex items-center gap-3">
                     {c.type === 'direct' ? (
-                      <UserAvatar user={c.other} size={44} className="rounded-2xl shadow-sm" />
+                      <UserAvatar user={c.other} size={44} className="rounded-2xl shadow-sm" online={isOnline(c.other)} />
                     ) : (
                       <div className={`w-11 h-11 rounded-2xl flex items-center justify-center text-sm font-bold shadow-sm ${
                         c.type === 'company' ? 'bg-brand-ink text-brand-green' : 'bg-brand-yellow text-brand-ink'
@@ -293,7 +309,7 @@ export default function MessagesPage() {
                   onClick={() => startDirect(p._id)}
                   className="w-full text-left px-4 py-2.5 hover:bg-black/[0.03] flex items-center gap-3"
                 >
-                  <UserAvatar user={p} size={44} className="rounded-2xl" />
+                  <UserAvatar user={p} size={44} className="rounded-2xl" online={isOnline(p)} />
                   <div>
                     <p className="text-sm font-medium text-slate-700">{p.username}</p>
                     <p className="text-[11px] text-slate-400">{ROLE_LABELS[p.role] || p.role}</p>
@@ -331,20 +347,29 @@ export default function MessagesPage() {
               >
                 <ArrowLeft size={20} />
               </button>
-              <div className="w-10 h-10 rounded-2xl bg-brand-ink text-brand-green flex items-center justify-center">
-                {active?.type === 'company' ? <Building2 size={16} /> : active?.type === 'team' ? <Users size={16} /> : <MessageSquare size={16} />}
-              </div>
+              {active?.type === 'direct' ? (
+                <UserAvatar
+                  user={otherPerson}
+                  size={40}
+                  className="rounded-2xl shadow-sm"
+                  online={isOnline(otherPerson)}
+                />
+              ) : (
+                <div className="w-10 h-10 rounded-2xl bg-brand-ink text-brand-green flex items-center justify-center">
+                  {active?.type === 'company' ? <Building2 size={16} /> : <Users size={16} />}
+                </div>
+              )}
               <div>
                 <p className="font-bold text-brand-ink text-sm">
                   {loadingThread && !active
                     ? 'Opening chat…'
                     : active?.type === 'company'
                       ? `# ${active.name || 'company'}`
-                      : conversations.find((c) => c._id === active?._id)?.name}
+                      : active?.name || conversations.find((c) => c._id === active?._id)?.name}
                 </p>
                 <p className="text-[11px] text-brand-blue">
                   {active?.type === 'company' && 'Everyone in the company'}
-                  {active?.type === 'direct' && 'Direct message'}
+                  {active?.type === 'direct' && (isOnline(otherPerson) ? 'At work' : 'Direct message')}
                   {active?.type === 'team' && 'Team chat'}
                   {loadingThread && !active && 'Loading history'}
                 </p>
@@ -370,7 +395,7 @@ export default function MessagesPage() {
                 return (
                   <div key={m._id} className={`flex items-end gap-2 ${mine ? 'justify-end' : 'justify-start'}`}>
                     {!mine && (
-                      <UserAvatar user={m.sender} size={28} className="rounded-full mb-0.5" />
+                      <UserAvatar user={m.sender} size={28} className="rounded-full mb-0.5" online={isOnline(m.sender)} />
                     )}
                     <div className={`max-w-[75%] rounded-2xl px-3.5 py-2.5 shadow-sm ${
                       mine
@@ -391,7 +416,7 @@ export default function MessagesPage() {
                       </p>
                     </div>
                     {mine && (
-                      <UserAvatar user={m.sender || user} size={28} className="rounded-full mb-0.5" />
+                      <UserAvatar user={m.sender || user} size={28} className="rounded-full mb-0.5" online={isOnline(m.sender || user)} />
                     )}
                   </div>
                 );
@@ -485,7 +510,7 @@ export default function MessagesPage() {
                       e.target.checked ? [...prev, p._id] : prev.filter((id) => id !== p._id)
                     ))}
                   />
-                  <UserAvatar user={p} size={24} className="rounded-lg" />
+                  <UserAvatar user={p} size={24} className="rounded-lg" online={isOnline(p)} />
                   {p.username}
                   <span className="text-[11px] text-slate-400">{ROLE_LABELS[p.role]}</span>
                 </label>

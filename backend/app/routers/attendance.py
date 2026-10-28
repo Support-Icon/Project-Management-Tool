@@ -94,6 +94,22 @@ async def get_or_create(db, company, user_id, date):
     return doc
 
 
+@router.get("/presence")
+async def presence(user=Depends(current_user)):
+    date = today_in_zone(IST)
+    rows = await get_db().attendances.find(
+        {
+            "company": company_id(user),
+            "date": date,
+            "startAt": {"$ne": None},
+            "endAt": None,
+            "status": {"$nin": ["leave", "off"]},
+        },
+        {"user": 1},
+    ).to_list(500)
+    return {"online": [str(row["user"]) for row in rows]}
+
+
 @router.get("/today")
 async def today(user=Depends(current_user)):
     date = today_in_zone(IST)

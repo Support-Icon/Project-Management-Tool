@@ -197,17 +197,14 @@ async def list_messages(conversation_id: str, before: str | None = Query(default
         filt["createdAt"] = created
     messages = await db.messages.find(filt).sort("createdAt", -1).to_list(limit)
     messages.reverse()
-    senders = await map_by_id(db.users, [m.get("sender") for m in messages], ["username", "role", "avatar"])
+    people_ids = [m.get("sender") for m in messages] + list(conversation.get("participants") or [])
+    people = await map_by_id(db.users, people_ids, ["username", "role", "avatar"])
+    people_map = {k: public_person(v) for k, v in people.items()}
     for msg in messages:
-        sender = senders.get(str(msg.get("sender")))
-        msg["sender"] = public_person(sender) if sender else {"_id": dump(msg.get("sender"))}
+        sender = people_map.get(str(msg.get("sender")))
+        msg["sender"] = sender if sender else {"_id": dump(msg.get("sender"))}
     return dump({
-        "conversation": {
-            "_id": conversation["_id"],
-            "type": conversation.get("type"),
-            "name": conversation.get("name"),
-            "participants": conversation.get("participants"),
-        },
+        "conversation": shape(conversation, user, {}, people_map),
         "messages": messages,
         "hasMore": len(messages) == limit,
     })
