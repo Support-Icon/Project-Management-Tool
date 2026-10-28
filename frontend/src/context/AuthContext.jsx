@@ -67,6 +67,7 @@ export const AuthProvider = ({ children }) => {
     return u;
   };
 
+  /* Public signup disabled — only this company uses the app.
   const register = async (username, email, password, companyName, role = 'admin') => {
     const res = await api.post('/api/auth/register', { username, email, password, companyName, role });
     const { token, user: u } = res.data;
@@ -74,6 +75,7 @@ export const AuthProvider = ({ children }) => {
     persist(token, u);
     return u;
   };
+  */
 
   const logout = () => {
     localStorage.removeItem('auth');
@@ -86,7 +88,6 @@ export const AuthProvider = ({ children }) => {
         user,
         loading,
         login,
-        register,
         logout,
         adminMineOnly,
         toggleAdminMineOnly,

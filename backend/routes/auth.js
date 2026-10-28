@@ -7,8 +7,16 @@ const { auth } = require('../middleware/auth');
 
 const router = express.Router();
 
-// Register — first user in a company becomes admin
-router.post('/register', async (req, res) => {
+// Public signup is disabled — only this company uses the app.
+// Existing people are added from Team Members by admin / manager / team lead.
+router.post('/register', async (_req, res) => {
+  return res.status(403).json({
+    message: 'Public signup is closed. Ask your admin to create your account.'
+  });
+});
+
+/* Register — kept for reference; not used while this app is single-company.
+router.post('/register-disabled', async (req, res) => {
   try {
     const { username, email, password, companyName, role } = req.body;
 
@@ -66,6 +74,7 @@ router.post('/register', async (req, res) => {
     res.status(500).json({ message: error.message });
   }
 });
+*/
 
 // Login
 router.post('/login', async (req, res) => {

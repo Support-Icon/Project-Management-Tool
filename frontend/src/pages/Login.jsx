@@ -2,7 +2,7 @@ import React, { useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { useAuth } from '../context/AuthContext';
 import toast from 'react-hot-toast';
-import { Eye, EyeOff, ArrowRight, Building2, User, Lock, Mail } from 'lucide-react';
+import { Eye, EyeOff, ArrowRight, User, Lock } from 'lucide-react';
 import BrandLogo from '../components/BrandLogo';
 
 const InputField = ({ icon: Icon, type, placeholder, value, onChange, rightElement }) => (
@@ -25,9 +25,8 @@ const InputField = ({ icon: Icon, type, placeholder, value, onChange, rightEleme
 );
 
 export default function Login() {
-  const { login, register } = useAuth();
+  const { login } = useAuth();
   const navigate = useNavigate();
-  const [tab, setTab] = useState('login');
   const [loading, setLoading] = useState(false);
   const [showPass, setShowPass] = useState(false);
   const [form, setForm] = useState({
@@ -40,18 +39,8 @@ export default function Login() {
     e.preventDefault();
     setLoading(true);
     try {
-      if (tab === 'login') {
-        await login(form.username, form.password);
-        toast.success('Welcome back!');
-      } else {
-        if (!form.companyName.trim()) {
-          toast.error('Company name is required');
-          setLoading(false);
-          return;
-        }
-        await register(form.username, form.email, form.password, form.companyName, form.role);
-        toast.success('Account created! Welcome aboard.');
-      }
+      await login(form.username, form.password);
+      toast.success('Welcome back!');
       navigate('/');
     } catch (err) {
       toast.error(err.response?.data?.message || err.message || 'Something went wrong');
@@ -80,39 +69,9 @@ export default function Login() {
 
         {/* Card */}
         <div className="bg-white/10 backdrop-blur-xl border border-white/20 rounded-3xl shadow-2xl p-8">
-          {/* Tabs */}
-          <div className="flex bg-white/10 rounded-xl p-1 mb-6">
-            {['login', 'register'].map((t) => (
-              <button
-                key={t}
-                onClick={() => setTab(t)}
-                className={`flex-1 py-2 rounded-lg text-sm font-semibold transition-all ${
-                  tab === t
-                    ? 'bg-white text-slate-800 shadow-md'
-                    : 'text-slate-300 hover:text-white'
-                }`}
-              >
-                {t === 'login' ? 'Sign In' : 'Get Started'}
-              </button>
-            ))}
-          </div>
+          <p className="text-center text-white font-semibold mb-6">Sign in</p>
 
           <form onSubmit={handleSubmit} className="space-y-4">
-            {tab === 'register' && (
-              <div>
-                <label className="block text-xs font-semibold text-slate-300 mb-1.5 uppercase tracking-wide">
-                  Company Name
-                </label>
-                <InputField
-                  icon={Building2}
-                  type="text"
-                  placeholder="e.g. Acme Corp"
-                  value={form.companyName}
-                  onChange={set('companyName')}
-                />
-              </div>
-            )}
-
             <div>
               <label className="block text-xs font-semibold text-slate-300 mb-1.5 uppercase tracking-wide">
                 Username
@@ -126,38 +85,6 @@ export default function Login() {
               />
             </div>
 
-            {tab === 'register' && (
-              <div>
-                <label className="block text-xs font-semibold text-slate-300 mb-1.5 uppercase tracking-wide">
-                  Your role
-                </label>
-                <select
-                  value={form.role}
-                  onChange={set('role')}
-                  className="w-full px-4 py-3 rounded-xl border border-white/15 bg-white text-slate-800 text-sm focus:outline-none focus:ring-2 focus:ring-brand-green"
-                >
-                  <option value="admin">Admin — full company access</option>
-                  <option value="manager">Manager — same access as admin</option>
-                  <option value="team_lead">Team Lead — your team only</option>
-                </select>
-              </div>
-            )}
-
-            {tab === 'register' && (
-              <div>
-                <label className="block text-xs font-semibold text-slate-300 mb-1.5 uppercase tracking-wide">
-                  Email
-                </label>
-                <InputField
-                  icon={Mail}
-                  type="email"
-                  placeholder="you@company.com"
-                  value={form.email}
-                  onChange={set('email')}
-                />
-              </div>
-            )}
-
             <div>
               <label className="block text-xs font-semibold text-slate-300 mb-1.5 uppercase tracking-wide">
                 Password
@@ -165,7 +92,7 @@ export default function Login() {
               <InputField
                 icon={Lock}
                 type={showPass ? 'text' : 'password'}
-                placeholder={tab === 'register' ? 'Min. 6 characters' : 'Enter your password'}
+                placeholder="Enter your password"
                 value={form.password}
                 onChange={set('password')}
                 rightElement={eyeBtn}
@@ -181,21 +108,16 @@ export default function Login() {
                 <div className="w-5 h-5 border-2 border-white/30 border-t-white rounded-full animate-spin" />
               ) : (
                 <>
-                  {tab === 'login' ? 'Sign In' : 'Create Account'}
+                  Sign In
                   <ArrowRight size={17} />
                 </>
               )}
             </button>
           </form>
 
-          {tab === 'register' && (
-            <p className="text-xs text-slate-400 text-center mt-4 leading-relaxed">
-              First account can be <span className="text-brand-green font-medium">Admin</span>,
-              {' '}<span className="text-brand-green font-medium">Manager</span> or
-              {' '}<span className="text-brand-green font-medium">Team Lead</span>.
-              After signup you can add the other roles from Team Members.
-            </p>
-          )}
+          <p className="text-xs text-slate-400 text-center mt-4 leading-relaxed">
+            This workspace is for Supporticon only. Ask your admin to create your account.
+          </p>
         </div>
       </div>
     </div>

@@ -44,10 +44,17 @@ api.interceptors.request.use((config) => {
     );
   }
   try {
-    const stored = localStorage.getItem('auth');
-    if (stored) {
-      const { token } = JSON.parse(stored);
-      if (token) config.headers.Authorization = `Bearer ${token}`;
+    const onJoin = typeof window !== 'undefined' && window.location.pathname.includes('/join/');
+    const guestRaw = localStorage.getItem('meetGuest');
+    const guest = guestRaw ? JSON.parse(guestRaw) : null;
+    if (onJoin && guest?.token) {
+      config.headers.Authorization = `Bearer ${guest.token}`;
+    } else {
+      const stored = localStorage.getItem('auth');
+      if (stored) {
+        const { token } = JSON.parse(stored);
+        if (token) config.headers.Authorization = `Bearer ${token}`;
+      }
     }
   } catch (_) {}
   if (typeof FormData !== 'undefined' && config.data instanceof FormData) {
@@ -60,6 +67,11 @@ api.interceptors.response.use(
   (res) => res,
   (error) => {
     if (error.response?.status === 401) {
+      const onJoin = typeof window !== 'undefined' && window.location.pathname.includes('/join/');
+      if (onJoin) {
+        localStorage.removeItem('meetGuest');
+        return Promise.reject(error);
+      }
       localStorage.removeItem('auth');
       window.location.assign('/login');
     }

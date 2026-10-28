@@ -1,15 +1,15 @@
 const express = require('express');
+const crypto = require('crypto');
+const jwt = require('jsonwebtoken');
 const mongoose = require('mongoose');
 const Meeting = require('../models/Meeting');
 const MeetingSignal = require('../models/MeetingSignal');
-const { auth } = require('../middleware/auth');
+const { authOrGuest } = require('../middleware/auth');
 const { canSeeAll } = require('../utils/roles');
-const { summarizeMeeting } = require('../services/meetingSummary');
+const { summarizeMeeting, cleanSummary, LANGUAGE_NAMES } = require('../services/meetingSummary');
 const { notifyMeetingInvite } = require('../services/notificationService');
 
 const router = express.Router();
-router.use(auth);
-
 const LIVE_WINDOW_MS = 20000;
 
 const liveParticipants = (meeting) => {
@@ -20,20 +20,33 @@ const liveParticipants = (meeting) => {
   });
 };
 
-const publicMeeting = (meeting) => {
-  const obj = meeting.toObject ? meeting.toObject() : meeting;
-  return {
+const recentReactions = (meeting) => {
+  const cutoff = Date.now() - 8000;
+  return (meeting.reactions || []).filter((r) => new Date(r.at).getTime() >= cutoff).slice(-12);
+};
+
+const publicMeeting = (meeting, { includeGuestToken = false } = {}) => {
+  const obj = meeting.toObject ? meeting.toObject() : { ...meeting };
+  const out = {
     ...obj,
+    summary: cleanSummary(obj.summary || ''),
     liveParticipants: liveParticipants(obj).map((p) => ({
       user: p.user,
       username: p.username,
+      isGuest: Boolean(p.isGuest),
+      handRaised: Boolean(p.handRaised),
       lastSeen: p.lastSeen
-    }))
+    })),
+    reactions: recentReactions(obj),
+    notesCount: (obj.notes || []).length
   };
+  if (!includeGuestToken) delete out.guestToken;
+  return out;
 };
 
 const canJoin = (user, meeting) => {
   if (!meeting) return false;
+  if (user?.isGuest) return String(meeting._id) === String(user.guestMeetingId || '');
   if (String(meeting.host) === String(user._id) || String(meeting.host?._id) === String(user._id)) return true;
   const invitees = (meeting.invitees || []).map((id) => id.toString());
   if (!invitees.length) return true;
@@ -41,39 +54,122 @@ const canJoin = (user, meeting) => {
   return canSeeAll(user);
 };
 
-router.get('/', async (req, res) => {
+const assertMeetingAccess = (req, meeting) => {
+  if (req.user?.isGuest) {
+    return String(req.guestMeetingId) === String(meeting._id);
+  }
+  return String(meeting.company._id || meeting.company) === String(req.user.company._id);
+};
+
+const staffOnly = (req, res, next) => {
+  if (req.user?.isGuest) {
+    return res.status(403).json({ message: 'Guest access is only for this meeting' });
+  }
+  next();
+};
+
+const makeGuestToken = () => crypto.randomBytes(16).toString('hex');
+
+router.get('/guest/:token', async (req, res) => {
   try {
-    const companyId = req.user.company._id;
-    const live = await Meeting.find({ company: companyId, status: 'live' })
-      .populate('host', 'username role')
-      .sort({ startedAt: -1 })
-      .limit(30)
-      .lean();
-    const ended = await Meeting.find({ company: companyId, status: 'ended' })
-      .populate('host', 'username role')
-      .sort({ endedAt: -1 })
-      .limit(20)
-      .lean();
+    const meeting = await Meeting.findOne({ guestToken: req.params.token }).populate('host', 'username');
+    if (!meeting) return res.status(404).json({ message: 'Meeting link is invalid' });
     res.json({
-      live: live.map(publicMeeting),
-      ended: ended.map(publicMeeting)
+      title: meeting.title,
+      status: meeting.status,
+      host: meeting.host?.username || '',
+      language: meeting.language || 'en',
+      summary: meeting.status === 'ended' ? cleanSummary(meeting.summary) : '',
+      startedAt: meeting.startedAt,
+      endedAt: meeting.endedAt
     });
   } catch (error) {
     res.status(500).json({ message: error.message });
   }
 });
 
-router.post('/', async (req, res) => {
+router.post('/guest/:token/session', async (req, res) => {
+  try {
+    const name = String(req.body.name || '').trim().slice(0, 40);
+    if (!name) return res.status(400).json({ message: 'Enter your name to join' });
+    const meeting = await Meeting.findOne({ guestToken: req.params.token }).populate('host', 'username role');
+    if (!meeting) return res.status(404).json({ message: 'Meeting link is invalid' });
+    if (meeting.status !== 'live') {
+      return res.status(400).json({ message: 'This meeting has ended' });
+    }
+    const guestId = new mongoose.Types.ObjectId();
+    meeting.participants.push({
+      user: guestId,
+      username: name,
+      isGuest: true,
+      joinedAt: new Date(),
+      lastSeen: new Date()
+    });
+    await meeting.save();
+    const token = jwt.sign(
+      {
+        guest: true,
+        guestId: guestId.toString(),
+        meetingId: meeting._id.toString(),
+        companyId: meeting.company.toString(),
+        name
+      },
+      process.env.JWT_SECRET,
+      { expiresIn: '12h' }
+    );
+    res.json({
+      token,
+      guestId: guestId.toString(),
+      meetingId: meeting._id,
+      meeting: publicMeeting(meeting)
+    });
+  } catch (error) {
+    res.status(500).json({ message: error.message });
+  }
+});
+
+router.use(authOrGuest);
+
+router.get('/', staffOnly, async (req, res) => {
+  try {
+    const companyId = req.user.company._id;
+    const live = await Meeting.find({ company: companyId, status: 'live' })
+      .populate('host', 'username role')
+      .sort({ startedAt: -1 })
+      .limit(30);
+    await Promise.all(live.map(async (m) => {
+      if (!m.guestToken) {
+        m.guestToken = makeGuestToken();
+        await m.save();
+      }
+    }));
+    const ended = await Meeting.find({ company: companyId, status: 'ended' })
+      .populate('host', 'username role')
+      .sort({ endedAt: -1 })
+      .limit(20);
+    res.json({
+      live: live.map((m) => publicMeeting(m, { includeGuestToken: true })),
+      ended: ended.map((m) => publicMeeting(m, { includeGuestToken: true }))
+    });
+  } catch (error) {
+    res.status(500).json({ message: error.message });
+  }
+});
+
+router.post('/', staffOnly, async (req, res) => {
   try {
     const title = String(req.body.title || 'Team meeting').trim().slice(0, 80) || 'Team meeting';
     const invitees = Array.isArray(req.body.invitees)
       ? req.body.invitees.filter((id) => mongoose.Types.ObjectId.isValid(id))
       : [];
+    const language = LANGUAGE_NAMES[req.body.language] ? req.body.language : 'en';
     const meeting = await Meeting.create({
       company: req.user.company._id,
       title,
       host: req.user._id,
       invitees,
+      language,
+      guestToken: makeGuestToken(),
       participants: [{
         user: req.user._id,
         username: req.user.username,
@@ -88,23 +184,37 @@ router.post('/', async (req, res) => {
       inviteeIds: invitees
     });
     const populated = await Meeting.findById(meeting._id).populate('host', 'username role');
-    res.status(201).json(publicMeeting(populated));
+    res.status(201).json(publicMeeting(populated, { includeGuestToken: true }));
   } catch (error) {
     res.status(500).json({ message: error.message });
   }
 });
 
+const loadMeeting = async (req, res) => {
+  const filter = req.user.isGuest
+    ? { _id: req.params.id }
+    : { _id: req.params.id, company: req.user.company._id };
+  const meeting = await Meeting.findOne(filter).populate('host', 'username role');
+  if (!meeting) {
+    res.status(404).json({ message: 'Meeting not found' });
+    return null;
+  }
+  if (!assertMeetingAccess(req, meeting)) {
+    res.status(403).json({ message: 'You cannot access this meeting' });
+    return null;
+  }
+  return meeting;
+};
+
 router.get('/:id', async (req, res) => {
   try {
-    const meeting = await Meeting.findOne({
-      _id: req.params.id,
-      company: req.user.company._id
-    }).populate('host', 'username role');
-    if (!meeting) return res.status(404).json({ message: 'Meeting not found' });
-    if (!canJoin(req.user, meeting)) {
+    const meeting = await loadMeeting(req, res);
+    if (!meeting) return;
+    if (!req.user.isGuest && !canJoin({ ...req.user, guestMeetingId: req.guestMeetingId }, meeting)
+      && meeting.status === 'live') {
       return res.status(403).json({ message: 'You were not invited to this meeting' });
     }
-    res.json(publicMeeting(meeting));
+    res.json(publicMeeting(meeting, { includeGuestToken: !req.user.isGuest }));
   } catch (error) {
     res.status(500).json({ message: error.message });
   }
@@ -112,15 +222,12 @@ router.get('/:id', async (req, res) => {
 
 router.post('/:id/join', async (req, res) => {
   try {
-    const meeting = await Meeting.findOne({
-      _id: req.params.id,
-      company: req.user.company._id
-    }).populate('host', 'username role');
-    if (!meeting) return res.status(404).json({ message: 'Meeting not found' });
+    const meeting = await loadMeeting(req, res);
+    if (!meeting) return;
     if (meeting.status !== 'live') {
       return res.status(400).json({ message: 'This meeting has ended' });
     }
-    if (!canJoin(req.user, meeting)) {
+    if (!canJoin({ ...req.user, guestMeetingId: req.guestMeetingId }, meeting)) {
       return res.status(403).json({ message: 'You were not invited to this meeting' });
     }
     const existing = meeting.participants.find((p) => String(p.user) === String(req.user._id));
@@ -128,16 +235,18 @@ router.post('/:id/join', async (req, res) => {
       existing.lastSeen = new Date();
       existing.leftAt = null;
       existing.username = req.user.username;
+      existing.isGuest = Boolean(req.user.isGuest);
     } else {
       meeting.participants.push({
         user: req.user._id,
         username: req.user.username,
+        isGuest: Boolean(req.user.isGuest),
         joinedAt: new Date(),
         lastSeen: new Date()
       });
     }
     await meeting.save();
-    res.json(publicMeeting(meeting));
+    res.json(publicMeeting(meeting, { includeGuestToken: !req.user.isGuest }));
   } catch (error) {
     res.status(500).json({ message: error.message });
   }
@@ -145,11 +254,8 @@ router.post('/:id/join', async (req, res) => {
 
 router.post('/:id/heartbeat', async (req, res) => {
   try {
-    const meeting = await Meeting.findOne({
-      _id: req.params.id,
-      company: req.user.company._id
-    });
-    if (!meeting) return res.status(404).json({ message: 'Meeting not found' });
+    const meeting = await loadMeeting(req, res);
+    if (!meeting) return;
     if (meeting.status !== 'live') return res.json(publicMeeting(meeting));
     const existing = meeting.participants.find((p) => String(p.user) === String(req.user._id));
     if (existing) {
@@ -157,7 +263,7 @@ router.post('/:id/heartbeat', async (req, res) => {
       existing.leftAt = null;
       await meeting.save();
     }
-    res.json(publicMeeting(meeting));
+    res.json(publicMeeting(meeting, { includeGuestToken: !req.user.isGuest }));
   } catch (error) {
     res.status(500).json({ message: error.message });
   }
@@ -165,23 +271,14 @@ router.post('/:id/heartbeat', async (req, res) => {
 
 router.post('/:id/leave', async (req, res) => {
   try {
-    const meeting = await Meeting.findOne({
-      _id: req.params.id,
-      company: req.user.company._id
-    });
-    if (!meeting) return res.status(404).json({ message: 'Meeting not found' });
+    const meeting = await loadMeeting(req, res);
+    if (!meeting) return;
     const existing = meeting.participants.find((p) => String(p.user) === String(req.user._id));
     if (existing) {
       existing.leftAt = new Date();
+      existing.handRaised = false;
       await meeting.save();
     }
-    await MeetingSignal.create({
-      meeting: meeting._id,
-      from: req.user._id,
-      to: req.user._id,
-      kind: 'hangup',
-      payload: { broadcast: true }
-    }).catch(() => {});
     res.json({ ok: true });
   } catch (error) {
     res.status(500).json({ message: error.message });
@@ -192,11 +289,8 @@ router.post('/:id/notes', async (req, res) => {
   try {
     const text = String(req.body.text || '').trim().slice(0, 2000);
     if (!text) return res.status(400).json({ message: 'Note is empty' });
-    const meeting = await Meeting.findOne({
-      _id: req.params.id,
-      company: req.user.company._id
-    });
-    if (!meeting) return res.status(404).json({ message: 'Meeting not found' });
+    const meeting = await loadMeeting(req, res);
+    if (!meeting) return;
     meeting.notes.push({
       user: req.user._id,
       username: req.user.username,
@@ -210,18 +304,67 @@ router.post('/:id/notes', async (req, res) => {
   }
 });
 
+router.post('/:id/hand', async (req, res) => {
+  try {
+    const meeting = await loadMeeting(req, res);
+    if (!meeting) return;
+    const existing = meeting.participants.find((p) => String(p.user) === String(req.user._id));
+    if (existing) {
+      existing.handRaised = Boolean(req.body.raised);
+      existing.lastSeen = new Date();
+      await meeting.save();
+    }
+    res.json(publicMeeting(meeting));
+  } catch (error) {
+    res.status(500).json({ message: error.message });
+  }
+});
+
+router.post('/:id/react', async (req, res) => {
+  try {
+    const emoji = String(req.body.emoji || '').trim().slice(0, 8);
+    if (!emoji) return res.status(400).json({ message: 'Pick an emoji' });
+    const meeting = await loadMeeting(req, res);
+    if (!meeting) return;
+    meeting.reactions = (meeting.reactions || []).slice(-30);
+    meeting.reactions.push({
+      user: req.user._id,
+      username: req.user.username,
+      emoji,
+      at: new Date()
+    });
+    await meeting.save();
+    res.json(recentReactions(meeting));
+  } catch (error) {
+    res.status(500).json({ message: error.message });
+  }
+});
+
+router.put('/:id/language', async (req, res) => {
+  try {
+    const language = String(req.body.language || 'en');
+    if (!LANGUAGE_NAMES[language]) {
+      return res.status(400).json({ message: 'Unsupported language' });
+    }
+    const meeting = await loadMeeting(req, res);
+    if (!meeting) return;
+    meeting.language = language;
+    await meeting.save();
+    res.json(publicMeeting(meeting, { includeGuestToken: !req.user.isGuest }));
+  } catch (error) {
+    res.status(500).json({ message: error.message });
+  }
+});
+
 router.post('/:id/signal', async (req, res) => {
   try {
     const { to, kind, payload } = req.body || {};
     if (!to || !['offer', 'answer', 'ice', 'hangup'].includes(kind)) {
       return res.status(400).json({ message: 'Invalid signal' });
     }
-    const meeting = await Meeting.findOne({
-      _id: req.params.id,
-      company: req.user.company._id,
-      status: 'live'
-    });
-    if (!meeting) return res.status(404).json({ message: 'Live meeting not found' });
+    const meeting = await loadMeeting(req, res);
+    if (!meeting) return;
+    if (meeting.status !== 'live') return res.status(404).json({ message: 'Live meeting not found' });
     const row = await MeetingSignal.create({
       meeting: meeting._id,
       from: req.user._id,
@@ -256,16 +399,18 @@ router.get('/:id/signals', async (req, res) => {
 
 router.post('/:id/end', async (req, res) => {
   try {
-    const meeting = await Meeting.findOne({
-      _id: req.params.id,
-      company: req.user.company._id
-    }).populate('host', 'username role');
-    if (!meeting) return res.status(404).json({ message: 'Meeting not found' });
+    if (req.user.isGuest) {
+      return res.status(403).json({ message: 'Guests cannot end the meeting' });
+    }
+    const meeting = await loadMeeting(req, res);
+    if (!meeting) return;
     const isHost = String(meeting.host._id || meeting.host) === String(req.user._id);
     if (!isHost && !canSeeAll(req.user)) {
       return res.status(403).json({ message: 'Only the host can end this meeting' });
     }
-    if (meeting.status === 'ended') return res.json(publicMeeting(meeting));
+    if (meeting.status === 'ended') {
+      return res.json(publicMeeting(meeting, { includeGuestToken: true }));
+    }
 
     const extraNote = String(req.body.notes || '').trim();
     if (extraNote) {
@@ -281,6 +426,7 @@ router.post('/:id/end', async (req, res) => {
     meeting.endedAt = new Date();
     meeting.participants.forEach((p) => {
       if (!p.leftAt) p.leftAt = meeting.endedAt;
+      p.handRaised = false;
     });
     const durationMinutes = Math.max(
       1,
@@ -291,10 +437,11 @@ router.post('/:id/end', async (req, res) => {
       title: meeting.title,
       participants: meeting.participants,
       notes: meeting.notes,
-      durationMinutes
+      durationMinutes,
+      language: meeting.language || 'en'
     });
     await meeting.save();
-    res.json(publicMeeting(meeting));
+    res.json(publicMeeting(meeting, { includeGuestToken: true }));
   } catch (error) {
     res.status(500).json({ message: error.message });
   }

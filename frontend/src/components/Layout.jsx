@@ -71,8 +71,70 @@ export default function Layout() {
         : 'text-slate-400 hover:bg-white/10 hover:text-white'
     }`;
 
-  const inMeetRoom = /^\/meet\/[^/]+/.test(location.pathname);
-  const fillPage = inMeetRoom || location.pathname.startsWith('/messages') || location.pathname.startsWith('/kanban');
+  const inMeetRoom = /^\/meet\/[^/]+$/.test(location.pathname);
+  const fillPage = location.pathname.startsWith('/messages') || location.pathname.startsWith('/kanban');
+
+  const projectsNav = canLead && (
+    <div className="pt-2 pb-2">
+      <div className="flex items-center justify-between px-3 mb-2">
+        <span className="text-xs font-semibold text-slate-500 uppercase tracking-widest">
+          Projects
+        </span>
+        {isAdmin && (
+          <button
+            onClick={() => setShowProjectModal(true)}
+            className="w-5 h-5 rounded-md bg-white/10 hover:bg-brand-green hover:text-brand-ink flex items-center justify-center text-slate-400 transition-all"
+            title="New project"
+          >
+            <Plus size={13} />
+          </button>
+        )}
+      </div>
+      {projects.length === 0 ? (
+        <div className="text-center py-3 px-2">
+          <Briefcase size={22} className="text-slate-600 mx-auto mb-1" />
+          <p className="text-xs text-slate-500">
+            {canManage ? 'No projects yet' : 'No projects assigned'}
+          </p>
+        </div>
+      ) : (
+        <div className="space-y-0.5">
+          {projects.map((p) => (
+            <NavLink
+              key={p._id}
+              to={`/kanban/${p._id}`}
+              onClick={closeMobileNav}
+              className={({ isActive }) =>
+                `flex items-center gap-2.5 px-3 py-2 rounded-xl text-sm transition-all group ${
+                  isActive
+                    ? 'bg-brand-green text-brand-ink'
+                    : 'text-slate-400 hover:bg-white/10 hover:text-white'
+                }`
+              }
+            >
+              <FolderKanban size={15} className="flex-shrink-0" />
+              <span className="truncate flex-1">{p.title}</span>
+              <ChevronRight size={13} className="opacity-0 group-hover:opacity-100 transition" />
+            </NavLink>
+          ))}
+        </div>
+      )}
+    </div>
+  );
+
+  if (inMeetRoom) {
+    return (
+      <>
+        <Outlet context={{ projects, setProjects, refetchProjects: fetchProjects }} />
+        {showProjectModal && (
+          <ProjectModal
+            onClose={() => setShowProjectModal(false)}
+            onCreated={handleProjectCreated}
+          />
+        )}
+      </>
+    );
+  }
   const tabClass = ({ isActive }) =>
     `flex flex-col items-center justify-center gap-0.5 text-[10px] font-semibold ${
       isActive ? 'text-brand-green' : 'text-slate-400'
@@ -117,6 +179,7 @@ export default function Layout() {
             <LayoutDashboard size={17} />
             Dashboard
           </NavLink>
+          {projectsNav}
           <NavLink to="/ai-chat" className={navClass} onClick={closeMobileNav}>
             <Bot size={17} />
             AI Chat
@@ -173,53 +236,6 @@ export default function Layout() {
               </NavLink>
             </>
           )}
-
-          <div className="pt-3">
-            <div className="flex items-center justify-between px-3 mb-2">
-              <span className="text-xs font-semibold text-slate-500 uppercase tracking-widest">
-                Projects
-              </span>
-              {isAdmin && (
-                <button
-                  onClick={() => setShowProjectModal(true)}
-                  className="w-5 h-5 rounded-md bg-white/10 hover:bg-brand-green hover:text-brand-ink flex items-center justify-center text-slate-400 transition-all"
-                  title="New project"
-                >
-                  <Plus size={13} />
-                </button>
-              )}
-            </div>
-
-            {projects.length === 0 ? (
-              <div className="text-center py-4 px-2">
-                <Briefcase size={24} className="text-slate-600 mx-auto mb-2" />
-                <p className="text-xs text-slate-500">
-                  {canManage ? 'No projects yet' : 'No projects assigned to you'}
-                </p>
-              </div>
-            ) : (
-              <div className="space-y-0.5">
-                {projects.map((p) => (
-                  <NavLink
-                    key={p._id}
-                    to={`/kanban/${p._id}`}
-                    onClick={closeMobileNav}
-                    className={({ isActive }) =>
-                      `flex items-center gap-2.5 px-3 py-2 rounded-xl text-sm transition-all group ${
-                        isActive
-                          ? 'bg-brand-green text-brand-ink'
-                          : 'text-slate-400 hover:bg-white/10 hover:text-white'
-                      }`
-                    }
-                  >
-                    <FolderKanban size={15} className="flex-shrink-0" />
-                    <span className="truncate flex-1">{p.title}</span>
-                    <ChevronRight size={13} className="opacity-0 group-hover:opacity-100 transition" />
-                  </NavLink>
-                ))}
-              </div>
-            )}
-          </div>
         </nav>
 
         <div className="p-3 border-t border-white/10">

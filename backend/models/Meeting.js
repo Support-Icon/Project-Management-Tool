@@ -8,11 +8,20 @@ const noteSchema = new mongoose.Schema({
 }, { _id: false });
 
 const participantSchema = new mongoose.Schema({
-  user: { type: mongoose.Schema.Types.ObjectId, ref: 'User', required: true },
+  user: { type: mongoose.Schema.Types.ObjectId, required: true },
   username: { type: String, default: '' },
+  isGuest: { type: Boolean, default: false },
+  handRaised: { type: Boolean, default: false },
   joinedAt: { type: Date, default: Date.now },
   lastSeen: { type: Date, default: Date.now },
   leftAt: { type: Date, default: null }
+}, { _id: false });
+
+const reactionSchema = new mongoose.Schema({
+  user: { type: mongoose.Schema.Types.ObjectId },
+  username: { type: String, default: '' },
+  emoji: { type: String, default: '' },
+  at: { type: Date, default: Date.now }
 }, { _id: false });
 
 const meetingSchema = new mongoose.Schema({
@@ -23,6 +32,9 @@ const meetingSchema = new mongoose.Schema({
   participants: { type: [participantSchema], default: [] },
   status: { type: String, enum: ['live', 'ended'], default: 'live', index: true },
   notes: { type: [noteSchema], default: [] },
+  reactions: { type: [reactionSchema], default: [] },
+  language: { type: String, default: 'en' },
+  guestToken: { type: String, index: true, unique: true, sparse: true },
   summary: { type: String, default: '' },
   startedAt: { type: Date, default: Date.now },
   endedAt: { type: Date, default: null },

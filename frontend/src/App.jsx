@@ -16,6 +16,8 @@ import AttendancePage from './pages/AttendancePage';
 import LeavesPage from './pages/LeavesPage';
 import MeetingsPage from './pages/MeetingsPage';
 import MeetingRoom from './pages/MeetingRoom';
+import MeetingSummary from './pages/MeetingSummary';
+import GuestJoin from './pages/GuestJoin';
 import Layout from './components/Layout';
 
 const Spinner = () => (
@@ -40,6 +42,8 @@ const AppRoutes = () => {
   return (
     <Routes>
       <Route path="/login" element={user ? <Navigate to="/" replace /> : <Login />} />
+      <Route path="/join/:guestToken/room" element={<MeetingRoom />} />
+      <Route path="/join/:guestToken" element={<GuestJoin />} />
       <Route
         path="/"
         element={
@@ -57,6 +61,7 @@ const AppRoutes = () => {
         <Route path="attendance" element={<AttendancePage />} />
         <Route path="leaves" element={<LeavesPage />} />
         <Route path="meet" element={<MeetingsPage />} />
+        <Route path="meet/:meetingId/summary" element={<MeetingSummary />} />
         <Route path="meet/:meetingId" element={<MeetingRoom />} />
         <Route path="settings" element={<SettingsPage />} />
         <Route path="messages" element={<MessagesPage />} />

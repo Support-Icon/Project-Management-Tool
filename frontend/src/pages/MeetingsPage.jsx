@@ -1,10 +1,11 @@
 import React, { useEffect, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { Clock, Plus, Video } from 'lucide-react';
+import { Clock, Link2, Plus, Video } from 'lucide-react';
 import toast from 'react-hot-toast';
 import api from '../api/axios';
 import { formatIST } from '../utils/time';
 import { ROLE_LABELS } from '../utils/roles';
+import { meetingInviteText, cleanSummaryText } from '../utils/meet';
 
 export default function MeetingsPage() {
   const navigate = useNavigate();
@@ -48,6 +49,16 @@ export default function MeetingsPage() {
 
   const toggleInvite = (id) => {
     setInvitees((prev) => (prev.includes(id) ? prev.filter((x) => x !== id) : [...prev, id]));
+  };
+
+  const copyInvite = async (meeting, event) => {
+    event.stopPropagation();
+    try {
+      await navigator.clipboard.writeText(meetingInviteText(meeting.title, meeting.guestToken));
+      toast.success('Invite copied — this link is for this meeting only');
+    } catch (_) {
+      toast.error('Could not copy link');
+    }
   };
 
   return (
@@ -105,18 +116,27 @@ export default function MeetingsPage() {
         ) : (
           <div className="grid gap-3 sm:grid-cols-2">
             {live.map((m) => (
-              <button
+              <div
                 key={m._id}
-                type="button"
-                onClick={() => navigate(`/meet/${m._id}`)}
                 className="text-left bg-white rounded-2xl border border-black/5 p-4 shadow-sm hover:border-brand-green"
               >
-                <p className="font-semibold text-brand-ink">{m.title}</p>
-                <p className="text-xs text-brand-blue mt-1">
-                  Host {m.host?.username} · {m.liveParticipants?.length || 0} in call
-                </p>
-                <p className="text-[11px] text-slate-400 mt-1">{formatIST(m.startedAt)}</p>
-              </button>
+                <button type="button" onClick={() => navigate(`/meet/${m._id}`)} className="w-full text-left">
+                  <p className="font-semibold text-brand-ink">{m.title}</p>
+                  <p className="text-xs text-brand-blue mt-1">
+                    Host {m.host?.username} · {m.liveParticipants?.length || 0} in call
+                  </p>
+                  <p className="text-[11px] text-slate-400 mt-1">{formatIST(m.startedAt)}</p>
+                </button>
+                {m.guestToken && (
+                  <button
+                    type="button"
+                    onClick={(e) => copyInvite(m, e)}
+                    className="mt-3 inline-flex items-center gap-1 text-xs font-semibold text-brand-blue"
+                  >
+                    <Link2 size={13} /> Copy guest invite
+                  </button>
+                )}
+              </div>
             ))}
           </div>
         )}
@@ -134,7 +154,7 @@ export default function MeetingsPage() {
               <button
                 key={m._id}
                 type="button"
-                onClick={() => navigate(`/meet/${m._id}`)}
+                onClick={() => navigate(`/meet/${m._id}/summary`)}
                 className="w-full text-left bg-white rounded-2xl border border-black/5 p-4 shadow-sm hover:border-brand-blue"
               >
                 <div className="flex items-start justify-between gap-3">
@@ -149,7 +169,7 @@ export default function MeetingsPage() {
                   </span>
                 </div>
                 {m.summary && (
-                  <p className="text-sm text-slate-600 mt-2 line-clamp-3 whitespace-pre-wrap">{m.summary}</p>
+                  <p className="text-sm text-slate-600 mt-2 line-clamp-3 whitespace-pre-wrap">{cleanSummaryText(m.summary)}</p>
                 )}
               </button>
             ))}
