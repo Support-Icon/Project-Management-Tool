@@ -1,5 +1,5 @@
 import React, { useEffect, useState } from 'react';
-import { Mail, Clock, ShieldCheck, Send, Save, Eye, EyeOff, Info, Trash2, Bot, ClipboardList } from 'lucide-react';
+import { Mail, Clock, ShieldCheck, Send, Save, Eye, EyeOff, Info, Trash2, Sparkles, ClipboardList } from 'lucide-react';
 import toast from 'react-hot-toast';
 import api from '../api/axios';
 import { useAuth } from '../context/AuthContext';
@@ -792,8 +792,8 @@ export default function SettingsPage() {
       <section className="mt-8 bg-white rounded-2xl border border-slate-100 shadow-sm p-6">
         <div className="flex items-start justify-between gap-4 mb-5">
           <div className="flex gap-3">
-            <div className="w-10 h-10 rounded-xl bg-brand-blue/10 text-brand-blue flex items-center justify-center">
-              <Bot size={20} />
+            <div className="w-10 h-10 rounded-xl bg-brand-ink text-brand-green flex items-center justify-center">
+              <Sparkles size={20} />
             </div>
             <div>
               <h3 className="font-bold text-slate-800">AI Assistant (LangGraph)</h3>

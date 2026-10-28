@@ -1,6 +1,7 @@
 import React, { useState } from 'react';
 import { useNavigate, useLocation } from 'react-router-dom';
 import AiChatPanel from './AiChatPanel';
+import AskAiIcon from './AskAiIcon';
 
 export default function AiChatWidget() {
   const [open, setOpen] = useState(false);
@@ -21,7 +22,7 @@ export default function AiChatWidget() {
           className="ask-ai-btn fixed bottom-20 right-4 md:bottom-5 md:right-5 z-40"
           title="Ask AI"
         >
-          <span>Ask<br />AI</span>
+          <AskAiIcon size={22} className="w-full h-full rounded-full bg-transparent text-brand-green" />
         </button>
       )}
 

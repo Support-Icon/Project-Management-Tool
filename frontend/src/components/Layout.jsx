@@ -15,6 +15,7 @@ import NotificationBell from './NotificationBell';
 import DayStatusBar from './DayStatusBar';
 import BrandLogo from './BrandLogo';
 import UserAvatar from './UserAvatar';
+import AskAiIcon from './AskAiIcon';
 import { canSeeAll, canManageUsers, canViewTeamAnalytics, ROLE_LABELS } from '../utils/roles';
 import { useNotifications } from '../context/NotificationContext';
 
@@ -145,6 +146,7 @@ export default function Layout() {
           </NavLink>
           {projectsNav}
           <NavLink to="/ai-chat" className={navClass} onClick={closeMobileNav}>
+            <AskAiIcon size={16} className="w-[17px] h-[17px] rounded-none bg-transparent text-current" />
             Ask AI
           </NavLink>
           <NavLink to="/messages" className={navClass} onClick={closeMobileNav}>

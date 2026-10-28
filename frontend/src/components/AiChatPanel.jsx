@@ -1,5 +1,5 @@
 import React, { useEffect, useMemo, useRef, useState } from 'react';
-import { Bot, Send, Sparkles, FolderPlus, ClipboardList, BarChart3, UserRound, X, Maximize2, CheckCircle2 } from 'lucide-react';
+import { Send, Sparkles, FolderPlus, ClipboardList, BarChart3, UserRound, X, Maximize2, CheckCircle2 } from 'lucide-react';
 import toast from 'react-hot-toast';
 import api from '../api/axios';
 import { useAuth } from '../context/AuthContext';
@@ -535,7 +535,7 @@ export default function AiChatPanel({ compact = false, onClose, onExpand }) {
         ))}
         {sending && (
           <div className="bg-white border border-slate-200 rounded-2xl px-3 py-2 text-xs text-slate-500 w-fit flex items-center gap-2">
-            <Bot size={14} className="animate-pulse" /> Working…
+            <Sparkles size={14} className="animate-pulse text-brand-green" /> Working…
           </div>
         )}
         <div ref={endRef} />
