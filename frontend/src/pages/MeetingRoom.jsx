@@ -13,29 +13,87 @@ import {
   MEET_LANGS, REACTIONS, meetT, meetingInviteText, cleanSummaryText
 } from '../utils/meet';
 
-const ICE = { iceServers: [{ urls: 'stun:stun.l.google.com:19302' }, { urls: 'stun:stun1.l.google.com:19302' }] };
+const ICE = {
+  iceServers: [
+    { urls: 'stun:stun.l.google.com:19302' },
+    { urls: 'stun:stun1.l.google.com:19302' }
+  ]
+};
+
+const CAMERA_CONSTRAINTS = {
+  audio: {
+    echoCancellation: true,
+    noiseSuppression: true,
+    autoGainControl: true
+  },
+  video: {
+    width: { ideal: 1280, min: 640 },
+    height: { ideal: 720, min: 360 },
+    frameRate: { ideal: 30, min: 15 },
+    facingMode: 'user'
+  }
+};
+
+const SCREEN_CONSTRAINTS = {
+  video: {
+    cursor: 'always',
+    width: { ideal: 1920, max: 1920 },
+    height: { ideal: 1080, max: 1080 },
+    frameRate: { ideal: 15, max: 30 }
+  },
+  audio: false
+};
+
+const streamIsScreen = (stream) => {
+  const track = stream?.getVideoTracks?.()[0];
+  if (!track) return false;
+  if (track.contentHint === 'detail') return true;
+  const settings = track.getSettings?.() || {};
+  return Boolean(settings.displaySurface);
+};
+
+const applyVideoParams = async (pc, screen) => {
+  for (const sender of pc.getSenders()) {
+    if (sender.track?.kind !== 'video') continue;
+    try {
+      const params = sender.getParameters();
+      if (!params.encodings?.length) params.encodings = [{}];
+      params.degradationPreference = screen ? 'maintain-resolution' : 'balanced';
+      params.encodings[0].maxBitrate = screen ? 2_500_000 : 1_500_000;
+      params.encodings[0].maxFramerate = screen ? 15 : 30;
+      await sender.setParameters(params);
+    } catch (_) {}
+  }
+};
 
 const readGuest = () => {
   try { return JSON.parse(localStorage.getItem('meetGuest') || 'null'); } catch { return null; }
 };
 
 const VideoTile = ({
-  stream, name, mine, muted, camOff, mirrored, pinned, speaking, handRaised, reaction, onPin, t
+  stream, name, mine, muted, camOff, mirrored, pinned, speaking, handRaised, reaction, onPin, t, isScreen, compact
 }) => {
   const ref = useRef(null);
   useEffect(() => {
-    if (ref.current) ref.current.srcObject = stream || null;
+    const el = ref.current;
+    if (!el) return;
+    el.srcObject = stream || null;
+    el.playsInline = true;
+    el.setAttribute('playsinline', 'true');
+    el.play?.().catch(() => {});
   }, [stream]);
   return (
-    <div className={`relative rounded-2xl overflow-hidden bg-[#1a1a1e] w-full h-full aspect-square group ${
-      speaking ? 'ring-2 ring-brand-green' : ''
-    }`}>
+    <div className={`relative rounded-2xl overflow-hidden bg-black w-full h-full group ${
+      compact && !isScreen ? 'aspect-square' : ''
+    } ${speaking && !isScreen ? 'ring-2 ring-brand-green' : ''}`}>
       <video
         ref={ref}
         autoPlay
-        muted={mine || muted}
+        muted={Boolean(mine || muted)}
         playsInline
-        className={`w-full h-full object-cover ${mirrored ? '-scale-x-100' : ''} ${camOff ? 'opacity-0' : ''}`}
+        className={`w-full h-full ${isScreen ? 'object-contain bg-black' : 'object-cover'} ${
+          mirrored && !isScreen ? '-scale-x-100' : ''
+        } ${camOff ? 'opacity-0' : ''}`}
       />
       {camOff && (
         <div className="absolute inset-0 flex items-center justify-center bg-[#1a1a1e]">
@@ -101,6 +159,8 @@ export default function MeetingRoom() {
   const [lang, setLang] = useState('en');
 
   const streamRef = useRef(null);
+  const displayStreamRef = useRef(null);
+  const sharingRef = useRef(false);
   const [localStream, setLocalStream] = useState(null);
   const [displayStream, setDisplayStream] = useState(null);
   const pcs = useRef(new Map());
@@ -144,7 +204,23 @@ export default function MeetingRoom() {
   const ensurePc = useCallback(async (peerId) => {
     if (pcs.current.has(peerId)) return pcs.current.get(peerId);
     const pc = new RTCPeerConnection(ICE);
-    (streamRef.current?.getTracks() || []).forEach((track) => pc.addTrack(track, streamRef.current));
+    const cam = streamRef.current;
+    const screen = displayStreamRef.current;
+    const videoTrack = screen?.getVideoTracks()[0] || cam?.getVideoTracks()[0];
+    if (videoTrack) pc.addTrack(videoTrack, screen || cam);
+    (cam?.getAudioTracks() || []).forEach((track) => pc.addTrack(track, cam));
+    try {
+      const videoTransceiver = pc.getTransceivers().find((tr) => tr.sender?.track?.kind === 'video');
+      const caps = RTCRtpSender.getCapabilities?.('video');
+      if (videoTransceiver?.setCodecPreferences && caps?.codecs?.length) {
+        const ranked = [...caps.codecs].sort((a, b) => {
+          const score = (codec) => (/vp9/i.test(codec.mimeType) ? 0 : /h264/i.test(codec.mimeType) ? 1 : 2);
+          return score(a) - score(b);
+        });
+        videoTransceiver.setCodecPreferences(ranked);
+      }
+    } catch (_) {}
+    applyVideoParams(pc, Boolean(screen));
     pc.onicecandidate = (event) => {
       if (event.candidate) sendSignal(peerId, 'ice', event.candidate.toJSON());
     };
@@ -251,7 +327,20 @@ export default function MeetingRoom() {
           setPhase('ended');
           return;
         }
-        const stream = await navigator.mediaDevices.getUserMedia({ video: true, audio: true });
+        let stream;
+        try {
+          stream = await navigator.mediaDevices.getUserMedia(CAMERA_CONSTRAINTS);
+        } catch (_) {
+          stream = await navigator.mediaDevices.getUserMedia({ video: true, audio: true });
+        }
+        stream.getVideoTracks().forEach((track) => {
+          track.contentHint = 'motion';
+          track.applyConstraints({
+            width: { ideal: 1280 },
+            height: { ideal: 720 },
+            frameRate: { ideal: 30 }
+          }).catch(() => {});
+        });
         if (!alive.current) {
           stream.getTracks().forEach((t) => t.stop());
           return;
@@ -272,7 +361,9 @@ export default function MeetingRoom() {
       const tick = async () => {
         if (!alive.current) return;
         try {
-          const hb = await api.post(`/api/meetings/${meetingId}/heartbeat`);
+          const hb = await api.post(`/api/meetings/${meetingId}/heartbeat`, {
+            sharing: Boolean(sharingRef.current)
+          });
           applyMeeting(hb.data);
           if (hb.data.notes) setNotes(hb.data.notes);
           if (hb.data.status === 'ended') {
@@ -348,18 +439,32 @@ export default function MeetingRoom() {
       return hit?.emoji || '';
     };
     const handFor = (id) => Boolean(live.find((p) => String(p.user) === String(id))?.handRaised);
-    const local = {
+    const localCam = {
       id: String(myId || 'me'),
       name: user?.username || guest?.name || 'You',
-      stream: displayStream || localStream,
+      stream: localStream,
       mine: true,
       muted,
       camOff,
-      mirrored: !sharing,
+      mirrored: true,
+      isScreen: false,
       handRaised,
       reaction: reactionFor(myId),
       speaking: false
     };
+    const localScreen = (sharing && displayStream) ? {
+      id: 'screen-me',
+      name: `${user?.username || guest?.name || 'You'} · screen`,
+      stream: displayStream,
+      mine: true,
+      muted: true,
+      camOff: false,
+      mirrored: false,
+      isScreen: true,
+      handRaised: false,
+      reaction: '',
+      speaking: false
+    } : null;
     const others = remotes.map((p) => ({
       id: p.userId,
       name: p.username || names.current.get(p.userId) || 'Guest',
@@ -368,16 +473,18 @@ export default function MeetingRoom() {
       muted: false,
       camOff: false,
       mirrored: false,
+      isScreen: streamIsScreen(p.stream) || Boolean(live.find((lp) => String(lp.user) === String(p.userId))?.isSharing),
       handRaised: handFor(p.userId),
       reaction: reactionFor(p.userId),
       speaking: speakerId === p.userId
     }));
-    return [local, ...others];
+    return [...(localScreen ? [localScreen] : []), localCam, ...others];
   }, [remotes, meeting, myId, user, guest, muted, camOff, sharing, handRaised, speakerId, localStream, displayStream]);
 
-  const stageId = pinnedId || speakerId || (tiles.find((t) => !t.mine)?.id) || tiles[0]?.id;
-  const stage = tiles.find((t) => t.id === stageId) || tiles[0];
-  const strip = tiles.filter((t) => t.id !== stage?.id);
+  const screenTile = tiles.find((tile) => tile.isScreen);
+  const stageId = pinnedId || screenTile?.id || speakerId || (tiles.find((tile) => !tile.mine)?.id) || tiles[0]?.id;
+  const stage = tiles.find((tile) => tile.id === stageId) || tiles[0];
+  const strip = tiles.filter((tile) => tile.id !== stage?.id);
 
   const toggleMute = () => {
     const next = !muted;
@@ -396,12 +503,16 @@ export default function MeetingRoom() {
       const sender = pc.getSenders().find((s) => s.track?.kind === 'video');
       if (sender && cam) sender.replaceTrack(cam);
     });
-    (displayStream?.getTracks() || []).forEach((tr) => {
+    (displayStreamRef.current?.getTracks() || []).forEach((tr) => {
       tr.onended = null;
       tr.stop();
     });
+    displayStreamRef.current = null;
+    sharingRef.current = false;
     setDisplayStream(null);
     setSharing(false);
+    setPinnedId((id) => (id === 'screen-me' ? null : id));
+    pcs.current.forEach((pc) => applyVideoParams(pc, false));
   };
 
   const shareScreen = async () => {
@@ -410,14 +521,31 @@ export default function MeetingRoom() {
       return;
     }
     try {
-      const screen = await navigator.mediaDevices.getDisplayMedia({ video: true });
+      let screen;
+      try {
+        screen = await navigator.mediaDevices.getDisplayMedia(SCREEN_CONSTRAINTS);
+      } catch (_) {
+        screen = await navigator.mediaDevices.getDisplayMedia({ video: true });
+      }
       const track = screen.getVideoTracks()[0];
+      if (track) {
+        track.contentHint = 'detail';
+        track.applyConstraints({
+          width: { ideal: 1920 },
+          height: { ideal: 1080 },
+          frameRate: { ideal: 15, max: 30 }
+        }).catch(() => {});
+      }
       pcs.current.forEach((pc) => {
         const sender = pc.getSenders().find((s) => s.track?.kind === 'video');
         if (sender) sender.replaceTrack(track);
+        applyVideoParams(pc, true);
       });
+      displayStreamRef.current = screen;
+      sharingRef.current = true;
       setDisplayStream(screen);
       setSharing(true);
+      setPinnedId('screen-me');
       track.onended = () => stopShare();
     } catch (_) {}
   };
@@ -586,11 +714,15 @@ export default function MeetingRoom() {
 
       <div className="flex-1 min-h-0 flex">
         <div className="flex-1 min-w-0 flex flex-col p-2 sm:p-3 gap-2">
-          <div className="flex-1 min-h-0 flex items-center justify-center">
+          <div className="flex-1 min-h-0 flex items-center justify-center bg-black/40 rounded-2xl overflow-hidden">
             {stage && (
-              <div className="aspect-square h-full max-h-full max-w-full">
+              <div className={stage.isScreen
+                ? 'w-full h-full'
+                : 'aspect-square h-full max-h-full max-w-full'
+              }>
                 <VideoTile
                   {...stage}
+                  compact={!stage.isScreen}
                   pinned={pinnedId === stage.id}
                   onPin={() => setPinnedId((id) => (id === stage.id ? null : stage.id))}
                   t={t}
@@ -609,6 +741,7 @@ export default function MeetingRoom() {
                 >
                   <VideoTile
                     {...tile}
+                    compact
                     pinned={pinnedId === tile.id}
                     t={t}
                   />

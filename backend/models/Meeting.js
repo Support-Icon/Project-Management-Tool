@@ -12,6 +12,7 @@ const participantSchema = new mongoose.Schema({
   username: { type: String, default: '' },
   isGuest: { type: Boolean, default: false },
   handRaised: { type: Boolean, default: false },
+  isSharing: { type: Boolean, default: false },
   joinedAt: { type: Date, default: Date.now },
   lastSeen: { type: Date, default: Date.now },
   leftAt: { type: Date, default: null }

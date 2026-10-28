@@ -35,6 +35,7 @@ const publicMeeting = (meeting, { includeGuestToken = false } = {}) => {
       username: p.username,
       isGuest: Boolean(p.isGuest),
       handRaised: Boolean(p.handRaised),
+      isSharing: Boolean(p.isSharing),
       lastSeen: p.lastSeen
     })),
     reactions: recentReactions(obj),
@@ -269,6 +270,7 @@ router.post('/:id/heartbeat', async (req, res) => {
     if (existing) {
       existing.lastSeen = new Date();
       existing.leftAt = null;
+      if (typeof req.body.sharing === 'boolean') existing.isSharing = req.body.sharing;
       await meeting.save();
     }
     res.json(publicMeeting(meeting, { includeGuestToken: !req.user.isGuest }));
@@ -285,6 +287,7 @@ router.post('/:id/leave', async (req, res) => {
     if (existing) {
       existing.leftAt = new Date();
       existing.handRaised = false;
+      existing.isSharing = false;
       await meeting.save();
     }
     res.json({ ok: true });
@@ -435,6 +438,7 @@ router.post('/:id/end', async (req, res) => {
     meeting.participants.forEach((p) => {
       if (!p.leftAt) p.leftAt = meeting.endedAt;
       p.handRaised = false;
+      p.isSharing = false;
     });
     const durationMinutes = Math.max(
       1,
