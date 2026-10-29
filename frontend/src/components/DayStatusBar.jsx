@@ -73,20 +73,22 @@ export default function DayStatusBar() {
 
   const approvedLeave = row?.leave?.status === 'approved';
   const pendingLeave = row?.leave?.status === 'pending';
+  const started = Boolean(row?.startAt);
+  const ended = Boolean(row?.endAt) || row?.status === 'completed';
+  const onBreak = Boolean(row?.onBreak);
+  const blocked = approvedLeave || row?.status === 'leave' || row?.status === 'off' || ended;
   const current = approvedLeave
     ? { id: 'leave', label: 'On leave', className: 'bg-amber-50 text-amber-700 border-amber-200' }
-    : (STATUS.find((s) => s.id === (row?.status || 'working')) || STATUS[0]);
-  const started = Boolean(row?.startAt);
-  const ended = Boolean(row?.endAt);
-  const onBreak = Boolean(row?.onBreak);
-  const blocked = approvedLeave || row?.status === 'leave' || row?.status === 'off';
+    : ended
+      ? { id: 'completed', label: 'Completed', className: 'bg-brand-green/20 text-brand-ink border-brand-green' }
+      : (STATUS.find((s) => s.id === (row?.status || 'working')) || STATUS[0]);
 
   return (
     <>
       <div className="flex items-center gap-1.5 sm:gap-2 flex-nowrap overflow-x-auto scrollbar-thin py-0.5 max-w-[70vw] sm:max-w-none">
-        {approvedLeave ? (
+        {approvedLeave || ended ? (
           <span className={`text-xs font-semibold px-2 py-1.5 rounded-lg border whitespace-nowrap ${current.className}`}>
-            On leave
+            {ended ? 'Completed' : 'On leave'}
           </span>
         ) : (
           <select

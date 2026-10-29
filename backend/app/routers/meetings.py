@@ -7,9 +7,11 @@ from pymongo import ReturnDocument
 
 from ..db import get_db
 from ..deps import company_id, current_user, current_user_or_guest, fail
+from ..duration import format_ist
 from ..roles import can_see_all
 from ..security import make_token
 from ..serialize import dump, oid
+from ..services.email import frontend_base, send_mail_many
 from ..services.llm import LANGUAGE_NAMES, invoke_text
 from ..services.notify import notify_meeting_invite
 
@@ -96,6 +98,69 @@ def public_meeting(meeting, include_guest=False):
     return obj
 
 
+EMAIL_RE = re.compile(r"^[^@\s]+@[^@\s]+\.[^@\s]+$")
+
+
+def clean_emails(values):
+    out = []
+    for item in values or []:
+        addr = str(item or "").strip().lower()
+        if addr and EMAIL_RE.match(addr) and addr not in out:
+            out.append(addr)
+    return out
+
+
+def parse_when(value):
+    if not value:
+        return None
+    try:
+        dt = datetime.fromisoformat(str(value).replace("Z", "+00:00"))
+    except ValueError:
+        return None
+    if dt.tzinfo is None:
+        dt = dt.replace(tzinfo=timezone.utc)
+    return dt.astimezone(timezone.utc)
+
+
+def meeting_join_urls(meeting):
+    base = frontend_base()
+    token = meeting.get("guestToken") or ""
+    return {
+        "app": f"{base}/meet/{meeting.get('_id')}",
+        "guest": f"{base}/join/{token}" if token else "",
+    }
+
+
+async def send_meeting_emails(db, *, company, meeting, host, invitee_ids, extra_emails):
+    people = []
+    ids = [oid(i) for i in (invitee_ids or []) if oid(i)]
+    if ids:
+        people = await db.users.find({"_id": {"$in": ids}, "company": company}, {"email": 1, "username": 1}).to_list(200)
+    addresses = clean_emails([p.get("email") for p in people] + list(extra_emails or []))
+    host_email = str(host.get("email") or "").strip().lower()
+    addresses = [a for a in addresses if a != host_email]
+    if not addresses:
+        return 0
+    urls = meeting_join_urls(meeting)
+    when = format_ist(meeting.get("scheduledAt")) if meeting.get("scheduledAt") else "starting now"
+    title = meeting.get("title") or "Team meeting"
+    host_name = host.get("username") or "A teammate"
+    subject = f"Meeting invite: {title}"
+    text = (
+        f"{host_name} invited you to {title}.\n\n"
+        f"When: {when}\n"
+        f"Join in ProjectFlow: {urls['app']}\n"
+        f"Guest link: {urls['guest']}\n"
+    )
+    html = (
+        f"<p>{host_name} invited you to <strong>{title}</strong>.</p>"
+        f"<p>When: {when}</p>"
+        f"<p><a href=\"{urls['app']}\">Join in ProjectFlow</a></p>"
+        f"<p>Or use the guest link: <a href=\"{urls['guest']}\">{urls['guest']}</a></p>"
+    )
+    return await send_mail_many(company, addresses, subject=subject, text=text, html=html)
+
+
 def can_join(user, meeting) -> bool:
     if not meeting or not user:
         return False
@@ -138,6 +203,8 @@ async def guest_info(token: str):
         "host": {"username": (host or {}).get("username"), "avatar": (host or {}).get("avatar") or ""},
         "language": meeting.get("language") or "en",
         "endedAt": meeting.get("endedAt"),
+        "scheduledAt": meeting.get("scheduledAt"),
+        "summary": meeting.get("summary") or "",
     })
 
 
@@ -150,6 +217,8 @@ async def guest_session(token: str, body: dict = Body(default={})):
     meeting = await db.meetings.find_one({"guestToken": token})
     if not meeting:
         fail(404, "Meeting link is invalid")
+    if meeting.get("status") == "scheduled":
+        fail(400, "This meeting has not started yet")
     if meeting.get("status") != "live":
         fail(400, "This meeting has ended")
     from bson import ObjectId
@@ -182,7 +251,8 @@ async def list_meetings(user=Depends(current_user)):
     db = get_db()
     company = company_id(user)
     live = await db.meetings.find({"company": company, "status": "live"}).sort("createdAt", -1).to_list(50)
-    for meeting in live:
+    scheduled = await db.meetings.find({"company": company, "status": "scheduled"}).sort("scheduledAt", 1).to_list(80)
+    for meeting in live + scheduled:
         if not meeting.get("guestToken"):
             token = secrets.token_hex(16)
             await db.meetings.update_one({"_id": meeting["_id"]}, {"$set": {"guestToken": token}})
@@ -190,53 +260,108 @@ async def list_meetings(user=Depends(current_user)):
     ended = await db.meetings.find({"company": company, "status": "ended"}).sort("endedAt", -1).to_list(30)
     from ..serialize import attach
     await attach(db.users, live, "host", ["username", "role", "avatar"])
+    await attach(db.users, scheduled, "host", ["username", "role", "avatar"])
     await attach(db.users, ended, "host", ["username", "role", "avatar"])
     listed = [public_meeting(m, True) for m in live]
+    upcoming = [public_meeting(m, True) for m in scheduled if can_join(user, m)]
     recents = [public_meeting(m, True) for m in ended]
-    return dump({"live": listed, "ended": recents, "recent": recents})
+    return dump({"live": listed, "scheduled": upcoming, "ended": recents, "recent": recents})
 
 
 @router.post("/")
 async def create_meeting(body: dict = Body(default={}), user=Depends(current_user)):
     title = str(body.get("title") or "Team meeting").strip()[:80] or "Team meeting"
     invitees = [oid(i) for i in (body.get("invitees") or []) if oid(i)]
+    extra_emails = clean_emails(body.get("emails") or [])
     language = body.get("language") if body.get("language") in LANGUAGE_NAMES else "en"
+    scheduled_at = parse_when(body.get("scheduledAt"))
     db = get_db()
+    company = company_id(user)
+    if extra_emails:
+        matched = await db.users.find({"company": company, "email": {"$in": extra_emails}}, {"_id": 1, "email": 1}).to_list(200)
+        have = {str(p["_id"]) for p in invitees}
+        for person in matched:
+            if str(person["_id"]) not in have:
+                invitees.append(person["_id"])
+                have.add(str(person["_id"]))
+    go_live = not scheduled_at or scheduled_at <= datetime.now(timezone.utc)
+    now = datetime.now(timezone.utc)
     doc = {
-        "company": company_id(user),
+        "company": company,
         "title": title,
         "host": user["_id"],
         "invitees": invitees,
+        "inviteEmails": extra_emails,
         "language": language,
         "guestToken": secrets.token_hex(16),
-        "status": "live",
+        "status": "live" if go_live else "scheduled",
         "participants": [{
             "user": user["_id"],
             "username": user.get("username"),
             "avatar": user.get("avatar") or "",
-            "joinedAt": datetime.now(timezone.utc),
-            "lastSeen": datetime.now(timezone.utc),
+            "joinedAt": now,
+            "lastSeen": now,
             "isGuest": False,
             "handRaised": False,
             "isSharing": False,
             "leftAt": None,
-        }],
+        }] if go_live else [],
         "notes": [],
         "captions": [],
         "reactions": [],
         "summaries": {},
         "summary": "",
-        "startedAt": datetime.now(timezone.utc),
+        "scheduledAt": scheduled_at,
+        "startedAt": now if go_live else None,
         "endedAt": None,
-        "createdAt": datetime.now(timezone.utc),
+        "createdAt": now,
     }
     result = await db.meetings.insert_one(doc)
     doc["_id"] = result.inserted_id
+    emailed = 0
     try:
-        await notify_meeting_invite(db, company_id=company_id(user), meeting=doc, host=user, invitee_ids=invitees)
+        await notify_meeting_invite(db, company_id=company, meeting=doc, host=user, invitee_ids=invitees)
     except Exception:
         pass
-    return public_meeting(doc, True)
+    try:
+        emailed = await send_meeting_emails(
+            db, company=company, meeting=doc, host=user, invitee_ids=invitees, extra_emails=extra_emails
+        )
+    except Exception:
+        emailed = 0
+    payload = public_meeting(doc, True)
+    payload["emailed"] = emailed
+    return payload
+
+
+@router.post("/{meeting_id}/start")
+async def start_scheduled(meeting_id: str, user=Depends(current_user)):
+    meeting = await load_meeting(meeting_id, user)
+    if str(meeting.get("host")) != str(user["_id"]) and not can_see_all(user):
+        fail(403, "Only the host can start this meeting")
+    if meeting.get("status") == "live":
+        return public_meeting(meeting, True)
+    if meeting.get("status") != "scheduled":
+        fail(400, "This meeting cannot be started")
+    now = datetime.now(timezone.utc)
+    patch = {
+        "status": "live",
+        "startedAt": now,
+        "participants": [{
+            "user": user["_id"],
+            "username": user.get("username"),
+            "avatar": user.get("avatar") or "",
+            "joinedAt": now,
+            "lastSeen": now,
+            "isGuest": False,
+            "handRaised": False,
+            "isSharing": False,
+            "leftAt": None,
+        }],
+    }
+    await get_db().meetings.update_one({"_id": meeting["_id"]}, {"$set": patch})
+    meeting.update(patch)
+    return public_meeting(meeting, True)
 
 
 @router.get("/{meeting_id}")
@@ -250,6 +375,8 @@ async def get_meeting(meeting_id: str, user=Depends(current_user_or_guest)):
 @router.post("/{meeting_id}/join")
 async def join_meeting(meeting_id: str, user=Depends(current_user_or_guest)):
     meeting = await load_meeting(meeting_id, user)
+    if meeting.get("status") == "scheduled":
+        fail(400, "This meeting has not started yet")
     if meeting.get("status") != "live":
         fail(400, "This meeting has ended")
     guest_user = {**user, "guestMeetingId": user.get("guestMeetingId")}

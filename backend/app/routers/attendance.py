@@ -70,11 +70,20 @@ async def leave_for_date(db, company, user_id, date):
     return {"status": row.get("status"), "requestId": row.get("_id")}
 
 
+def display_status(data, leave_status=None):
+    if leave_status == "approved":
+        return "leave"
+    if data.get("endAt") or data.get("status") == "completed":
+        return "completed"
+    return data.get("status") or "working"
+
+
 def serialize(row, leave):
     data = row or {}
+    leave_status = (leave or {}).get("status")
     return dump({
         "date": data.get("date"),
-        "status": data.get("status") or "working",
+        "status": display_status(data, leave_status),
         "startAt": data.get("startAt"),
         "endAt": data.get("endAt"),
         "breaks": data.get("breaks") or [],
@@ -153,7 +162,12 @@ async def end_day(user=Depends(current_user)):
         fail(400, "Submit today's daily updates before EOD")
     close_open_break(row)
     row["endAt"] = datetime.now(timezone.utc)
-    await db.attendances.update_one({"_id": row["_id"]}, {"$set": {"breaks": row.get("breaks") or [], "endAt": row["endAt"]}})
+    row["status"] = "completed"
+    await db.attendances.update_one({"_id": row["_id"]}, {"$set": {
+        "breaks": row.get("breaks") or [],
+        "endAt": row["endAt"],
+        "status": "completed",
+    }})
     return serialize(row, leave)
 
 
@@ -252,7 +266,7 @@ def person_day_row(person, att, leave_item):
         "username": person.get("username"),
         "role": person.get("role"),
         "avatar": person.get("avatar") or "",
-        "status": "leave" if leave_status == "approved" else att.get("status") or "working",
+        "status": display_status(att, leave_status),
         "startAt": att.get("startAt"),
         "endAt": att.get("endAt"),
         "onBreak": on_break(att),

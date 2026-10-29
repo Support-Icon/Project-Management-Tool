@@ -11,6 +11,7 @@ import PersonName from '../components/PersonName';
 
 const tone = {
   working: 'bg-emerald-50 text-emerald-700',
+  completed: 'bg-brand-green/20 text-brand-ink',
   leave: 'bg-amber-50 text-amber-700',
   off: 'bg-slate-100 text-slate-600',
 };

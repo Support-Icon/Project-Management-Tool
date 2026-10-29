@@ -50,6 +50,16 @@ export default function GuestJoin() {
             <p className="text-center text-sm text-slate-300">Checking meeting link…</p>
           </div>
         )}
+        {info?.status === 'scheduled' && (
+          <div>
+            <p className="text-xs uppercase tracking-wide text-brand-blue">Scheduled</p>
+            <h1 className="text-xl font-bold mt-1">{info.title}</h1>
+            <p className="mt-3 text-sm text-slate-200">
+              This meeting has not started yet{info.scheduledAt ? `. It is set for ${new Date(info.scheduledAt).toLocaleString('en-IN', { timeZone: 'Asia/Kolkata' })} IST` : ''}.
+            </p>
+            <p className="mt-2 text-xs text-slate-400">Refresh this page when the host starts the call.</p>
+          </div>
+        )}
         {info?.status === 'ended' && (
           <div>
             <p className="text-xs uppercase tracking-wide text-brand-blue">Meeting ended</p>
