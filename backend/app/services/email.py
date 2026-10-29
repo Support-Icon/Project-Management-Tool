@@ -2,6 +2,7 @@ import asyncio
 import smtplib
 from email.mime.multipart import MIMEMultipart
 from email.mime.text import MIMEText
+from html import escape
 
 import boto3
 import httpx
@@ -116,6 +117,55 @@ async def send_mail(company_id, *, to, subject, text, html=None):
         return True
     except Exception:
         return False
+
+
+def _on_brand_text(color: str) -> str:
+    raw = str(color or "").lstrip("#")
+    if len(raw) != 6:
+        return "#ffffff"
+    try:
+        r, g, b = int(raw[0:2], 16), int(raw[2:4], 16), int(raw[4:6], 16)
+    except ValueError:
+        return "#ffffff"
+    return "#0B0B0D" if (0.299 * r + 0.587 * g + 0.114 * b) / 255 > 0.62 else "#ffffff"
+
+
+async def company_brand(db, company_id) -> dict:
+    settings = await db.companysettings.find_one({"company": oid(company_id)}) or {}
+    templates = settings.get("emailTemplates") or {}
+    company = await db.companies.find_one({"_id": oid(company_id)}, {"name": 1})
+    color = str(templates.get("brandColor") or "#0B0B0D").strip() or "#0B0B0D"
+    logo = str(templates.get("logoUrl") or "").strip() or f"{frontend_base()}/supporticon-logo.png"
+    return {
+        "color": color,
+        "ink": _on_brand_text(color),
+        "logo": logo,
+        "footer": templates.get("footerText") or "Sent by Supporticon",
+        "name": (company or {}).get("name") or ((settings.get("email") or {}).get("fromName")) or "Supporticon",
+    }
+
+
+def wrap_branded(brand, inner_html: str) -> str:
+    color = escape(brand.get("color") or "#0B0B0D")
+    ink = escape(brand.get("ink") or "#ffffff")
+    name = escape(brand.get("name") or "Supporticon")
+    footer = escape(brand.get("footer") or "Sent by Supporticon")
+    logo = str(brand.get("logo") or "").strip()
+    logo_html = (
+        f'<img src="{escape(logo)}" alt="{name}" width="180" style="max-height:48px;max-width:220px;height:auto;display:block;margin:0 auto;border:0;" />'
+        if logo else f'<div style="font-size:20px;font-weight:700;color:{ink}">{name}</div>'
+    )
+    return f"""
+<table role="presentation" width="100%" cellpadding="0" cellspacing="0" style="background:#eef3f0;padding:24px 12px;font-family:Arial,Helvetica,sans-serif">
+  <tr><td align="center">
+    <table role="presentation" width="560" cellpadding="0" cellspacing="0" style="max-width:560px;width:100%;background:#ffffff;border-radius:16px;overflow:hidden">
+      <tr><td style="background:{color};padding:22px 24px;text-align:center">{logo_html}</td></tr>
+      <tr><td style="padding:28px 24px;color:#0B0B0D;font-size:15px;line-height:1.5">{inner_html}</td></tr>
+      <tr><td style="padding:14px 24px;background:#f8faf9;color:#64748b;font-size:12px;text-align:center">{footer}<br/>{name}</td></tr>
+    </table>
+  </td></tr>
+</table>
+""".strip()
 
 
 async def send_mail_many(company_id, addresses, *, subject, text, html=None):

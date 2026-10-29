@@ -11,7 +11,7 @@ from ..duration import format_ist
 from ..roles import can_see_all
 from ..security import make_token
 from ..serialize import dump, oid
-from ..services.email import frontend_base, send_mail_many
+from ..services.email import company_brand, frontend_base, send_mail_many, wrap_branded
 from ..services.llm import LANGUAGE_NAMES, invoke_text
 from ..services.notify import notify_meeting_invite
 
@@ -132,32 +132,46 @@ def meeting_join_urls(meeting):
 
 
 async def send_meeting_emails(db, *, company, meeting, host, invitee_ids, extra_emails):
+    from html import escape
     people = []
     ids = [oid(i) for i in (invitee_ids or []) if oid(i)]
     if ids:
         people = await db.users.find({"_id": {"$in": ids}, "company": company}, {"email": 1, "username": 1}).to_list(200)
-    addresses = clean_emails([p.get("email") for p in people] + list(extra_emails or []))
-    host_email = str(host.get("email") or "").strip().lower()
-    addresses = [a for a in addresses if a != host_email]
+    host_doc = host or {}
+    if not host_doc.get("email") and host_doc.get("_id"):
+        found = await db.users.find_one({"_id": host_doc["_id"]}, {"email": 1, "username": 1})
+        if found:
+            host_doc = {**host_doc, **found}
+    host_email = str(host_doc.get("email") or "").strip().lower()
+    host_name = host_doc.get("username") or "A teammate"
+    addresses = clean_emails([p.get("email") for p in people] + list(extra_emails or []) + [host_email])
     if not addresses:
         return 0
     urls = meeting_join_urls(meeting)
     when = format_ist(meeting.get("scheduledAt")) if meeting.get("scheduledAt") else "starting now"
     title = meeting.get("title") or "Team meeting"
-    host_name = host.get("username") or "A teammate"
+    brand = await company_brand(db, company)
+    color = brand.get("color") or "#0B0B0D"
+    ink = brand.get("ink") or "#ffffff"
     subject = f"Meeting invite: {title}"
     text = (
-        f"{host_name} invited you to {title}.\n\n"
+        f"{host_name} created a meeting: {title}\n\n"
+        f"Created by: {host_name}" + (f" ({host_email})" if host_email else "") + "\n"
         f"When: {when}\n"
-        f"Join in ProjectFlow: {urls['app']}\n"
+        f"Join: {urls['app']}\n"
         f"Guest link: {urls['guest']}\n"
     )
-    html = (
-        f"<p>{host_name} invited you to <strong>{title}</strong>.</p>"
-        f"<p>When: {when}</p>"
-        f"<p><a href=\"{urls['app']}\">Join in ProjectFlow</a></p>"
-        f"<p>Or use the guest link: <a href=\"{urls['guest']}\">{urls['guest']}</a></p>"
+    inner = (
+        f"<p style='margin:0 0 8px;font-size:13px;letter-spacing:.04em;text-transform:uppercase;color:{escape(color)}'>Meeting invite</p>"
+        f"<h1 style='margin:0 0 16px;font-size:22px;line-height:1.3'>{escape(title)}</h1>"
+        f"<p style='margin:0 0 6px'><strong>Created by</strong><br/>{escape(host_name)}"
+        + (f" &lt;{escape(host_email)}&gt;" if host_email else "")
+        + "</p>"
+        f"<p style='margin:12px 0 20px'><strong>When</strong><br/>{escape(when)}</p>"
+        f"<p style='margin:0 0 12px'><a href='{escape(urls['app'])}' style='display:inline-block;background:{escape(color)};color:{escape(ink)};text-decoration:none;padding:12px 20px;border-radius:10px;font-weight:700'>Join meeting</a></p>"
+        f"<p style='margin:0;font-size:13px;color:#64748b'>Guest link:<br/><a href='{escape(urls['guest'])}' style='color:{escape(color)}'>{escape(urls['guest'])}</a></p>"
     )
+    html = wrap_branded(brand, inner)
     return await send_mail_many(company, addresses, subject=subject, text=text, html=html)
 
 
