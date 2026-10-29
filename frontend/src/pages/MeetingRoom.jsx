@@ -22,6 +22,37 @@ const ICE = {
   ]
 };
 
+const CONNECT_FAIL_MS = 14000;
+const ICE_RETRY_MS = 8000;
+
+const cameraErrorMessage = (err) => {
+  const name = err?.name || '';
+  if (name === 'NotAllowedError' || name === 'PermissionDeniedError') {
+    return 'Camera and microphone permission was blocked. Allow access in the browser and try again.';
+  }
+  if (name === 'NotFoundError' || name === 'DevicesNotFoundError') {
+    return 'No camera or microphone was found on this device.';
+  }
+  if (name === 'NotReadableError' || name === 'TrackStartError') {
+    return 'Camera is already in use by another app. Close it and retry.';
+  }
+  return err?.response?.data?.message || err?.message || 'Could not start camera or microphone.';
+};
+
+const isPcLive = (pc) => {
+  const ice = pc?.iceConnectionState;
+  const conn = pc?.connectionState;
+  return ['connected', 'completed'].includes(ice) || conn === 'connected';
+};
+
+const cameraGridClass = (n) => {
+  if (n <= 1) return 'grid-cols-1';
+  if (n === 2) return 'grid-cols-1 sm:grid-cols-2';
+  if (n <= 4) return 'grid-cols-1 sm:grid-cols-2';
+  if (n <= 6) return 'grid-cols-2 sm:grid-cols-3';
+  return 'grid-cols-2 sm:grid-cols-3 lg:grid-cols-4';
+};
+
 const CAMERA_CONSTRAINTS = {
   audio: {
     echoCancellation: true,
@@ -74,7 +105,7 @@ const readGuest = () => {
 
 const VideoTile = ({
   stream, name, mine, muted, camOff, mirrored, pinned, speaking, handRaised, reaction, onPin, t,
-  isScreen, compact, connecting, leaving, avatar
+  isScreen, compact, connecting, connectFailed, onRetry, leaving, avatar
 }) => {
   const ref = useRef(null);
   useEffect(() => {
@@ -87,8 +118,8 @@ const VideoTile = ({
   }, [stream]);
   return (
     <div className={`meet-tile relative rounded-2xl overflow-hidden bg-black w-full h-full group ${
-      compact && !isScreen ? 'aspect-square' : ''
-    } ${speaking && !isScreen ? 'ring-2 ring-brand-green' : ''} ${
+      compact && !isScreen ? 'aspect-video' : ''
+    } ${speaking && !isScreen ? 'ring-2 ring-brand-blue' : ''} ${
       leaving ? 'meet-tile-out' : 'meet-tile-in'
     }`}>
       <video
@@ -96,19 +127,32 @@ const VideoTile = ({
         autoPlay
         muted={Boolean(mine || muted)}
         playsInline
-        className={`w-full h-full ${isScreen ? 'object-contain bg-black' : 'object-cover'} ${
+        className={`w-full h-full object-contain bg-black ${
           mirrored && !isScreen ? '-scale-x-100' : ''
         } ${camOff ? 'opacity-0' : ''}`}
       />
-      {(camOff || connecting || !stream) && (
-        <div className="absolute inset-0 flex flex-col items-center justify-center bg-[#1a1a1e] gap-3">
+      {(camOff || connecting || connectFailed || !stream) && (
+        <div className="absolute inset-0 flex flex-col items-center justify-center bg-[#1a1a1e] gap-2 px-3 text-center">
           <UserAvatar name={name} avatar={avatar} size={compact ? 40 : 64} className="rounded-full" />
-          {connecting && (
+          {connectFailed ? (
             <>
-              <div className="w-8 h-8 rounded-full border-4 border-brand-green/30 border-t-brand-green animate-spin" />
+              <p className="text-xs text-slate-200 max-w-[16rem] leading-snug">{t('connectFailed')}</p>
+              {onRetry && (
+                <button
+                  type="button"
+                  onClick={(e) => { e.stopPropagation(); onRetry(); }}
+                  className="mt-1 px-3 py-1 rounded-lg bg-brand-blue text-white text-xs font-semibold"
+                >
+                  {t('retryConnect')}
+                </button>
+              )}
+            </>
+          ) : connecting ? (
+            <>
+              <div className="w-8 h-8 rounded-full border-4 border-brand-blue/30 border-t-brand-blue animate-spin" />
               <p className="text-xs text-slate-300">{t('connectingPeer')}</p>
             </>
-          )}
+          ) : null}
         </div>
       )}
       {reaction && (
@@ -167,6 +211,7 @@ export default function MeetingRoom() {
   const [isFs, setIsFs] = useState(false);
   const [lang, setLang] = useState('en');
   const [leavingIds, setLeavingIds] = useState(() => new Set());
+  const [peerStatus, setPeerStatus] = useState({});
   const [captionsOn, setCaptionsOn] = useState(false);
   const [shownCaptions, setShownCaptions] = useState([]);
   const [liveCaption, setLiveCaption] = useState(null);
@@ -188,20 +233,46 @@ export default function MeetingRoom() {
   const livePrimed = useRef(false);
   const captionCache = useRef(new Map());
   const captionsOnRef = useRef(false);
+  const connectTimers = useRef(new Map());
+  const offerWait = useRef(new Map());
   const t = (key) => meetT(lang, key);
+
+  const markPeer = (peerId, status) => {
+    setPeerStatus((prev) => (prev[peerId] === status ? prev : { ...prev, [peerId]: status }));
+  };
+
+  const clearPeerWatch = (peerId) => {
+    const timer = connectTimers.current.get(peerId);
+    if (timer) clearTimeout(timer);
+    connectTimers.current.delete(peerId);
+    const wait = offerWait.current.get(peerId);
+    if (wait) clearTimeout(wait);
+    offerWait.current.delete(peerId);
+  };
 
   const attachLocal = (stream) => {
     streamRef.current = stream;
     setLocalStream(stream);
   };
 
-  const closePc = (peerId) => {
+  const closePc = (peerId, { animate = true } = {}) => {
     const pc = pcs.current.get(peerId);
     if (pc) {
       pc.close();
       pcs.current.delete(peerId);
     }
     pendingIce.current.delete(peerId);
+    clearPeerWatch(peerId);
+    setPeerStatus((prev) => {
+      if (!prev[peerId]) return prev;
+      const next = { ...prev };
+      delete next[peerId];
+      return next;
+    });
+    if (!animate) {
+      setRemotes((prev) => prev.filter((r) => r.userId !== peerId));
+      return;
+    }
     setLeavingIds((prev) => {
       const next = new Set(prev);
       next.add(peerId);
@@ -226,8 +297,40 @@ export default function MeetingRoom() {
   };
 
   const sendSignal = async (to, kind, payload) => {
+    const body = { to, kind, payload };
     try {
-      await api.post(`/api/meetings/${meetingId}/signal`, { to, kind, payload });
+      await api.post(`/api/meetings/${meetingId}/signal`, body);
+    } catch (_) {
+      try {
+        await api.post(`/api/meetings/${meetingId}/signal`, body);
+      } catch (_) {}
+    }
+  };
+
+  const watchPc = (peerId, pc) => {
+    clearPeerWatch(peerId);
+    markPeer(peerId, 'connecting');
+    const failLater = (delay) => {
+      clearTimeout(connectTimers.current.get(peerId));
+      connectTimers.current.set(peerId, setTimeout(() => {
+        if (!alive.current || pcs.current.get(peerId) !== pc) return;
+        if (isPcLive(pc)) {
+          markPeer(peerId, 'connected');
+          return;
+        }
+        markPeer(peerId, 'failed');
+      }, delay));
+    };
+    failLater(CONNECT_FAIL_MS);
+  };
+
+  const restartIce = async (peerId, pc) => {
+    try {
+      if (pc.signalingState !== 'stable') return;
+      if (typeof pc.restartIce === 'function') pc.restartIce();
+      const offer = await pc.createOffer({ iceRestart: true });
+      await pc.setLocalDescription(offer);
+      await sendSignal(peerId, 'offer', { type: offer.type, sdp: offer.sdp });
     } catch (_) {}
   };
 
@@ -266,11 +369,59 @@ export default function MeetingRoom() {
         const rest = prev.filter((r) => r.userId !== peerId);
         return [...rest, { userId: peerId, stream, username: names.current.get(peerId) || 'Guest' }];
       });
+      markPeer(peerId, 'connected');
+      clearPeerWatch(peerId);
     };
     pc.onconnectionstatechange = () => {
-      if (['failed', 'closed', 'disconnected'].includes(pc.connectionState)) closePc(peerId);
+      const state = pc.connectionState;
+      if (state === 'connected') {
+        markPeer(peerId, 'connected');
+        clearPeerWatch(peerId);
+        return;
+      }
+      if (state === 'connecting' || state === 'new') {
+        markPeer(peerId, 'connecting');
+        return;
+      }
+      if (state === 'disconnected') {
+        markPeer(peerId, 'connecting');
+        clearTimeout(connectTimers.current.get(peerId));
+        connectTimers.current.set(peerId, setTimeout(() => {
+          if (!alive.current || pcs.current.get(peerId) !== pc) return;
+          if (isPcLive(pc)) {
+            markPeer(peerId, 'connected');
+            return;
+          }
+          restartIce(peerId, pc);
+          watchPc(peerId, pc);
+        }, ICE_RETRY_MS));
+        return;
+      }
+      if (state === 'failed') {
+        restartIce(peerId, pc);
+        markPeer(peerId, 'connecting');
+        clearTimeout(connectTimers.current.get(peerId));
+        connectTimers.current.set(peerId, setTimeout(() => {
+          if (!alive.current || pcs.current.get(peerId) !== pc) return;
+          if (isPcLive(pc)) {
+            markPeer(peerId, 'connected');
+            return;
+          }
+          markPeer(peerId, 'failed');
+        }, ICE_RETRY_MS));
+        return;
+      }
+      if (state === 'closed') closePc(peerId);
+    };
+    pc.oniceconnectionstatechange = () => {
+      if (pc.iceConnectionState === 'failed') restartIce(peerId, pc);
+      if (isPcLive(pc)) {
+        markPeer(peerId, 'connected');
+        clearPeerWatch(peerId);
+      }
     };
     pcs.current.set(peerId, pc);
+    watchPc(peerId, pc);
     return pc;
   }, [meetingId]);
 
@@ -291,6 +442,13 @@ export default function MeetingRoom() {
     }
     const pc = await ensurePc(peerId);
     if (row.kind === 'offer') {
+      if (pc.signalingState === 'have-local-offer') {
+        if (String(myId) > peerId) {
+          try { await pc.setLocalDescription({ type: 'rollback' }); } catch (_) {}
+        } else {
+          return;
+        }
+      }
       await pc.setRemoteDescription(new RTCSessionDescription(row.payload));
       await flushIce(peerId, pc);
       const answer = await pc.createAnswer();
@@ -312,6 +470,16 @@ export default function MeetingRoom() {
     }
   };
 
+  const retryPeer = async (peerId) => {
+    closePc(peerId, { animate: false });
+    markPeer(peerId, 'connecting');
+    try {
+      await callPeer(peerId);
+    } catch (_) {
+      markPeer(peerId, 'failed');
+    }
+  };
+
   const syncPeers = async (liveList) => {
     (liveList || []).forEach((p) => {
       const id = String(p.user?._id || p.user);
@@ -325,8 +493,19 @@ export default function MeetingRoom() {
       if (!liveSet.has(id)) closePc(id);
     });
     for (const id of others) {
-      if (String(myId) > id && !pcs.current.has(id)) {
-        try { await callPeer(id); } catch (_) {}
+      if (pcs.current.has(id)) continue;
+      if (String(myId) > id) {
+        try { await callPeer(id); } catch (_) { markPeer(id, 'failed'); }
+      } else if (!offerWait.current.has(id)) {
+        offerWait.current.set(id, setTimeout(async () => {
+          offerWait.current.delete(id);
+          if (!alive.current) return;
+          const pc = pcs.current.get(id);
+          if (pc?.remoteDescription) return;
+          markPeer(id, 'connecting');
+          try { await callPeer(id); } catch (_) { markPeer(id, 'failed'); }
+        }, 5000));
+        markPeer(id, 'connecting');
       }
     }
   };
@@ -356,9 +535,22 @@ export default function MeetingRoom() {
     }
     alive.current = true;
     let pollTimer;
+    const bootWatch = setTimeout(() => {
+      if (!alive.current) return;
+      setPhase((cur) => {
+        if (cur !== 'loading') return cur;
+        return 'error';
+      });
+      setError((cur) => cur || 'Could not join the meeting. Check your internet connection and camera permission, then try again.');
+    }, 25000);
 
     const boot = async () => {
       try {
+        if (!myId) {
+          setError('Could not join this meeting. Sign in again or reopen the invite link.');
+          setPhase('error');
+          return;
+        }
         const existing = await api.get(`/api/meetings/${meetingId}`);
         if (!alive.current) return;
         if (existing.data.status === 'ended') {
@@ -392,7 +584,7 @@ export default function MeetingRoom() {
         setPhase('live');
         await syncPeers(joined.data.liveParticipants);
       } catch (err) {
-        setError(err.response?.data?.message || 'Camera / mic permission is required for live meet');
+        setError(cameraErrorMessage(err) || 'Could not join the meeting. Check your internet and try again.');
         setPhase('error');
         return;
       }
@@ -416,10 +608,16 @@ export default function MeetingRoom() {
           });
           for (const row of sigs.data || []) {
             lastSignal.current = row._id;
-            await handleSignal(row);
+            try {
+              await handleSignal(row);
+            } catch (_) {}
           }
         } catch (_) {}
-        if (alive.current) pollTimer = setTimeout(tick, captionsOnRef.current ? 450 : 1200);
+        const waiting = [...pcs.current.keys()].some((id) => {
+          const pc = pcs.current.get(id);
+          return pc && !isPcLive(pc);
+        });
+        if (alive.current) pollTimer = setTimeout(tick, (captionsOnRef.current || waiting) ? 400 : 1200);
       };
       tick();
     };
@@ -427,7 +625,12 @@ export default function MeetingRoom() {
     boot();
     return () => {
       alive.current = false;
+      clearTimeout(bootWatch);
       clearTimeout(pollTimer);
+      connectTimers.current.forEach((timer) => clearTimeout(timer));
+      connectTimers.current.clear();
+      offerWait.current.forEach((timer) => clearTimeout(timer));
+      offerWait.current.clear();
       pcs.current.forEach((pc) => pc.close());
       pcs.current.clear();
       streamRef.current?.getTracks().forEach((t) => t.stop());
@@ -436,18 +639,24 @@ export default function MeetingRoom() {
   }, [meetingId, myId, isGuest, guestToken]);
 
   useEffect(() => {
-    if (!remotes.length) return undefined;
+    const sources = [
+      ...remotes.filter((peer) => peer.stream).map((peer) => ({ id: peer.userId, stream: peer.stream })),
+      ...(localStream && !muted ? [{ id: String(myId || 'me'), stream: localStream }] : [])
+    ];
+    if (!sources.length) {
+      setSpeakerId(null);
+      return undefined;
+    }
     let ctx;
     try { ctx = new AudioContext(); } catch { return undefined; }
     const meters = [];
-    remotes.forEach((peer) => {
-      if (!peer.stream) return;
+    sources.forEach((peer) => {
       try {
         const src = ctx.createMediaStreamSource(peer.stream);
         const analyser = ctx.createAnalyser();
         analyser.fftSize = 256;
         src.connect(analyser);
-        meters.push({ id: peer.userId, analyser, data: new Uint8Array(analyser.frequencyBinCount) });
+        meters.push({ id: peer.id, analyser, data: new Uint8Array(analyser.frequencyBinCount) });
       } catch (_) {}
     });
     let raf;
@@ -462,7 +671,7 @@ export default function MeetingRoom() {
           best = m.id;
         }
       });
-      if (best) setSpeakerId(best);
+      setSpeakerId(best);
       raf = requestAnimationFrame(loop);
     };
     loop();
@@ -470,7 +679,7 @@ export default function MeetingRoom() {
       cancelAnimationFrame(raf);
       ctx.close().catch(() => {});
     };
-  }, [remotes]);
+  }, [remotes, localStream, muted, myId]);
 
   useEffect(() => {
     const live = meeting?.liveParticipants || [];
@@ -630,7 +839,7 @@ export default function MeetingRoom() {
       avatar: user?.avatar || '',
       handRaised,
       reaction: reactionFor(myId),
-      speaking: false
+      speaking: speakerId === String(myId || 'me')
     };
     const localScreen = (sharing && displayStream) ? {
       id: 'screen-me',
@@ -656,16 +865,18 @@ export default function MeetingRoom() {
       if (!id || id === String(myId)) return;
       liveIds.add(id);
       const remote = remoteMap.get(id);
+      const status = peerStatus[id] || (remote?.stream ? 'connected' : 'connecting');
       others.push({
         id,
         name: p.username || names.current.get(id) || 'Guest',
         stream: remote?.stream || null,
         mine: false,
         muted: false,
-        camOff: !remote?.stream,
+        camOff: status === 'connected' && !remote?.stream,
         mirrored: false,
         isScreen: streamIsScreen(remote?.stream) || Boolean(p.isSharing),
-        connecting: !remote?.stream,
+        connecting: !remote?.stream && status !== 'failed',
+        connectFailed: status === 'failed' && !remote?.stream,
         leaving: leavingIds.has(id),
         avatar: p.avatar || '',
         handRaised: handFor(id),
@@ -693,12 +904,14 @@ export default function MeetingRoom() {
       });
     });
     return [...(localScreen ? [localScreen] : []), localCam, ...others];
-  }, [remotes, meeting, myId, user, guest, muted, camOff, sharing, handRaised, speakerId, localStream, displayStream, leavingIds]);
+  }, [remotes, meeting, myId, user, guest, muted, camOff, sharing, handRaised, speakerId, localStream, displayStream, leavingIds, peerStatus]);
 
   const screenTile = tiles.find((tile) => tile.isScreen);
-  const stageId = pinnedId || screenTile?.id || speakerId || (tiles.find((tile) => !tile.mine)?.id) || tiles[0]?.id;
-  const stage = tiles.find((tile) => tile.id === stageId) || tiles[0];
-  const strip = tiles.filter((tile) => tile.id !== stage?.id);
+  const useStage = Boolean(pinnedId || screenTile);
+  const stageId = pinnedId || screenTile?.id || null;
+  const stage = useStage ? (tiles.find((tile) => tile.id === stageId) || tiles[0]) : null;
+  const strip = useStage ? tiles.filter((tile) => tile.id !== stage?.id) : [];
+  const failedPeers = tiles.filter((tile) => tile.connectFailed);
 
   const toggleMute = () => {
     const next = !muted;
@@ -870,9 +1083,9 @@ export default function MeetingRoom() {
   if (phase === 'error') {
     return (
       <div className="min-h-screen bg-brand-ink text-white flex items-center justify-center p-6">
-        <div className="text-center">
-          <p className="font-semibold">{error}</p>
-          <button type="button" onClick={leave} className="mt-4 text-brand-green text-sm">Back</button>
+        <div className="text-center max-w-md">
+          <p className="font-semibold leading-relaxed">{error}</p>
+          <button type="button" onClick={leave} className="mt-4 text-brand-blue text-sm">Back</button>
         </div>
       </div>
     );
@@ -880,10 +1093,11 @@ export default function MeetingRoom() {
 
   if (phase !== 'live') {
     return (
-      <div className="min-h-screen bg-brand-ink flex flex-col items-center justify-center gap-3 text-white">
+      <div className="min-h-screen bg-brand-ink flex flex-col items-center justify-center gap-3 text-white px-6 text-center">
         <BrandLogo className="h-14 w-auto max-w-[300px]" />
-        <div className="w-10 h-10 rounded-full border-4 border-brand-green/30 border-t-brand-green animate-spin" />
+        <div className="w-10 h-10 rounded-full border-4 border-brand-blue/30 border-t-brand-blue animate-spin" />
         <p className="text-sm text-slate-300">{t('connecting')}</p>
+        <p className="text-xs text-slate-500 max-w-sm">Allow camera and microphone if asked. People on other networks may take a few seconds to appear.</p>
       </div>
     );
   }
@@ -934,21 +1148,38 @@ export default function MeetingRoom() {
         </button>
       </header>
 
+      {failedPeers.length > 0 && (
+        <div className="px-3 py-1.5 bg-brand-blue/15 text-center text-xs text-slate-200">
+          {t('connectFailedBanner')}
+        </div>
+      )}
+
       <div className="flex-1 min-h-0 flex">
         <div className="flex-1 min-w-0 flex flex-col p-2 sm:p-3 gap-2">
-          <div className="relative flex-1 min-h-0 flex items-center justify-center bg-black/40 rounded-2xl overflow-hidden">
-            {stage && (
-              <div className={stage.isScreen
-                ? 'w-full h-full'
-                : 'aspect-square h-full max-h-full max-w-full'
-              }>
+          <div className="relative flex-1 min-h-0 bg-black/40 rounded-2xl overflow-hidden">
+            {useStage && stage ? (
+              <div className="w-full h-full">
                 <VideoTile
                   {...stage}
-                  compact={!stage.isScreen}
+                  compact={false}
                   pinned={pinnedId === stage.id}
                   onPin={() => setPinnedId((id) => (id === stage.id ? null : stage.id))}
+                  onRetry={stage.connectFailed ? () => retryPeer(stage.id) : undefined}
                   t={t}
                 />
+              </div>
+            ) : (
+              <div className={`grid gap-2 w-full h-full p-1 ${cameraGridClass(tiles.length)}`}>
+                {tiles.map((tile) => (
+                  <div key={tile.id} className="min-h-0 min-w-0">
+                    <VideoTile
+                      {...tile}
+                      compact={false}
+                      onRetry={tile.connectFailed ? () => retryPeer(tile.id) : undefined}
+                      t={t}
+                    />
+                  </div>
+                ))}
               </div>
             )}
             {captionsOn && captionLines.length > 0 && (
@@ -966,18 +1197,19 @@ export default function MeetingRoom() {
             )}
           </div>
           {strip.length > 0 && (
-            <div className="h-24 sm:h-28 flex gap-2 overflow-x-auto scrollbar-thin justify-center">
+            <div className="h-28 sm:h-32 flex gap-2 overflow-x-auto scrollbar-thin justify-center">
               {strip.map((tile) => (
                 <button
                   key={tile.id}
                   type="button"
                   onClick={() => setPinnedId(tile.id)}
-                  className="w-24 h-24 sm:w-28 sm:h-28 flex-shrink-0"
+                  className="w-36 sm:w-44 aspect-video flex-shrink-0"
                 >
                   <VideoTile
                     {...tile}
                     compact
                     pinned={pinnedId === tile.id}
+                    onRetry={tile.connectFailed ? () => retryPeer(tile.id) : undefined}
                     t={t}
                   />
                 </button>

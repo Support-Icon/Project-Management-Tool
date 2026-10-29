@@ -588,7 +588,7 @@ async def get_signals(meeting_id: str, after: str | None = Query(default=None), 
     else:
         from datetime import timedelta
         filt["createdAt"] = {"$gte": datetime.now(timezone.utc) - timedelta(seconds=15)}
-    rows = await get_db().meetingsignals.find(filt).sort("_id", 1).to_list(50)
+    rows = await get_db().meetingsignals.find(filt).sort("_id", 1).to_list(200)
     return dump(rows)
 
 
