@@ -22,4 +22,6 @@ async def digest(x_cron_secret: str | None = Header(default=None, alias="X-Cron-
 @router.post("/daily-report")
 async def daily_report(x_cron_secret: str | None = Header(default=None, alias="X-Cron-Secret")):
     require_cron(x_cron_secret)
-    return {"checkedAt": datetime.now(timezone.utc).isoformat(), "daily": [], "weekly": []}
+    from ..services.daily_report import run_daily_reports
+    daily = await run_daily_reports()
+    return {"checkedAt": datetime.now(timezone.utc).isoformat(), "daily": daily, "weekly": []}

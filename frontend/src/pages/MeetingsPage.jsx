@@ -1,6 +1,6 @@
-import React, { useEffect, useState } from 'react';
+import React, { useEffect, useRef, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { Clock, Link2, Mail, PhoneOff, Plus, Video, X } from 'lucide-react';
+import { CalendarDays, Clock, Link2, Mail, PhoneOff, Plus, Video, X } from 'lucide-react';
 import toast from 'react-hot-toast';
 import api from '../api/axios';
 import { formatIST } from '../utils/time';
@@ -10,6 +10,43 @@ import { meetingInviteText, cleanSummaryText } from '../utils/meet';
 import PageLoader from '../components/PageLoader';
 import PersonName from '../components/PersonName';
 import UserAvatar from '../components/UserAvatar';
+
+function SchedulePicker({ type, value, onChange, label, icon: Icon }) {
+  const ref = useRef(null);
+  const openPicker = (event) => {
+    event.preventDefault();
+    event.stopPropagation();
+    const el = ref.current;
+    if (!el) return;
+    if (typeof el.showPicker === 'function') {
+      try { el.showPicker(); return; } catch (_) {}
+    }
+    el.focus();
+    el.click();
+  };
+  return (
+    <div className="text-xs text-slate-400">
+      {label}
+      <div className="mt-1 flex items-stretch rounded-xl bg-white/10 border border-white/10 overflow-hidden">
+        <input
+          ref={ref}
+          type={type}
+          value={value}
+          onChange={(e) => onChange(e.target.value)}
+          className="flex-1 min-w-0 bg-transparent px-3 py-2 text-sm text-white outline-none [color-scheme:dark] [&::-webkit-calendar-picker-indicator]:hidden"
+        />
+        <button
+          type="button"
+          onClick={openPicker}
+          className="px-2.5 text-brand-green hover:bg-white/10 border-l border-white/10"
+          title={`Choose ${label.toLowerCase()}`}
+        >
+          <Icon size={16} />
+        </button>
+      </div>
+    </div>
+  );
+}
 
 export default function MeetingsPage() {
   const { user } = useAuth();
@@ -167,24 +204,20 @@ export default function MeetingsPage() {
         </div>
         {mode === 'schedule' && (
           <div className="grid grid-cols-2 gap-2">
-            <label className="text-xs text-slate-400">
-              Date
-              <input
-                type="date"
-                value={whenDate}
-                onChange={(e) => setWhenDate(e.target.value)}
-                className="mt-1 w-full px-3 py-2 rounded-xl bg-white/10 border border-white/10 text-sm text-white outline-none"
-              />
-            </label>
-            <label className="text-xs text-slate-400">
-              Time (IST)
-              <input
-                type="time"
-                value={whenTime}
-                onChange={(e) => setWhenTime(e.target.value)}
-                className="mt-1 w-full px-3 py-2 rounded-xl bg-white/10 border border-white/10 text-sm text-white outline-none"
-              />
-            </label>
+            <SchedulePicker
+              type="date"
+              label="Date"
+              value={whenDate}
+              onChange={setWhenDate}
+              icon={CalendarDays}
+            />
+            <SchedulePicker
+              type="time"
+              label="Time (IST)"
+              value={whenTime}
+              onChange={setWhenTime}
+              icon={Clock}
+            />
           </div>
         )}
         <div>

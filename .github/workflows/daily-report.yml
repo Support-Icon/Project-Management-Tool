@@ -2,6 +2,7 @@ name: Check Daily Manager Reports
 
 on:
   schedule:
+    - cron: '0 14 * * *'
     - cron: '7 * * * *'
   workflow_dispatch:
 

@@ -554,8 +554,8 @@ export default function SettingsPage() {
               <div>
                 <h3 className="font-bold text-slate-800">Evening daily report</h3>
                 <p className="text-xs text-slate-500 mt-1">
-                  Today’s work only (not old open tasks). Managers/admins get everyone; team leads get their members.
-                  Default 7:30 PM Indian time.
+                  After people confirm EOD, this report goes to managers and team leads at 7:30 PM IST (or the time below).
+                  Managers/admins get everyone; team leads get only their members.
                 </p>
               </div>
             </div>

@@ -146,7 +146,12 @@ async def test_email(body: dict = Body(default={}), user=Depends(admin_user)):
 
 @router.post("/send-daily-report")
 async def send_daily(user=Depends(admin_user)):
-    return {"ok": True, "message": "Daily report trigger received"}
+    from ..services.daily_report import run_daily_reports
+    results = await run_daily_reports(force=True, company=company_id(user))
+    sent = sum(int(row.get("sent") or 0) for row in results if isinstance(row, dict))
+    if sent:
+        return {"ok": True, "message": f"Daily report sent to {sent} manager/team lead mailbox(es).", "results": results}
+    return {"ok": True, "message": "No emails sent. Check that managers/team leads have email addresses and mail is enabled in Settings.", "results": results}
 
 
 @router.post("/send-weekly-report")
