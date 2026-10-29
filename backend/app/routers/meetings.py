@@ -151,8 +151,7 @@ async def send_meeting_emails(db, *, company, meeting, host, invitee_ids, extra_
     when = format_ist(meeting.get("scheduledAt")) if meeting.get("scheduledAt") else "starting now"
     title = meeting.get("title") or "Team meeting"
     brand = await company_brand(db, company)
-    color = brand.get("color") or "#0B0B0D"
-    ink = brand.get("ink") or "#ffffff"
+    blue = brand.get("accent") or "#1E88E5"
     subject = f"Meeting invite: {title}"
     text = (
         f"{host_name} created a meeting: {title}\n\n"
@@ -162,14 +161,14 @@ async def send_meeting_emails(db, *, company, meeting, host, invitee_ids, extra_
         f"Guest link: {urls['guest']}\n"
     )
     inner = (
-        f"<p style='margin:0 0 8px;font-size:13px;letter-spacing:.04em;text-transform:uppercase;color:{escape(color)}'>Meeting invite</p>"
-        f"<h1 style='margin:0 0 16px;font-size:22px;line-height:1.3'>{escape(title)}</h1>"
+        f"<p style='margin:0 0 8px;font-size:13px;letter-spacing:.04em;text-transform:uppercase;color:{escape(blue)}'>Meeting invite</p>"
+        f"<h1 style='margin:0 0 16px;font-size:22px;line-height:1.3;color:{escape(blue)}'>{escape(title)}</h1>"
         f"<p style='margin:0 0 6px'><strong>Created by</strong><br/>{escape(host_name)}"
         + (f" &lt;{escape(host_email)}&gt;" if host_email else "")
         + "</p>"
         f"<p style='margin:12px 0 20px'><strong>When</strong><br/>{escape(when)}</p>"
-        f"<p style='margin:0 0 12px'><a href='{escape(urls['app'])}' style='display:inline-block;background:{escape(color)};color:{escape(ink)};text-decoration:none;padding:12px 20px;border-radius:10px;font-weight:700'>Join meeting</a></p>"
-        f"<p style='margin:0;font-size:13px;color:#64748b'>Guest link:<br/><a href='{escape(urls['guest'])}' style='color:{escape(color)}'>{escape(urls['guest'])}</a></p>"
+        f"<p style='margin:0 0 12px'><a href='{escape(urls['app'])}' style='display:inline-block;background:{escape(blue)};color:#ffffff;text-decoration:none;padding:12px 20px;border-radius:10px;font-weight:700'>Join meeting</a></p>"
+        f"<p style='margin:0;font-size:13px;color:#64748b'>Guest link:<br/><a href='{escape(urls['guest'])}' style='color:{escape(blue)}'>{escape(urls['guest'])}</a></p>"
     )
     html = wrap_branded(brand, inner)
     return await send_mail_many(company, addresses, subject=subject, text=text, html=html)
